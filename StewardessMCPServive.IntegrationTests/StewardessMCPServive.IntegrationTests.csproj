@@ -91,7 +91,9 @@
     <Compile Include="Helpers\TempTestRepository.cs" />
     <Compile Include="Helpers\McpTestServer.cs" />
     <Compile Include="Helpers\McpRestClient.cs" />
+    <Compile Include="Helpers\IntegrationTestCollection.cs" />
     <Compile Include="Scenarios\HelloWorldScenarioTests.cs" />
+    <Compile Include="Scenarios\DiscoveryEndpointsTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
