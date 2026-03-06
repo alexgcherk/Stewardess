@@ -41,6 +41,10 @@ namespace StewardessMCPServive
             // ── 4. Web API ───────────────────────────────────────────────────────
             var httpConfig = new HttpConfiguration();
             WebApiConfig.Register(httpConfig);
+            
+            // ── 5. Swagger / OpenAPI (configured via SwaggerConfig.cs via WebActivatorEx) ──
+            // SwaggerConfig.Register() is called automatically during startup.
+
             app.UseWebApi(httpConfig);
 
             startupLog.Info("StewardessMCPServive started.");
