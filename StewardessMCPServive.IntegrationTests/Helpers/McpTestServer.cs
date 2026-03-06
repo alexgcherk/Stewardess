@@ -23,6 +23,7 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
     {
         private readonly TestServer          _server;
         private readonly TempTestRepository  _repo;
+        private readonly McpServiceSettings  _settings;
         private          bool                _disposed;
 
         // ── Public surface ───────────────────────────────────────────────────────
@@ -31,21 +32,32 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
         public HttpClient HttpClient => _server.HttpClient;
 
         /// <summary>Absolute path of the temporary repository root.</summary>
-        public string RepositoryRoot => _repo.Root;
+        public string RepositoryRoot => _settings.RepositoryRoot;
+
+        /// <summary>Service settings used by this test server.</summary>
+        public McpServiceSettings Settings => _settings;
 
         // ── Constructor ──────────────────────────────────────────────────────────
 
         /// <summary>
         /// Creates a temporary repository, registers all services, and starts
-        /// the in-process OWIN test server.
+        /// the in-process OWIN test server. Used by xUnit IClassFixture injection.
         /// </summary>
-        public McpTestServer()
-        {
-            _repo = new TempTestRepository();
+        public McpTestServer() : this(null, false) { }
 
-            var settings = McpServiceSettings.CreateForTesting(
-                repositoryRoot: _repo.Root,
+        /// <summary>
+        /// Creates an in-process OWIN test server pointed at <paramref name="repositoryRoot"/>.
+        /// When <paramref name="repositoryRoot"/> is null a fresh temp directory is used.
+        /// Internal so xUnit only sees the single public parameterless constructor above.
+        /// </summary>
+        internal McpTestServer(string repositoryRoot, bool requireApiKey = false)
+        {
+            _repo = repositoryRoot == null ? new TempTestRepository() : null;
+
+            _settings = McpServiceSettings.CreateForTesting(
+                repositoryRoot: repositoryRoot ?? _repo.Root,
                 readOnly:       false,
+                apiKey:         requireApiKey ? "test-api-key-12345" : null,
                 allowedCommands: new[]
                 {
                     "dotnet build",
@@ -58,7 +70,7 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
             // ServiceLocator is a static container — reset before wiring so
             // registrations from any previously executed test do not bleed in.
             ServiceLocator.Reset();
-            RegisterServices(settings);
+            RegisterServices(_settings);
 
             _server = TestServer.Create(app =>
             {
@@ -66,6 +78,17 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
                 ConfigureWebApi(config);
                 app.UseWebApi(config);
             });
+        }
+
+        /// <summary>
+        /// Creates a typed HTTP client for convenient API calls.
+        /// </summary>
+        /// <param name="includeApiKey">When true, includes the API key in the Authorization header.</param>
+        public McpRestClient CreateHttpClient(bool includeApiKey = true)
+        {
+            var client = _server.HttpClient;
+            var apiKey = includeApiKey ? _settings.ApiKey : null;
+            return new McpRestClient(client, apiKey);
         }
 
         // ── Service wiring (mirrors Startup.RegisterServices) ────────────────────

@@ -5,6 +5,7 @@ using Xunit;
 
 namespace StewardessMCPServive.IntegrationTests.Scenarios
 {
+    [Collection(IntegrationTestCollection.Name)]
     /// <summary>
     /// End-to-end integration scenario exercising the live MCP REST API.
     ///

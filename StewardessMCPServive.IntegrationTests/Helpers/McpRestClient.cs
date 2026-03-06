@@ -15,11 +15,13 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
     public sealed class McpRestClient
     {
         private readonly HttpClient _http;
+        private readonly string _apiKey;
 
         /// <summary>Creates a client backed by the given <see cref="HttpClient"/>.</summary>
-        public McpRestClient(HttpClient httpClient)
+        public McpRestClient(HttpClient httpClient, string apiKey = null)
         {
             _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _apiKey = apiKey;
         }
 
         // ── Edit operations ──────────────────────────────────────────────────────
@@ -83,11 +85,22 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
 
         // ── Internal helpers ─────────────────────────────────────────────────────
 
+        /// <summary>Adds the API key to request headers if set.</summary>
+        private void AddApiKeyIfNeeded(HttpRequestMessage request)
+        {
+            if (!string.IsNullOrEmpty(_apiKey))
+            {
+                request.Headers.Add("Authorization", $"Bearer {_apiKey}");
+            }
+        }
+
         private async Task<TResponse> PostAsync<TRequest, TResponse>(string url, TRequest body)
         {
             var json     = JsonConvert.SerializeObject(body);
             var content  = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await _http.PostAsync(url, content);
+            var request  = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+            AddApiKeyIfNeeded(request);
+            var response = await _http.SendAsync(request);
             var raw      = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
@@ -103,6 +116,14 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
                     $"POST {url} returned success=false: {envelope.Error?.Message}\n{raw}");
 
             return envelope.Data;
+        }
+
+        /// <summary>Issues a GET request to the given path with API key auth if configured.</summary>
+        public async Task<HttpResponseMessage> GetAsync(string path)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, path);
+            AddApiKeyIfNeeded(request);
+            return await _http.SendAsync(request);
         }
     }
 }
