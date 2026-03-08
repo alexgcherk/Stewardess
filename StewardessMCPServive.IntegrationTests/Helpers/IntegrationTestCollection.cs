@@ -4,9 +4,9 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
 {
     /// <summary>
     /// Marks all integration tests as belonging to a single xUnit collection so
-    /// they run sequentially.  This is required because <see cref="Infrastructure.ServiceLocator"/>
-    /// is a static container — concurrent test classes calling Reset() would
-    /// corrupt each other's service registrations.
+    /// they run sequentially.  This prevents multiple <see cref="McpTestServer"/>
+    /// instances from overwriting the shared static <c>McpServiceSettings.Instance</c>
+    /// concurrently.
     /// </summary>
     [CollectionDefinition(Name)]
     public sealed class IntegrationTestCollection : ICollectionFixture<object>

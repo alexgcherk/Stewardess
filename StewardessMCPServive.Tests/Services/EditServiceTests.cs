@@ -342,7 +342,141 @@ namespace StewardessMCPServive.Tests.Services
                 { Path = "badpatch.cs", Patch = badPatch, FuzzFactor = 0 }));
         }
 
-        // ── ApplyDiff ────────────────────────────────────────────────────────────
+        // ── PatchFile — path fallback (bare filename → embedded patch header) ────
+
+        /// <summary>
+        /// Regression: AI agents often pass only the bare filename in "path" while the
+        /// patch body contains the full relative path in "*** Update File:" format.
+        /// The service must fall back to the embedded path rather than returning 404.
+        /// </summary>
+        [Fact]
+        public async Task PatchFile_BareFilename_UpdateFileHeader_ResolvesFullPath()
+        {
+            _repo.CreateFile(@"sub\dir\Target.cs", "original\n");
+
+            const string patch =
+                "*** Begin Patch\n" +
+                "*** Update File: sub/dir/Target.cs\n" +
+                "@@ -1,1 +1,1 @@\n" +
+                "-original\n" +
+                "+replaced\n";
+
+            // Caller only supplies the bare filename — the service must find the file
+            // via the "*** Update File:" line inside the patch.
+            var result = await _svc.PatchFileAsync(new PatchFileRequest
+            { Path = "Target.cs", Patch = patch });
+
+            Assert.True(result.Success);
+            Assert.Contains("replaced", File.ReadAllText(_repo.Abs(@"sub\dir\Target.cs")));
+        }
+
+        [Fact]
+        public async Task PatchFile_BareFilename_PlusPlusHeader_ResolvesFullPath()
+        {
+            _repo.CreateFile(@"deep\nested\Util.cs", "alpha\n");
+
+            const string patch = @"--- a/deep/nested/Util.cs
++++ b/deep/nested/Util.cs
+@@ -1,1 +1,1 @@
+-alpha
++beta
+";
+            var result = await _svc.PatchFileAsync(new PatchFileRequest
+            { Path = "Util.cs", Patch = patch });
+
+            Assert.True(result.Success);
+            Assert.Contains("beta", File.ReadAllText(_repo.Abs(@"deep\nested\Util.cs")));
+        }
+
+        [Fact]
+        public async Task PatchFile_BareFilename_NoMatchingFile_ThrowsFileNotFound()
+        {
+            // Neither "path" nor embedded patch header point to an existing file.
+            const string patch =
+                "*** Begin Patch\n" +
+                "*** Update File: does/not/Exist.cs\n" +
+                "@@ -1,1 +1,1 @@\n" +
+                "-old\n" +
+                "+new\n";
+
+            await Assert.ThrowsAsync<FileNotFoundException>(() =>
+                _svc.PatchFileAsync(new PatchFileRequest
+                { Path = "Exist.cs", Patch = patch }));
+        }
+
+        [Fact]
+        public async Task PatchFile_ExplicitCorrectPath_DoesNotRequireFallback()
+        {
+            _repo.CreateFile(@"pkg\Code.cs", "before\n");
+
+            const string patch =
+                "*** Begin Patch\n" +
+                "*** Update File: pkg/Code.cs\n" +
+                "@@ -1,1 +1,1 @@\n" +
+                "-before\n" +
+                "+after\n";
+
+            // Full relative path given — fallback not needed, must still work.
+            var result = await _svc.PatchFileAsync(new PatchFileRequest
+            { Path = @"pkg\Code.cs", Patch = patch });
+
+            Assert.True(result.Success);
+            Assert.Contains("after", File.ReadAllText(_repo.Abs(@"pkg\Code.cs")));
+        }
+
+        // ── PatchFile — tier-3 fallback: repo-wide filename search ───────────────
+
+        /// <summary>
+        /// When neither the direct path nor the patch header resolves to a file,
+        /// the service searches the repository for a file with the same bare name.
+        /// If exactly one match exists it must be used successfully.
+        /// </summary>
+        [Fact]
+        public async Task PatchFile_BareFilename_SingleMatchInRepo_ResolvedViaSearch()
+        {
+            // File lives in a subdirectory; caller passes only the bare name with no
+            // patch header that contains the full path.
+            _repo.CreateFile(@"somewhere\deep\Lonely.cs", "before\n");
+
+            const string patch =
+                "@@ -1,1 +1,1 @@\n" +
+                "-before\n" +
+                "+after\n";
+
+            var result = await _svc.PatchFileAsync(new PatchFileRequest
+            { Path = "Lonely.cs", Patch = patch });
+
+            Assert.True(result.Success);
+            Assert.Contains("after", File.ReadAllText(_repo.Abs(@"somewhere\deep\Lonely.cs")));
+        }
+
+        /// <summary>
+        /// When a bare filename matches multiple files in the repository the service
+        /// must throw an <see cref="InvalidOperationException"/> listing the candidates
+        /// so the caller can supply a fully-qualified path.
+        /// </summary>
+        [Fact]
+        public async Task PatchFile_BareFilename_MultipleMatchesInRepo_ThrowsAmbiguityError()
+        {
+            // Two files with the same name in different directories.
+            _repo.CreateFile(@"module_a\Shared.cs", "version_a\n");
+            _repo.CreateFile(@"module_b\Shared.cs", "version_b\n");
+
+            const string patch =
+                "@@ -1,1 +1,1 @@\n" +
+                "-version_a\n" +
+                "+replaced\n";
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                _svc.PatchFileAsync(new PatchFileRequest
+                { Path = "Shared.cs", Patch = patch }));
+
+            // Error message must call out the ambiguity and list both candidates.
+            Assert.Contains("Ambiguous", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Shared.cs", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("module_a", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("module_b", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
 
         [Fact]
         public async Task ApplyDiff_MultiFile_PatchesBothFiles()

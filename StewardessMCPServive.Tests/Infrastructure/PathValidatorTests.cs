@@ -147,6 +147,34 @@ namespace StewardessMCPServive.Tests.Infrastructure
             Assert.Equal("src/Foo.cs", normalised);
         }
 
+        /// <summary>
+        /// Regression test for: "startIndex cannot be larger than length of string".
+        /// _repositoryRoot is stored with a trailing separator; Path.GetFullPath of the
+        /// root itself has no trailing separator.  The Substring call must not overshoot.
+        /// </summary>
+        [Fact]
+        public void ToRelativePath_RepositoryRoot_ReturnsEmptyString()
+        {
+            // Passing the repo root itself (no trailing separator).
+            var rel = _validator.ToRelativePath(_repo.Root);
+            Assert.Equal(string.Empty, rel);
+        }
+
+        [Fact]
+        public void ToRelativePath_RepositoryRootWithTrailingSeparator_ReturnsEmptyString()
+        {
+            // Passing the repo root with a trailing separator — same logical path.
+            var rel = _validator.ToRelativePath(_repo.Root.TrimEnd('\\', '/') + Path.DirectorySeparatorChar);
+            Assert.Equal(string.Empty, rel);
+        }
+
+        [Fact]
+        public void ToRelativePath_NullOrEmpty_ReturnsEmptyString()
+        {
+            Assert.Equal(string.Empty, _validator.ToRelativePath(null));
+            Assert.Equal(string.Empty, _validator.ToRelativePath(string.Empty));
+        }
+
         // ── Security regression: drive-relative path traversal (S01) ────────────
 
         [Theory]
