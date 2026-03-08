@@ -217,7 +217,7 @@ app.UseSwaggerUI(c =>
 
 // Alias /openapi.json → /swagger/v1/swagger.json so Open WebUI can
 // discover the spec using its default path without any extra configuration.
-app.MapGet("/openapi.json", async ctx =>
+app.MapGet("/openapi.json", (HttpContext ctx) =>
 {
     ctx.Response.Redirect("/swagger/v1/swagger.json", permanent: false);
 }).WithMetadata(new AllowAnonymousAttribute());

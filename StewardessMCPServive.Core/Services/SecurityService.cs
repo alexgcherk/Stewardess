@@ -76,7 +76,7 @@ namespace StewardessMCPServive.Services
             return ConstantTimeEquals(_settings.ApiKey, suppliedKey);
         }
 
-        private static bool ConstantTimeEquals(string a, string b)
+        private static bool ConstantTimeEquals(string a, string? b)
         {
             if (a == null || b == null) return false;
             int diff = a.Length ^ b.Length;
