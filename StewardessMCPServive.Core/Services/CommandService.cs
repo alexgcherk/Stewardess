@@ -252,7 +252,7 @@ namespace StewardessMCPServive.Services
                 description  : fullCommand,
                 elapsedMs    : sw.ElapsedMilliseconds);
 
-            BuildSummary summary = null;
+            BuildSummary? summary = null;
             if (isBuild)  summary = ParseBuildSummary(stdout + stderr);
             if (isTest)   summary = ParseTestSummary(stdout + stderr);
 

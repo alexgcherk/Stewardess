@@ -18,13 +18,13 @@ namespace StewardessMCPServive.Models
         public bool Success { get; set; }
 
         /// <summary>Response payload; null on failure.</summary>
-        public T Data { get; set; }
+        public T Data { get; set; } = default!;
 
         /// <summary>Error detail; null on success.</summary>
-        public ApiError Error { get; set; }
+        public ApiError? Error { get; set; }
 
         /// <summary>Unique identifier for this request, propagated from X-Request-Id or generated.</summary>
-        public string RequestId { get; set; }
+        public string? RequestId { get; set; }
 
         /// <summary>UTC timestamp of the response.</summary>
         public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
@@ -32,7 +32,7 @@ namespace StewardessMCPServive.Models
         // ── Factory helpers ──────────────────────────────────────────────────────
 
         /// <summary>Creates a successful <see cref="ApiResponse{T}"/> wrapping <paramref name="data"/>.</summary>
-        public static ApiResponse<T> Ok(T data, string requestId = null) =>
+        public static ApiResponse<T> Ok(T data, string? requestId = null) =>
             new ApiResponse<T>
             {
                 Success   = true,
@@ -41,7 +41,7 @@ namespace StewardessMCPServive.Models
             };
 
         /// <summary>Creates a failed <see cref="ApiResponse{T}"/> from an existing <see cref="ApiError"/>.</summary>
-        public static ApiResponse<T> Fail(ApiError error, string requestId = null) =>
+        public static ApiResponse<T> Fail(ApiError error, string? requestId = null) =>
             new ApiResponse<T>
             {
                 Success   = false,
@@ -50,7 +50,7 @@ namespace StewardessMCPServive.Models
             };
 
         /// <summary>Creates a failed <see cref="ApiResponse{T}"/> with a code and message.</summary>
-        public static ApiResponse<T> Fail(string code, string message, string requestId = null) =>
+        public static ApiResponse<T> Fail(string code, string message, string? requestId = null) =>
             Fail(new ApiError { Code = code, Message = message }, requestId);
     }
 
@@ -62,18 +62,18 @@ namespace StewardessMCPServive.Models
         /// <summary>True when the operation completed without errors.</summary>
         public bool Success { get; set; }
         /// <summary>Error detail; null on success.</summary>
-        public ApiError Error { get; set; }
+        public ApiError? Error { get; set; }
         /// <summary>Unique identifier for this request.</summary>
-        public string RequestId { get; set; }
+        public string? RequestId { get; set; }
         /// <summary>UTC timestamp of the response.</summary>
         public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 
         /// <summary>Creates a successful <see cref="ApiResponse"/>.</summary>
-        public static ApiResponse Ok(string requestId = null) =>
+        public static ApiResponse Ok(string? requestId = null) =>
             new ApiResponse { Success = true, RequestId = requestId };
 
         /// <summary>Creates a failed <see cref="ApiResponse"/> with the given error code and message.</summary>
-        public static ApiResponse Fail(string code, string message, string requestId = null) =>
+        public static ApiResponse Fail(string code, string message, string? requestId = null) =>
             new ApiResponse
             {
                 Success   = false,
@@ -90,26 +90,26 @@ namespace StewardessMCPServive.Models
     public sealed class ApiError
     {
         /// <summary>Machine-readable error code from <see cref="ErrorCodes"/>.</summary>
-        public string Code { get; set; }
+        public string? Code { get; set; }
 
         /// <summary>Human-readable error message.</summary>
-        public string Message { get; set; }
+        public string? Message { get; set; }
 
         /// <summary>Optional field-level validation errors.</summary>
-        public List<FieldError> Details { get; set; }
+        public List<FieldError>? Details { get; set; }
 
         /// <summary>Optional inner exception message for diagnostic purposes (dev/debug only).</summary>
-        public string InnerMessage { get; set; }
+        public string? InnerMessage { get; set; }
     }
 
     /// <summary>A single field-level validation error.</summary>
     public sealed class FieldError
     {
         /// <summary>The field or parameter name that failed validation.</summary>
-        public string Field { get; set; }
+        public string? Field { get; set; }
 
         /// <summary>Description of the validation failure.</summary>
-        public string Message { get; set; }
+        public string? Message { get; set; }
     }
 
     // ────────────────────────────────────────────────────────────────────────────
@@ -228,6 +228,6 @@ namespace StewardessMCPServive.Models
         public bool HasMore { get; set; }
 
         /// <summary>Optional informational message (e.g. "Results truncated to 200").</summary>
-        public string Note { get; set; }
+        public string? Note { get; set; }
     }
 }

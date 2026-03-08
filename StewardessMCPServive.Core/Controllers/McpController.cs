@@ -42,7 +42,7 @@ namespace StewardessMCPServive.Controllers
                 return JsonResponse(errResp);
             }
 
-            McpRequest request;
+            McpRequest? request = null;
             try
             {
                 request = body.ToObject<McpRequest>();
@@ -91,7 +91,7 @@ namespace StewardessMCPServive.Controllers
 
             // Best-effort git context — failures are swallowed.
             bool  isGit  = false;
-            string branch = null;
+            string? branch = null;
             try
             {
                 isGit  = await GitService.IsGitRepositoryAsync(ct).ConfigureAwait(false);

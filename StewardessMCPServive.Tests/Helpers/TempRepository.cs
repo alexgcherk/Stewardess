@@ -24,7 +24,7 @@ namespace StewardessMCPServive.Tests.Helpers
         public string CreateFile(string relativePath, string content = "")
         {
             var abs = Abs(relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(abs));
+            Directory.CreateDirectory(Path.GetDirectoryName(abs) ?? throw new InvalidOperationException($"No parent directory for: {abs}"));
             File.WriteAllText(abs, content ?? "");
             return abs;
         }

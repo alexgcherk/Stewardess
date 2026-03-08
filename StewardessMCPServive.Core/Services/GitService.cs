@@ -284,7 +284,7 @@ namespace StewardessMCPServive.Services
 
                 // Renames: "old -> new"
                 string relativePath = rest;
-                string oldPath      = null;
+                string? oldPath      = null;
                 var arrowIdx = rest.IndexOf(" -> ", StringComparison.Ordinal);
                 if (arrowIdx >= 0)
                 {
@@ -353,7 +353,7 @@ namespace StewardessMCPServive.Services
             return response;
         }
 
-        private static GitFileDiff ParseFileDiffBlock(string block)
+        private static GitFileDiff? ParseFileDiffBlock(string block)
         {
             var lines = block.Split('\n');
             if (lines.Length == 0) return null;
@@ -389,7 +389,7 @@ namespace StewardessMCPServive.Services
                 lineIdx++;
 
             // Parse hunks.
-            GitDiffHunk currentHunk = null;
+            GitDiffHunk? currentHunk = null;
             int oldLine = 0, newLine = 0;
 
             while (lineIdx < lines.Length)
@@ -503,7 +503,7 @@ namespace StewardessMCPServive.Services
 
         // ── Small helpers ────────────────────────────────────────────────────────
 
-        internal static string BuildPathSuffix(string relativePath)
+        internal static string BuildPathSuffix(string? relativePath)
         {
             if (string.IsNullOrWhiteSpace(relativePath)) return "";
             // Replace back-slashes with forward-slashes for git.
@@ -554,7 +554,7 @@ namespace StewardessMCPServive.Services
             var lines = output.Split('\n');
 
             // Find the format line (contains unit-separator).
-            string formatLine = null;
+            string? formatLine = null;
             int fileStart = 0;
             for (int i = 0; i < lines.Length; i++)
             {

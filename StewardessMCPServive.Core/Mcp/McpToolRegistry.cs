@@ -23,8 +23,8 @@ namespace StewardessMCPServive.Mcp
 
         internal sealed class ToolEntry
         {
-            public McpToolDefinition Definition { get; set; }
-            public Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> Handler { get; set; }
+            public McpToolDefinition? Definition { get; set; }
+            public Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>>? Handler { get; set; }
         }
 
         // ── Fields ───────────────────────────────────────────────────────────────
@@ -64,10 +64,10 @@ namespace StewardessMCPServive.Mcp
 
         /// <summary>Returns all registered tool definitions.</summary>
         public IReadOnlyList<McpToolDefinition> GetAllDefinitions()
-            => _tools.Values.Select(e => e.Definition).ToList();
+            => _tools.Values.Select(e => e.Definition!).ToList();
 
         /// <summary>Returns true and the definition when a tool with the given name exists.</summary>
-        public bool TryGetDefinition(string name, out McpToolDefinition definition)
+        public bool TryGetDefinition(string name, out McpToolDefinition? definition)
         {
             definition = null;
             if (_tools.TryGetValue(name, out var entry))
@@ -91,7 +91,7 @@ namespace StewardessMCPServive.Mcp
             if (!_tools.TryGetValue(name, out var entry))
                 throw new KeyNotFoundException($"Tool not found: {name}");
 
-            return await entry.Handler(arguments ?? new Dictionary<string, object>(), ct)
+            return await entry.Handler!(arguments ?? new Dictionary<string, object>(), ct)
                                .ConfigureAwait(false);
         }
 
@@ -131,7 +131,7 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new ListDirectoryRequest
                     {
-                        Path           = Str(args, "path", ""),
+                        Path           = Str(args, "path", "") ?? "",
                         IncludeBlocked = Bool(args, "include_blocked", false)
                     };
                     var result = await _files.ListDirectoryAsync(req, ct).ConfigureAwait(false);
@@ -148,7 +148,7 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new ListTreeRequest
                     {
-                        Path     = Str(args, "path", ""),
+                        Path     = Str(args, "path", "") ?? "",
                         MaxDepth = Int(args, "max_depth", 3)
                     };
                     var result = await _files.ListTreeAsync(req, ct).ConfigureAwait(false);
@@ -162,7 +162,7 @@ namespace StewardessMCPServive.Mcp
                     Prop("path", "string", "Relative path to check.", required: true)),
                 handler: async (args, ct) =>
                 {
-                    var path   = Str(args, "path");
+                    var path   = Str(args, "path") ?? "";
                     var result = await _files.PathExistsAsync(path, ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
@@ -186,7 +186,7 @@ namespace StewardessMCPServive.Mcp
                     Prop("path", "string", "Relative file path.", required: true)),
                 handler: async (args, ct) =>
                 {
-                    var enc = await _files.DetectEncodingAsync(Str(args, "path"), ct).ConfigureAwait(false);
+                    var enc = await _files.DetectEncodingAsync(Str(args, "path") ?? "", ct).ConfigureAwait(false);
                     return ToResult(new { Encoding = enc });
                 });
         }
@@ -210,7 +210,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchTextRequest
                     {
                         Query      = Str(args, "query"),
-                        SearchPath = Str(args, "search_path", ""),
+                        SearchPath = Str(args, "search_path", "") ?? "",
                         Extensions = StrList(args, "extensions"),
                         IgnoreCase = Bool(args, "ignore_case", true),
                         WholeWord  = Bool(args, "whole_word", false),
@@ -234,7 +234,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchRegexRequest
                     {
                         Pattern    = Str(args, "pattern"),
-                        SearchPath = Str(args, "search_path", ""),
+                        SearchPath = Str(args, "search_path", "") ?? "",
                         Extensions = StrList(args, "extensions"),
                         IgnoreCase = Bool(args, "ignore_case", true),
                         MaxResults = Int(args, "max_results", 100)
@@ -255,7 +255,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchFileNamesRequest
                     {
                         Pattern    = Str(args, "pattern"),
-                        SearchPath = Str(args, "search_path", ""),
+                        SearchPath = Str(args, "search_path", "") ?? "",
                         MaxResults = Int(args, "max_results", 100)
                     };
                     var result = await _search.SearchFileNamesAsync(req, ct).ConfigureAwait(false);
@@ -274,7 +274,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchByExtensionRequest
                     {
                         Extensions = StrList(args, "extensions"),
-                        SearchPath = Str(args, "search_path", ""),
+                        SearchPath = Str(args, "search_path", "") ?? "",
                         MaxResults = Int(args, "max_results", 200)
                     };
                     var result = await _search.SearchByExtensionAsync(req, ct).ConfigureAwait(false);
@@ -294,7 +294,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchSymbolRequest
                     {
                         SymbolName = Str(args, "symbol_name"),
-                        SearchPath = Str(args, "search_path", ""),
+                        SearchPath = Str(args, "search_path", "") ?? "",
                         Extensions = StrList(args, "extensions"),
                         MaxResults = Int(args, "max_results", 50)
                     };
@@ -315,7 +315,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new FindReferencesRequest
                     {
                         IdentifierName = Str(args, "identifier"),
-                        SearchPath     = Str(args, "search_path", ""),
+                        SearchPath     = Str(args, "search_path", "") ?? "",
                         Extensions     = StrList(args, "extensions"),
                         MaxResults     = Int(args, "max_results", 100)
                     };
@@ -392,7 +392,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new FileHashRequest
                     {
                         Path      = Str(args, "path"),
-                        Algorithm = Str(args, "algorithm", "SHA256")
+                        Algorithm = Str(args, "algorithm", "SHA256") ?? "SHA256"
                     };
                     var result = await _files.GetFileHashAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
@@ -436,7 +436,7 @@ namespace StewardessMCPServive.Mcp
                     {
                         Path    = Str(args, "path"),
                         Content = Str(args, "content"),
-                        Encoding = Str(args, "encoding", "utf-8"),
+                        Encoding = Str(args, "encoding", "utf-8") ?? "utf-8",
                         Options = EditOpts(args)
                     };
                     var result = await _edit.WriteFileAsync(req, ct).ConfigureAwait(false);
@@ -457,7 +457,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new CreateFileRequest
                     {
                         Path      = Str(args, "path"),
-                        Content   = Str(args, "content", ""),
+                        Content   = Str(args, "content", "") ?? "",
                         Overwrite = Bool(args, "overwrite", false),
                         Options   = EditOpts(args)
                     };
@@ -729,7 +729,7 @@ namespace StewardessMCPServive.Mcp
                     Prop("path", "string", "Restrict status to this sub-path (empty = whole repo).")),
                 handler: async (args, ct) =>
                 {
-                    var req    = new GitStatusRequest { Path = Str(args, "path", "") };
+                    var req    = new GitStatusRequest { Path = Str(args, "path", "") ?? "" };
                     var result = await _git.GetStatusAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
@@ -745,8 +745,8 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req    = new GitDiffRequest
                     {
-                        Path         = Str(args, "path", ""),
-                        Scope        = Str(args, "scope", "unstaged"),
+                        Path         = Str(args, "path", "") ?? "",
+                        Scope        = Str(args, "scope", "unstaged") ?? "unstaged",
                         ContextLines = Int(args, "context_lines", 3)
                     };
                     var result = await _git.GetDiffAsync(req, ct).ConfigureAwait(false);
@@ -762,8 +762,8 @@ namespace StewardessMCPServive.Mcp
                 handler: async (args, ct) =>
                 {
                     var result = await _git.GetDiffForFileAsync(
-                        Str(args, "path"),
-                        Str(args, "scope", "unstaged"),
+                        Str(args, "path") ?? "",
+                        Str(args, "scope", "unstaged") ?? "unstaged",
                         ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
@@ -782,12 +782,12 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req    = new GitLogRequest
                     {
-                        Path     = Str(args, "path", ""),
+                        Path     = Str(args, "path", "") ?? "",
                         MaxCount = Int(args, "max_count", 20),
-                        Ref      = Str(args, "ref", ""),
-                        Author   = Str(args, "author", ""),
-                        Since    = Str(args, "since", ""),
-                        Until    = Str(args, "until", "")
+                        Ref      = Str(args, "ref", "") ?? "",
+                        Author   = Str(args, "author", "") ?? "",
+                        Since    = Str(args, "since", "") ?? "",
+                        Until    = Str(args, "until", "") ?? ""
                     };
                     var result = await _git.GetLogAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
@@ -803,7 +803,7 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req    = new GitShowRequest
                     {
-                        Sha         = Str(args, "sha", ""),
+                        Sha         = Str(args, "sha", "") ?? "",
                         IncludeDiff = Bool(args, "include_diff", true)
                     };
                     var result = await _git.GetCommitAsync(req, ct).ConfigureAwait(false);
@@ -833,10 +833,10 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new RunBuildRequest
                     {
-                        BuildCommand     = Str(args, "build_command", "dotnet build"),
-                        Arguments        = Str(args, "arguments", ""),
-                        Configuration    = Str(args, "configuration", "Debug"),
-                        WorkingDirectory = Str(args, "working_directory", ""),
+                        BuildCommand     = Str(args, "build_command", "dotnet build") ?? "dotnet build",
+                        Arguments        = Str(args, "arguments", "") ?? "",
+                        Configuration    = Str(args, "configuration", "Debug") ?? "Debug",
+                        WorkingDirectory = Str(args, "working_directory", "") ?? "",
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
                     var result = await _command.RunBuildAsync(req, ct).ConfigureAwait(false);
@@ -858,11 +858,11 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new RunTestsRequest
                     {
-                        TestCommand      = Str(args, "test_command", "dotnet test"),
-                        Arguments        = Str(args, "arguments", ""),
-                        Filter           = Str(args, "filter", ""),
-                        Configuration    = Str(args, "configuration", "Debug"),
-                        WorkingDirectory = Str(args, "working_directory", ""),
+                        TestCommand      = Str(args, "test_command", "dotnet test") ?? "dotnet test",
+                        Arguments        = Str(args, "arguments", "") ?? "",
+                        Filter           = Str(args, "filter", "") ?? "",
+                        Configuration    = Str(args, "configuration", "Debug") ?? "Debug",
+                        WorkingDirectory = Str(args, "working_directory", "") ?? "",
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
                     var result = await _command.RunTestsAsync(req, ct).ConfigureAwait(false);
@@ -882,7 +882,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new RunCustomCommandRequest
                     {
                         Command          = Str(args, "command"),
-                        WorkingDirectory = Str(args, "working_directory", ""),
+                        WorkingDirectory = Str(args, "working_directory", "") ?? "",
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
                     var result = await _command.RunCustomCommandAsync(req, ct).ConfigureAwait(false);
@@ -900,7 +900,7 @@ namespace StewardessMCPServive.Mcp
             Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> handler,
             bool isDestructive  = false,
             bool isDisabled     = false,
-            string disabledReason = null)
+            string? disabledReason = null)
         {
             _tools[name] = new ToolEntry
             {
@@ -933,7 +933,7 @@ namespace StewardessMCPServive.Mcp
             string type,
             string description,
             bool   required = false,
-            object def      = null)
+            object? def      = null)
         {
             var prop = new McpPropertySchema
             {
@@ -946,7 +946,7 @@ namespace StewardessMCPServive.Mcp
 
         // ── Argument extraction helpers ──────────────────────────────────────────
 
-        private static string Str(Dictionary<string, object> args, string key, string def = null)
+        private static string? Str(Dictionary<string, object> args, string key, string? def = null)
         {
             if (!args.TryGetValue(key, out var val) || val == null)
                 return def;
@@ -983,8 +983,8 @@ namespace StewardessMCPServive.Mcp
         {
             if (!args.TryGetValue(key, out var val) || val == null) return new List<string>();
             if (val is List<string> ls) return ls;
-            if (val is Newtonsoft.Json.Linq.JArray ja) return ja.ToObject<List<string>>();
-            if (val is IEnumerable<object> en) return en.Select(x => x?.ToString()).Where(x => x != null).ToList();
+            if (val is Newtonsoft.Json.Linq.JArray ja) return ja.ToObject<List<string>>()!;
+            if (val is IEnumerable<object> en) return en.Select(x => x?.ToString()).Where(x => x != null).Select(x => x!).ToList();
             return new List<string>();
         }
 
@@ -1005,7 +1005,7 @@ namespace StewardessMCPServive.Mcp
         {
             var json = JsonConvert.SerializeObject(args,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            return JsonConvert.DeserializeObject<T>(json);
+            return JsonConvert.DeserializeObject<T>(json)!;
         }
 
         // ── Result factory ───────────────────────────────────────────────────────

@@ -11,7 +11,7 @@ namespace StewardessMCPServive.Models
     public sealed class ReadFileRequest
     {
         /// <summary>Path relative to the repository root.</summary>
-        public string Path { get; set; }
+        public string? Path { get; set; }
 
         /// <summary>
         /// Maximum bytes to return.  Defaults to the server's MaxFileReadBytes limit.
@@ -30,26 +30,26 @@ namespace StewardessMCPServive.Models
     public sealed class ReadFileResponse
     {
         /// <summary>Repository-relative path of the file.</summary>
-        public string RelativePath { get; set; }
+        public string? RelativePath { get; set; }
         /// <summary>File name without path.</summary>
-        public string Name { get; set; }
+        public string? Name { get; set; }
         /// <summary>File extension including the leading dot.</summary>
-        public string Extension { get; set; }
+        public string? Extension { get; set; }
 
         /// <summary>UTF-8 text content; null for binary or when ReturnBase64 is true.</summary>
-        public string Content { get; set; }
+        public string? Content { get; set; }
 
         /// <summary>Base64-encoded raw bytes; populated when ReturnBase64 is true or file is binary.</summary>
-        public string ContentBase64 { get; set; }
+        public string? ContentBase64 { get; set; }
 
         /// <summary>File size in bytes.</summary>
         public long SizeBytes { get; set; }
         /// <summary>Total line count of the file.</summary>
         public int LineCount { get; set; }
         /// <summary>Detected or requested file encoding (e.g. "utf-8").</summary>
-        public string Encoding { get; set; }
+        public string? Encoding { get; set; }
         /// <summary>Detected line ending style ("LF", "CRLF", "CR", or "Mixed").</summary>
-        public string LineEnding { get; set; }
+        public string? LineEnding { get; set; }
         /// <summary>UTC timestamp of the last write to this file.</summary>
         public DateTimeOffset LastModified { get; set; }
         /// <summary>True when the file contains non-text (binary) data.</summary>
@@ -68,7 +68,7 @@ namespace StewardessMCPServive.Models
     public sealed class ReadFileRangeRequest
     {
         /// <summary>File path relative to repository root.</summary>
-        public string Path { get; set; }
+        public string? Path { get; set; }
 
         /// <summary>1-based start line (inclusive).</summary>
         public int StartLine { get; set; } = 1;
@@ -84,16 +84,14 @@ namespace StewardessMCPServive.Models
     public sealed class ReadFileRangeResponse
     {
         /// <summary>Repository-relative path of the file.</summary>
-        public string RelativePath { get; set; }
-        /// <summary>Actual 1-based start line returned.</summary>
+        public string? RelativePath { get; set; }
         public int StartLine { get; set; }
         /// <summary>Actual 1-based end line returned.</summary>
         public int EndLine { get; set; }
         /// <summary>Total number of lines in the file.</summary>
         public int TotalLines { get; set; }
         /// <summary>Raw text content of the requested range.</summary>
-        public string Content { get; set; }
-        /// <summary>Structured per-line results with line numbers.</summary>
+        public string? Content { get; set; }
         public List<FileLine> Lines { get; set; } = new List<FileLine>();
     }
 
@@ -104,7 +102,7 @@ namespace StewardessMCPServive.Models
         public int LineNumber { get; set; }
 
         /// <summary>Text content of the line (without trailing newline).</summary>
-        public string Text { get; set; }
+        public string? Text { get; set; }
     }
 
     // ── read_multiple_files ──────────────────────────────────────────────────────
@@ -130,19 +128,19 @@ namespace StewardessMCPServive.Models
     public sealed class FileReadResult
     {
         /// <summary>Repository-relative path of the file.</summary>
-        public string RelativePath { get; set; }
+        public string? RelativePath { get; set; }
         /// <summary>True when the file was read successfully.</summary>
         public bool Success { get; set; }
         /// <summary>Text content of the file; null on failure or binary.</summary>
-        public string Content { get; set; }
+        public string? Content { get; set; }
         /// <summary>Size of the file in bytes.</summary>
         public long SizeBytes { get; set; }
         /// <summary>Detected encoding (e.g. "utf-8").</summary>
-        public string Encoding { get; set; }
+        public string? Encoding { get; set; }
         /// <summary>True when the file was truncated at the byte limit.</summary>
         public bool Truncated { get; set; }
         /// <summary>Error description when Success is false.</summary>
-        public string ErrorMessage { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 
     // ── get_file_hash ────────────────────────────────────────────────────────────
@@ -151,7 +149,7 @@ namespace StewardessMCPServive.Models
     public sealed class FileHashRequest
     {
         /// <summary>File path relative to repository root.</summary>
-        public string Path { get; set; }
+        public string? Path { get; set; }
 
         /// <summary>Hash algorithm: "MD5", "SHA1", "SHA256" (default).</summary>
         public string Algorithm { get; set; } = "SHA256";
@@ -161,11 +159,11 @@ namespace StewardessMCPServive.Models
     public sealed class FileHashResponse
     {
         /// <summary>Repository-relative path of the hashed file.</summary>
-        public string RelativePath { get; set; }
+        public string? RelativePath { get; set; }
         /// <summary>Algorithm used (e.g. "SHA256").</summary>
-        public string Algorithm { get; set; }
+        public string? Algorithm { get; set; }
         /// <summary>Hex-encoded hash value.</summary>
-        public string Hash { get; set; }
+        public string? Hash { get; set; }
         /// <summary>File size in bytes.</summary>
         public long SizeBytes { get; set; }
     }
@@ -179,16 +177,16 @@ namespace StewardessMCPServive.Models
     public sealed class FileStructureSummaryRequest
     {
         /// <summary>File path relative to repository root.</summary>
-        public string Path { get; set; }
+        public string? Path { get; set; }
     }
 
     /// <summary>Structural summary of a code file parsed via text heuristics.</summary>
     public sealed class FileStructureSummaryResponse
     {
         /// <summary>Repository-relative path of the analysed file.</summary>
-        public string RelativePath { get; set; }
+        public string? RelativePath { get; set; }
         /// <summary>Detected programming language (e.g. "C#").</summary>
-        public string Language { get; set; }
+        public string? Language { get; set; }
         /// <summary>Namespaces found in the file.</summary>
         public List<NamespaceInfo> Namespaces { get; set; } = new List<NamespaceInfo>();
         /// <summary>Top-level types declared outside any namespace.</summary>
@@ -201,7 +199,7 @@ namespace StewardessMCPServive.Models
     public sealed class NamespaceInfo
     {
         /// <summary>Fully-qualified namespace name.</summary>
-        public string Name { get; set; }
+        public string? Name { get; set; }
         /// <summary>1-based line number where the namespace is declared.</summary>
         public int LineNumber { get; set; }
         /// <summary>Types declared within this namespace.</summary>
@@ -212,12 +210,12 @@ namespace StewardessMCPServive.Models
     public sealed class TypeInfo
     {
         /// <summary>"class", "interface", "struct", "enum", "delegate".</summary>
-        public string Kind { get; set; }
+        public string? Kind { get; set; }
 
         /// <summary>Simple (unqualified) type name.</summary>
-        public string Name { get; set; }
+        public string? Name { get; set; }
         /// <summary>Enclosing namespace, or null for top-level types.</summary>
-        public string Namespace { get; set; }
+        public string? Namespace { get; set; }
         /// <summary>1-based line number of the type declaration.</summary>
         public int LineNumber { get; set; }
         /// <summary>Members declared within this type.</summary>
@@ -228,12 +226,12 @@ namespace StewardessMCPServive.Models
     public sealed class MemberInfo
     {
         /// <summary>"method", "property", "field", "constructor", "event".</summary>
-        public string Kind { get; set; }
+        public string? Kind { get; set; }
 
         /// <summary>Member name.</summary>
-        public string Name { get; set; }
+        public string? Name { get; set; }
         /// <summary>Return type name for methods; property type for properties; null otherwise.</summary>
-        public string ReturnType { get; set; }
+        public string? ReturnType { get; set; }
         /// <summary>1-based line number of the member declaration.</summary>
         public int LineNumber { get; set; }
         /// <summary>True when the member has public accessibility.</summary>

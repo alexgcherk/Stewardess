@@ -44,7 +44,7 @@ namespace StewardessMCPServive.Controllers
         public IActionResult ListDirectory(
             [FromQuery] string path = "",
             [FromQuery] bool includeBlocked = false,
-            [FromQuery] string namePattern = null)
+            [FromQuery] string? namePattern = null)
         {
             try
             {

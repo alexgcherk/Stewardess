@@ -61,7 +61,7 @@ namespace StewardessMCPServive.Models
         /// <summary>
         /// The full command line to execute.  Must start with an entry in AllowedCommands.
         /// </summary>
-        public string Command { get; set; }
+        public string? Command { get; set; }
 
         /// <summary>Working directory relative to repository root.  Empty = root.</summary>
         public string WorkingDirectory { get; set; } = "";
@@ -78,10 +78,10 @@ namespace StewardessMCPServive.Models
     public sealed class CommandResult
     {
         /// <summary>The full command that was executed.</summary>
-        public string Command { get; set; }
+        public string? Command { get; set; }
 
         /// <summary>Working directory used.</summary>
-        public string WorkingDirectory { get; set; }
+        public string? WorkingDirectory { get; set; }
 
         /// <summary>Process exit code.</summary>
         public int ExitCode { get; set; }
@@ -90,13 +90,13 @@ namespace StewardessMCPServive.Models
         public bool Succeeded { get; set; }
 
         /// <summary>Standard output (may be truncated for large outputs).</summary>
-        public string StandardOutput { get; set; }
+        public string? StandardOutput { get; set; }
 
         /// <summary>Standard error output.</summary>
-        public string StandardError { get; set; }
+        public string? StandardError { get; set; }
 
         /// <summary>Combined stdout + stderr in execution order (where available).</summary>
-        public string CombinedOutput { get; set; }
+        public string? CombinedOutput { get; set; }
 
         /// <summary>Wall-clock execution time in milliseconds.</summary>
         public long ElapsedMs { get; set; }
@@ -114,7 +114,7 @@ namespace StewardessMCPServive.Models
         public DateTimeOffset StartedAt { get; set; }
 
         /// <summary>Parsed build/test summary if applicable.</summary>
-        public BuildSummary Summary { get; set; }
+        public BuildSummary? Summary { get; set; }
     }
 
     /// <summary>High-level build summary extracted from command output.</summary>
@@ -144,14 +144,14 @@ namespace StewardessMCPServive.Models
     public sealed class BuildDiagnostic
     {
         /// <summary>"error" or "warning".</summary>
-        public string Severity { get; set; }
+        public string? Severity { get; set; }
 
         /// <summary>Compiler diagnostic code (e.g. CS0001).</summary>
-        public string Code { get; set; }
+        public string? Code { get; set; }
         /// <summary>Human-readable diagnostic message.</summary>
-        public string Message { get; set; }
+        public string? Message { get; set; }
         /// <summary>Source file path where the diagnostic was raised.</summary>
-        public string FilePath { get; set; }
+        public string? FilePath { get; set; }
         /// <summary>1-based line number of the diagnostic.</summary>
         public int? Line { get; set; }
         /// <summary>1-based column number of the diagnostic.</summary>

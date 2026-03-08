@@ -11,13 +11,13 @@ namespace StewardessMCPServive.Models
     public sealed class AuditEntry
     {
         /// <summary>Unique audit entry identifier (GUID).</summary>
-        public string EntryId { get; set; }
+        public string? EntryId { get; set; }
 
         /// <summary>HTTP / MCP correlation ID propagated from the request.</summary>
-        public string RequestId { get; set; }
+        public string? RequestId { get; set; }
 
         /// <summary>Agent-supplied session identifier, if provided.</summary>
-        public string SessionId { get; set; }
+        public string? SessionId { get; set; }
 
         /// <summary>UTC timestamp of the operation.</summary>
         public DateTimeOffset Timestamp { get; set; }
@@ -26,31 +26,31 @@ namespace StewardessMCPServive.Models
         public AuditOperationType OperationType { get; set; }
 
         /// <summary>Source of the operation: "REST" or "MCP".</summary>
-        public string Source { get; set; }
+        public string? Source { get; set; }
 
         /// <summary>Tool name (MCP operations) or HTTP path (REST operations).</summary>
-        public string OperationName { get; set; }
+        public string? OperationName { get; set; }
 
         /// <summary>Client IP address.</summary>
-        public string ClientIp { get; set; }
+        public string? ClientIp { get; set; }
 
         /// <summary>Relative file path targeted by the operation; null for non-file ops.</summary>
-        public string TargetPath { get; set; }
+        public string? TargetPath { get; set; }
 
         /// <summary>Outcome of the operation.</summary>
         public AuditOutcome Outcome { get; set; }
 
         /// <summary>Error code when Outcome is Failure.</summary>
-        public string ErrorCode { get; set; }
+        public string? ErrorCode { get; set; }
 
         /// <summary>Human-readable description of what was done.</summary>
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         /// <summary>Change reason supplied by the caller.</summary>
-        public string ChangeReason { get; set; }
+        public string? ChangeReason { get; set; }
 
         /// <summary>Path of the backup file created; null if no backup was taken.</summary>
-        public string BackupPath { get; set; }
+        public string? BackupPath { get; set; }
 
         /// <summary>Duration of the operation in milliseconds.</summary>
         public long ElapsedMs { get; set; }
@@ -148,11 +148,11 @@ namespace StewardessMCPServive.Models
         /// <summary>Return entries with timestamp &lt;= this value.</summary>
         public DateTimeOffset? Until { get; set; }
         /// <summary>Filter by exact request ID.</summary>
-        public string RequestId { get; set; }
+        public string? RequestId { get; set; }
         /// <summary>Filter by session / correlation ID.</summary>
-        public string SessionId { get; set; }
+        public string? SessionId { get; set; }
         /// <summary>Filter by target file or directory path.</summary>
-        public string TargetPath { get; set; }
+        public string? TargetPath { get; set; }
         /// <summary>Filter by operation type.</summary>
         public AuditOperationType? OperationType { get; set; }
         /// <summary>Filter by outcome.</summary>

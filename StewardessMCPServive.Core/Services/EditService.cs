@@ -42,8 +42,8 @@ namespace StewardessMCPServive.Services
 
         private sealed class RollbackEntry
         {
-            public string          TargetRelativePath { get; set; }
-            public string          BackupAbsolutePath { get; set; }
+            public string?         TargetRelativePath { get; set; }
+            public string?         BackupAbsolutePath { get; set; }
             public DateTimeOffset  CreatedAt          { get; set; }
         }
 
@@ -201,7 +201,7 @@ namespace StewardessMCPServive.Services
                 throw new FileNotFoundException($"Source path not found: {relSource}");
 
             var destAbs = ResolveWritePath(
-                _pathValidator.ToRelativePath(Path.Combine(Path.GetDirectoryName(sourceAbs), request.NewName)));
+                _pathValidator.ToRelativePath(Path.Combine(Path.GetDirectoryName(sourceAbs)!, request.NewName!)));
             var relDest = _pathValidator.ToRelativePath(destAbs);
 
             if (opts.DryRun)
@@ -679,7 +679,7 @@ namespace StewardessMCPServive.Services
             if (!File.Exists(entry.BackupAbsolutePath))
                 throw new FileNotFoundException($"Backup file no longer exists: {entry.BackupAbsolutePath}");
 
-            var targetAbs = _pathValidator.ToAbsolutePath(entry.TargetRelativePath);
+            var targetAbs = _pathValidator.ToAbsolutePath(entry.TargetRelativePath!);
             var sw        = Stopwatch.StartNew();
 
             await Task.Run(() =>
@@ -752,7 +752,7 @@ namespace StewardessMCPServive.Services
                 throw new InvalidOperationException("Service is configured in read-only mode.");
         }
 
-        private void CheckApprovalIfRequired(string token)
+        private void CheckApprovalIfRequired(string? token)
         {
             if (_settings.RequireApprovalForDestructive && !_securityService.ValidateApprovalToken(token))
                 throw new UnauthorizedAccessException(
@@ -764,7 +764,7 @@ namespace StewardessMCPServive.Services
             var check = _securityService.ValidateWritePath(relativePath, out var absPath);
             if (!check.IsAllowed)
                 throw new UnauthorizedAccessException(check.ErrorMessage);
-            return absPath;
+            return absPath!;
         }
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -1123,7 +1123,7 @@ namespace StewardessMCPServive.Services
         ///   "+++ path/to/file.cs"               (unified diff without b/ prefix)
         /// Returns null if no path can be extracted.
         /// </summary>
-        private static string TryExtractPathFromPatch(string patchText)
+        private static string? TryExtractPathFromPatch(string patchText)
         {
             if (string.IsNullOrWhiteSpace(patchText)) return null;
 
@@ -1186,7 +1186,7 @@ namespace StewardessMCPServive.Services
 
         private async Task<EditResult> DispatchBatchItem(
             BatchEditItem item, bool dryRun,
-            string changeReason, string sessionId, CancellationToken ct)
+            string? changeReason, string? sessionId, CancellationToken ct)
         {
             if (item == null)                               throw new ArgumentNullException(nameof(item));
             if (string.IsNullOrWhiteSpace(item.Path))       throw new ArgumentException("Batch item Path is required.");
@@ -1200,14 +1200,14 @@ namespace StewardessMCPServive.Services
                     return await WriteFileAsync(new WriteFileRequest
                     {
                         Path = item.Path, Content = item.Content ?? string.Empty,
-                        Encoding = item.Encoding, Options = opts
+                        Encoding = item.Encoding ?? "utf-8", Options = opts
                     }, ct);
 
                 case "create_file":
                     return await CreateFileAsync(new CreateFileRequest
                     {
                         Path = item.Path, Content = item.Content ?? string.Empty,
-                        Encoding = item.Encoding, Options = opts
+                        Encoding = item.Encoding ?? "utf-8", Options = opts
                     }, ct);
 
                 case "delete_file":
@@ -1271,7 +1271,7 @@ namespace StewardessMCPServive.Services
             return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         }
 
-        private static string NormalizeLineEndings(string content, string style, string existingContent)
+        private static string NormalizeLineEndings(string content, string style, string? existingContent)
         {
             if (string.IsNullOrEmpty(style)
                 || style.Equals("auto", StringComparison.OrdinalIgnoreCase))
@@ -1324,7 +1324,7 @@ namespace StewardessMCPServive.Services
             return sb.ToString();
         }
 
-        private static int CountDiffLines(string diff, char op)
+        private static int CountDiffLines(string? diff, char op)
         {
             if (string.IsNullOrEmpty(diff)) return 0;
             return diff.Split('\n')
@@ -1350,7 +1350,7 @@ namespace StewardessMCPServive.Services
         // ═══════════════════════════════════════════════════════════════════════
 
         private Task Audit(EditOptions opts, string opName, string relPath,
-                           AuditOutcome outcome, string backupPath,
+                           AuditOutcome outcome, string? backupPath,
                            long elapsedMs, CancellationToken ct) =>
             _auditService.LogOperationAsync(
                 requestId     : Guid.NewGuid().ToString("N"),
@@ -1391,7 +1391,7 @@ namespace StewardessMCPServive.Services
         // ═══════════════════════════════════════════════════════════════════════
 
         private static EditResult DryRunResult(
-            string relPath, string op, string diff, int affected) =>
+            string relPath, string op, string? diff, int affected) =>
             new EditResult
             {
                 Success       = true,
@@ -1403,8 +1403,8 @@ namespace StewardessMCPServive.Services
             };
 
         private static EditResult SuccessResult(
-            string relPath, string op, string diff, int affected,
-            string backupPath, string rollbackToken) =>
+            string relPath, string op, string? diff, int affected,
+            string? backupPath, string? rollbackToken) =>
             new EditResult
             {
                 Success       = true,

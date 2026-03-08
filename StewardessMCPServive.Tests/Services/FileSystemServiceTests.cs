@@ -38,7 +38,7 @@ namespace StewardessMCPServive.Tests.Services
             var info = await _svc.GetRepositoryInfoAsync(CancellationToken.None);
             Assert.True(string.Equals(
                 Path.GetFullPath(_repo.Root),
-                Path.GetFullPath(info.RepositoryRoot),
+                Path.GetFullPath(info.RepositoryRoot ?? ""),
                 StringComparison.OrdinalIgnoreCase));
         }
 
@@ -102,7 +102,7 @@ namespace StewardessMCPServive.Tests.Services
 
             var result = await _svc.ReadFileAsync(
                 new ReadFileRequest { Path = "big.cs", MaxBytes = 100 }, CancellationToken.None);
-            Assert.True(result.Content.Length <= 100 || result.Truncated);
+            Assert.True((result.Content?.Length ?? 0) <= 100 || result.Truncated);
         }
 
         // ── ReadFileRange ────────────────────────────────────────────────────────
@@ -252,6 +252,7 @@ namespace StewardessMCPServive.Tests.Services
                 new ListTreeRequest { Path = "", MaxDepth = -1 }, CancellationToken.None);
 
             Assert.NotNull(result.Root);
+            Assert.NotNull(result.Root.Children);
             Assert.NotEmpty(result.Root.Children);
             Assert.True(result.TotalDirectories > 0, "Expected directories to be enumerated");
         }
@@ -273,6 +274,7 @@ namespace StewardessMCPServive.Tests.Services
                 new ListTreeRequest { Path = "", MaxDepth = 1 }, CancellationToken.None);
 
             Assert.NotNull(result.Root);
+            Assert.NotNull(result.Root.Children);
             Assert.NotEmpty(result.Root.Children);
             // No grandchildren should be present at depth 1.
             Assert.All(result.Root.Children, child =>
@@ -287,6 +289,7 @@ namespace StewardessMCPServive.Tests.Services
                 CancellationToken.None);
 
             // Walk all nodes and assert none are files.
+            Assert.NotNull(result.Root);
             AssertNoFileNodes(result.Root);
         }
 
@@ -306,12 +309,13 @@ namespace StewardessMCPServive.Tests.Services
                 new ListTreeRequest { Path = "", MaxDepth = 1 }, CancellationToken.None);
 
             // The root node's relative path should be empty (it IS the root).
+            Assert.NotNull(result.Root);
             Assert.Equal(string.Empty, result.Root.RelativePath);
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────
 
-        private static void AssertNoFileNodes(StewardessMCPServive.Models.TreeNode node)
+        private static void AssertNoFileNodes(StewardessMCPServive.Models.TreeNode? node)
         {
             if (node == null) return;
             foreach (var child in node.Children ?? new System.Collections.Generic.List<StewardessMCPServive.Models.TreeNode>())
