@@ -16,9 +16,4 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\StewardessMCPServive.CodeIndexing\StewardessMCPServive.CodeIndexing.csproj" />
-    <ProjectReference Include="..\StewardessMCPServive.Parsers.CSharp\StewardessMCPServive.Parsers.CSharp.csproj" />
-  </ItemGroup>
-
 </Project>
