@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using StewardessMCPServive.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace StewardessMCPServive.IntegrationTests.Helpers
 {
@@ -22,6 +23,63 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
         {
             _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _apiKey = apiKey;
+        }
+
+        // ── MCP JSON-RPC tool calls ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Invokes a named MCP tool via JSON-RPC 2.0 (<c>POST /mcp/v1/</c>).
+        /// Returns a tuple of the parsed content JObject and a flag indicating
+        /// whether the tool itself reported an application-level error.
+        /// Throws <see cref="InvalidOperationException"/> for JSON-RPC protocol errors.
+        /// </summary>
+        /// <param name="toolName">Name of the MCP tool to invoke.</param>
+        /// <param name="arguments">
+        /// Tool arguments; serialized to a JSON object. May be null for tools
+        /// that take no required parameters.
+        /// </param>
+        public async Task<(JObject Data, bool IsError)> CallToolAsync(
+            string toolName, object arguments = null)
+        {
+            var requestBody = new JObject
+            {
+                ["jsonrpc"] = "2.0",
+                ["id"]      = 1,
+                ["method"]  = "tools/call",
+                ["params"]  = JObject.FromObject(new
+                {
+                    name      = toolName,
+                    arguments = arguments != null
+                        ? JObject.FromObject(arguments)
+                        : new JObject(),
+                }),
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, "mcp/v1/")
+            {
+                Content = new StringContent(requestBody.ToString(), Encoding.UTF8, "application/json"),
+            };
+            AddApiKeyIfNeeded(request);
+
+            var response = await _http.SendAsync(request);
+            var raw = await response.Content.ReadAsStringAsync();
+            var rpc = JObject.Parse(raw);
+
+            // McpController.JsonResponse uses default Newtonsoft.Json (PascalCase).
+            // Use case-insensitive lookups to handle both PascalCase and camelCase.
+            var errorToken = rpc.GetValue("error", StringComparison.OrdinalIgnoreCase);
+            if (errorToken != null && errorToken.Type != JTokenType.Null)
+                throw new InvalidOperationException(
+                    $"JSON-RPC protocol error calling '{toolName}': {errorToken}");
+
+            var result     = rpc.GetValue("result", StringComparison.OrdinalIgnoreCase) as JObject;
+            var isError    = result?.GetValue("isError", StringComparison.OrdinalIgnoreCase)?.Value<bool>() ?? false;
+            var contentArr = result?.GetValue("content", StringComparison.OrdinalIgnoreCase) as JArray;
+            var text       = (contentArr?[0] as JObject)?
+                                 .GetValue("text", StringComparison.OrdinalIgnoreCase)?.Value<string>();
+            var data       = text != null ? JObject.Parse(text) : new JObject();
+
+            return (data, isError);
         }
 
         // ── Edit operations ──────────────────────────────────────────────────────

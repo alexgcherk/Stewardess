@@ -5,6 +5,12 @@ VisualStudioVersion = 17.14.36623.8
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StewardessMCPServive.Tests", "StewardessMCPServive.Tests\StewardessMCPServive.Tests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StewardessMCPServive.CodeIndexing", "StewardessMCPServive.CodeIndexing\StewardessMCPServive.CodeIndexing.csproj", "{C1D2E3F4-A5B6-7890-CDEF-123456789012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StewardessMCPServive.Parsers.CSharp", "StewardessMCPServive.Parsers.CSharp\StewardessMCPServive.Parsers.CSharp.csproj", "{D2E3F4A5-B6C7-8901-DEF0-234567890123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StewardessMCPServive.CodeIndexing.Tests", "StewardessMCPServive.CodeIndexing.Tests\StewardessMCPServive.CodeIndexing.Tests.csproj", "{E3F4A5B6-C7D8-9012-EF01-345678901234}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StewardessMCPServive.IntegrationTests", "StewardessMCPServive.IntegrationTests\StewardessMCPServive.IntegrationTests.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StewardessMCPServive.Core", "StewardessMCPServive.Core\StewardessMCPServive.Core.csproj", "{43AF10ED-9716-4E71-8BDF-3EF69E0DDA84}"
