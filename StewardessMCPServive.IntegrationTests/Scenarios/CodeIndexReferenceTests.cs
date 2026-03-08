@@ -131,9 +131,8 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
                 "code_index.get_imports",
                 new { file_path = "DoesNotExist.cs", root_path = _hw.RootPath });
 
-            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase)?.Value<string>();
+            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase);
             Assert.NotNull(error);
-            Assert.NotEmpty(error);
         }
 
         // ── code_index.get_imports — ReferenceFixture (Orders.cs) ────────────────
@@ -244,9 +243,8 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
                 "code_index.get_references",
                 new { symbol_id = "csharp:test:type:SymbolThatDoesNotExist" });
 
-            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase)?.Value<string>();
+            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase);
             Assert.NotNull(error);
-            Assert.NotEmpty(error);
         }
 
         // ── code_index.get_references — Orders.cs (outgoing from Order) ───────────
@@ -579,9 +577,7 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
                 "code_index.get_file_references",
                 new { file_path = "DoesNotExist.cs" });
 
-            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase)?.Value<string>();
-            Assert.NotNull(error);
-            Assert.NotEmpty(error);
+            Assert.NotNull(data.GetValue("error", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

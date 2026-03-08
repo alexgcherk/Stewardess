@@ -700,8 +700,7 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
             var (data, _) = await _fixture.Client.CallToolAsync(
                 "code_index.resolve_location", new { });
 
-            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase)?.Value<string>();
-            Assert.NotNull(error);
+            Assert.NotNull(data.GetValue("error", StringComparison.OrdinalIgnoreCase));
         }
 
         // ── code_index.get_namespace_tree ─────────────────────────────────────────

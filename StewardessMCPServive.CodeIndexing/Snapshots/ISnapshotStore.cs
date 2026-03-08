@@ -38,4 +38,9 @@ public interface ISnapshotStore
     /// Returns all known root paths that have at least one snapshot.
     /// </summary>
     Task<IReadOnlyList<string>> ListRootPathsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes all stored snapshots for the given root path, returning the number of snapshots removed.
+    /// </summary>
+    Task<int> ClearRepositoryAsync(string rootPath, CancellationToken ct = default);
 }

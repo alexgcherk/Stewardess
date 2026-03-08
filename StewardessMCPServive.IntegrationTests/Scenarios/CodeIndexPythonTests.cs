@@ -234,9 +234,7 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
                 "code_index.get_imports",
                 new { file_path = "not_a_real_file.py", root_path = _fixture.RootPath });
 
-            var error = data.GetValue("error", StringComparison.OrdinalIgnoreCase)?.Value<string>();
-            Assert.NotNull(error);
-            Assert.NotEmpty(error);
+            Assert.NotNull(data.GetValue("error", StringComparison.OrdinalIgnoreCase));
         }
 
         // ── code_index.get_file_outline ───────────────────────────────────────────

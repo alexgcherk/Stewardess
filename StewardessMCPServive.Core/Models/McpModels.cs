@@ -238,6 +238,55 @@ namespace StewardessMCPServive.Models
 
         /// <summary>Reason the tool is disabled; null when enabled.</summary>
         public string DisabledReason { get; set; }
+
+        /// <summary>Whether this tool supports dry_run execution without side effects.</summary>
+        public bool SupportsDryRun { get; set; }
+
+        /// <summary>Whether this tool supports rollback/undo of its effects.</summary>
+        public bool SupportsRollback { get; set; }
+
+        /// <summary>Whether this tool requires an approval token before execution.</summary>
+        public bool RequiresApproval { get; set; }
+
+        /// <summary>Whether this tool accepts a change_reason audit string.</summary>
+        public bool SupportsAuditReason { get; set; }
+
+        /// <summary>Risk level: "low", "medium", or "high".</summary>
+        public string RiskLevel { get; set; } = "low";
+
+        /// <summary>Side effect class: "read-only", "file-write", "process-execution", "git-mutation", "destructive".</summary>
+        public string SideEffectClass { get; set; } = "read-only";
+
+        /// <summary>Additional semantic tags for agent routing (e.g. "code-intelligence", "semantic", "ci").</summary>
+        public string[] Tags { get; set; } = Array.Empty<string>();
+
+        /// <summary>Agent-oriented usage guidance for this tool.</summary>
+        public McpUsageGuidance UsageGuidance { get; set; }
+
+        /// <summary>JSON Schema describing the output structure of this tool.</summary>
+        public object OutputSchema { get; set; }
+    }
+
+    /// <summary>Agent-oriented guidance for when and how to use an MCP tool.</summary>
+    public sealed class McpUsageGuidance
+    {
+        /// <summary>Conditions under which this tool is the right choice.</summary>
+        public string UseWhen { get; set; }
+        /// <summary>Conditions under which this tool should NOT be used.</summary>
+        public string DoNotUseWhen { get; set; }
+        /// <summary>Tools that are commonly invoked after this one in an agent workflow.</summary>
+        public string[] TypicalNextTools { get; set; } = Array.Empty<string>();
+    }
+
+    /// <summary>Service-level approval and safety policies.</summary>
+    public sealed class McpPolicies
+    {
+        /// <summary>Whether tools marked IsDestructive require an approval token.</summary>
+        public bool ApprovalRequiredForDestructive { get; set; }
+        /// <summary>Whether command-execution tools require an approval token.</summary>
+        public bool ApprovalRequiredForCommands { get; set; }
+        /// <summary>Whether git-mutation tools require an approval token.</summary>
+        public bool ApprovalRequiredForGitMutations { get; set; }
     }
 
     /// <summary>JSON Schema for a tool's input parameters.</summary>
@@ -267,8 +316,11 @@ namespace StewardessMCPServive.Models
         /// <summary>For enum-type properties.</summary>
         public List<string> Enum { get; set; }
 
-        /// <summary>For array-type properties.</summary>
-        public McpPropertySchema Items { get; set; }
+        /// <summary>
+        /// For array-type properties. May be a <see cref="McpPropertySchema"/> for simple element
+        /// types or an anonymous object for complex object element schemas.
+        /// </summary>
+        public object Items { get; set; }
 
         /// <summary>Minimum value for numeric parameters.</summary>
         public int? Minimum { get; set; }
@@ -334,11 +386,21 @@ namespace StewardessMCPServive.Models
         /// <summary>Manifest schema version; currently "1.0".</summary>
         public string SchemaVersion { get; set; } = "1.0";
         /// <summary>Display name of this service.</summary>
-        public string ServiceName { get; set; } = "StewardessMCPServive";
+        public string ServiceName { get; set; } = "StewardessMCPService";
         /// <summary>Version of this service.</summary>
         public string ServiceVersion { get; set; }
         /// <summary>UTC time when this manifest was generated.</summary>
         public DateTimeOffset GeneratedAt { get; set; }
+
+        /// <summary>
+        /// Describes the format of this manifest.
+        /// This is an application-level service metadata document, not the native MCP wire protocol.
+        /// It describes the MCP-exposed tools in a structured way for agent discovery.
+        /// </summary>
+        public string ManifestFormat { get; set; } = "stewardess-service-manifest/v1";
+
+        /// <summary>Service-level approval and safety policies.</summary>
+        public McpPolicies Policies { get; set; }
 
         /// <summary>High-level capability flags for this server.</summary>
         public McpServerCapabilities Capabilities { get; set; }

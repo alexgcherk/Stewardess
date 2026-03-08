@@ -368,8 +368,20 @@ public sealed class GetSymbolOccurrencesResponse
     /// <summary>The symbol ID that was queried.</summary>
     public required string SymbolId { get; init; }
 
-    /// <summary>All known occurrences of the symbol.</summary>
+    /// <summary>Occurrences of the symbol for this page.</summary>
     public IReadOnlyList<OccurrenceDetail> Occurrences { get; init; } = [];
+
+    /// <summary>Current page (one-based).</summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>Page size used.</summary>
+    public int PageSize { get; init; } = 50;
+
+    /// <summary>Total occurrences across all pages.</summary>
+    public int TotalItems { get; init; }
+
+    /// <summary>Whether additional pages are available.</summary>
+    public bool HasMore { get; init; }
 }
 
 /// <summary>Response containing direct child symbols of a symbol.</summary>
@@ -381,8 +393,20 @@ public sealed class GetSymbolChildrenResponse
     /// <summary>The parent symbol ID that was queried.</summary>
     public required string SymbolId { get; init; }
 
-    /// <summary>Direct child symbols.</summary>
+    /// <summary>Direct child symbols for this page.</summary>
     public IReadOnlyList<SymbolSummary> Children { get; init; } = [];
+
+    /// <summary>Current page (one-based).</summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>Page size used.</summary>
+    public int PageSize { get; init; } = 50;
+
+    /// <summary>Total children across all pages.</summary>
+    public int TotalItems { get; init; }
+
+    /// <summary>Whether additional pages are available.</summary>
+    public bool HasMore { get; init; }
 }
 
 /// <summary>Response containing categorized members of a type symbol.</summary>
@@ -473,6 +497,222 @@ public sealed class GetNamespaceTreeResponse
     public IReadOnlyList<ContainerNode> Roots { get; init; } = [];
 }
 
+// ── Phase 4 — Dependency projection query types ───────────────────────────────
+
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetDependenciesAsync"/>.</summary>
+public sealed class GetDependenciesRequest
+{
+    /// <summary>Symbol ID to query outgoing dependencies for.</summary>
+    public required string SymbolId { get; init; }
+    /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
+    public string? SnapshotId { get; init; }
+    /// <summary>Optional filter to restrict results to specific relationship kinds.</summary>
+    public IReadOnlyList<RelationshipKind>? RelationshipKinds { get; init; }
+    /// <summary>If true (default), only include hard-bound dependencies (ExactBound, ScopedBound, ImportBound, AliasBound).</summary>
+    public bool HardOnly { get; init; } = true;
+    /// <summary>Whether to include evidence text in results.</summary>
+    public bool IncludeEvidence { get; init; } = true;
+    /// <summary>Whether to include confidence scores in results.</summary>
+    public bool IncludeConfidence { get; init; } = true;
+}
+
+/// <summary>A summarised outgoing dependency from a source symbol to a target.</summary>
+public sealed class DependencySummary
+{
+    /// <summary>Target symbol ID, or null if unresolved.</summary>
+    public string? TargetSymbolId { get; init; }
+    /// <summary>Qualified name of the target symbol.</summary>
+    public string? QualifiedName { get; init; }
+    /// <summary>Semantic kind of the target symbol.</summary>
+    public SymbolKind? Kind { get; init; }
+    /// <summary>Language ID of the target symbol.</summary>
+    public string? LanguageId { get; init; }
+    /// <summary>Relationship kind for this edge.</summary>
+    public RelationshipKind RelationshipKind { get; init; }
+    /// <summary>How confidently this reference was resolved.</summary>
+    public ResolutionClass ResolutionClass { get; init; }
+    /// <summary>Source text evidence for this dependency.</summary>
+    public string? Evidence { get; init; }
+    /// <summary>Source location of the evidence text.</summary>
+    public SourceSpan? EvidenceSpan { get; init; }
+    /// <summary>Confidence in [0.0, 1.0].</summary>
+    public double Confidence { get; init; }
+    /// <summary>How the resolution was determined (e.g. "exact", "import-qualified", "scoped", "alias", "heuristic").</summary>
+    public string ResolutionMethod { get; init; } = "exact";
+}
+
+/// <summary>Response containing outgoing dependency projections for a symbol.</summary>
+public sealed class GetDependenciesResponse
+{
+    /// <summary>Snapshot ID the query ran against.</summary>
+    public required string SnapshotId { get; init; }
+    /// <summary>The symbol ID that was queried.</summary>
+    public required string SymbolId { get; init; }
+    /// <summary>Outgoing dependency summaries for this page.</summary>
+    public IReadOnlyList<DependencySummary> Dependencies { get; init; } = [];
+    /// <summary>Error message if the symbol was not found.</summary>
+    public string? Error { get; init; }
+    /// <summary>Current page (one-based).</summary>
+    public int Page { get; init; } = 1;
+    /// <summary>Page size used.</summary>
+    public int PageSize { get; init; } = 50;
+    /// <summary>Total dependencies across all pages.</summary>
+    public int TotalItems { get; init; }
+    /// <summary>Whether additional pages are available.</summary>
+    public bool HasMore { get; init; }
+}
+
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetDependentsAsync"/>.</summary>
+public sealed class GetDependentsRequest
+{
+    /// <summary>Symbol ID to query incoming dependents for.</summary>
+    public required string SymbolId { get; init; }
+    /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
+    public string? SnapshotId { get; init; }
+    /// <summary>Optional filter to restrict results to specific relationship kinds.</summary>
+    public IReadOnlyList<RelationshipKind>? RelationshipKinds { get; init; }
+    /// <summary>If true (default), only include hard-bound dependents (ExactBound, ScopedBound, ImportBound, AliasBound).</summary>
+    public bool HardOnly { get; init; } = true;
+    /// <summary>Whether to include evidence text in results.</summary>
+    public bool IncludeEvidence { get; init; } = true;
+}
+
+/// <summary>A summarised inbound dependent: a source symbol that depends on the queried target.</summary>
+public sealed class DependentSummary
+{
+    /// <summary>Source symbol ID.</summary>
+    public string? SourceSymbolId { get; init; }
+    /// <summary>Qualified name of the source symbol.</summary>
+    public string? QualifiedName { get; init; }
+    /// <summary>Semantic kind of the source symbol.</summary>
+    public SymbolKind? Kind { get; init; }
+    /// <summary>Language ID of the source symbol.</summary>
+    public string? LanguageId { get; init; }
+    /// <summary>Relationship kind for this edge.</summary>
+    public RelationshipKind RelationshipKind { get; init; }
+    /// <summary>How confidently this reference was resolved.</summary>
+    public ResolutionClass ResolutionClass { get; init; }
+    /// <summary>Source text evidence for this dependency.</summary>
+    public string? Evidence { get; init; }
+    /// <summary>Source location of the evidence text.</summary>
+    public SourceSpan? EvidenceSpan { get; init; }
+    /// <summary>Confidence in [0.0, 1.0].</summary>
+    public double Confidence { get; init; }
+    /// <summary>How the resolution was determined (e.g. "exact", "import-qualified", "scoped", "alias", "heuristic").</summary>
+    public string ResolutionMethod { get; init; } = "exact";
+}
+
+/// <summary>Response containing inbound dependent projections for a symbol.</summary>
+public sealed class GetDependentsResponse
+{
+    /// <summary>Snapshot ID the query ran against.</summary>
+    public required string SnapshotId { get; init; }
+    /// <summary>The symbol ID that was queried.</summary>
+    public required string SymbolId { get; init; }
+    /// <summary>Inbound dependent summaries for this page.</summary>
+    public IReadOnlyList<DependentSummary> Dependents { get; init; } = [];
+    /// <summary>Error message if the symbol was not found.</summary>
+    public string? Error { get; init; }
+    /// <summary>Current page (one-based).</summary>
+    public int Page { get; init; } = 1;
+    /// <summary>Page size used.</summary>
+    public int PageSize { get; init; } = 50;
+    /// <summary>Total dependents across all pages.</summary>
+    public int TotalItems { get; init; }
+    /// <summary>Whether additional pages are available.</summary>
+    public bool HasMore { get; init; }
+}
+
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolRelationshipsAsync"/>.</summary>
+public sealed class GetSymbolRelationshipsRequest
+{
+    /// <summary>Symbol ID to query relationships for.</summary>
+    public required string SymbolId { get; init; }
+    /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
+    public string? SnapshotId { get; init; }
+    /// <summary>Whether to include raw reference edges. Default: true.</summary>
+    public bool IncludeReferences { get; init; } = true;
+    /// <summary>Whether to include outgoing dependency projections (hard-only). Default: true.</summary>
+    public bool IncludeDependencies { get; init; } = true;
+    /// <summary>Whether to include inbound dependent projections (hard-only). Default: true.</summary>
+    public bool IncludeDependents { get; init; } = true;
+    /// <summary>Whether to include direct child symbols. Default: true.</summary>
+    public bool IncludeChildren { get; init; } = true;
+    /// <summary>Maximum items to return per section. Null means unlimited.</summary>
+    public int? MaxItemsPerSection { get; init; }
+}
+
+/// <summary>Consolidated relationship payload for a symbol.</summary>
+public sealed class GetSymbolRelationshipsResponse
+{
+    /// <summary>Snapshot ID the query ran against.</summary>
+    public required string SnapshotId { get; init; }
+    /// <summary>The symbol ID that was queried.</summary>
+    public required string SymbolId { get; init; }
+    /// <summary>Direct child symbols, included when requested.</summary>
+    public IReadOnlyList<SymbolSummary>? Children { get; init; }
+    /// <summary>Raw reference edges (outgoing + incoming), included when requested.</summary>
+    public IReadOnlyList<ReferenceSummary>? References { get; init; }
+    /// <summary>Outgoing hard dependency projections, included when requested.</summary>
+    public IReadOnlyList<DependencySummary>? Dependencies { get; init; }
+    /// <summary>Inbound hard dependent projections, included when requested.</summary>
+    public IReadOnlyList<DependentSummary>? Dependents { get; init; }
+    /// <summary>Error message if the symbol was not found.</summary>
+    public string? Error { get; init; }
+}
+
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileDependenciesAsync"/>.</summary>
+public sealed class GetFileDependenciesRequest
+{
+    /// <summary>Relative file path to query file-level dependencies for.</summary>
+    public required string FilePath { get; init; }
+    /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
+    public string? SnapshotId { get; init; }
+    /// <summary>Whether to collapse all edges to the same target file into one entry. Default: true.</summary>
+    public bool CollapseByTargetFile { get; init; } = true;
+    /// <summary>If true, only include hard-bound edges. If false, include all edges. Default: false.</summary>
+    public bool HardOnly { get; init; } = false;
+}
+
+/// <summary>A single example edge used to illustrate a file-level dependency.</summary>
+public sealed class ReferenceExample
+{
+    /// <summary>Source symbol ID.</summary>
+    public string? SourceSymbolId { get; init; }
+    /// <summary>Target symbol ID.</summary>
+    public string? TargetSymbolId { get; init; }
+    /// <summary>Relationship kind for this edge.</summary>
+    public string? RelationshipKind { get; init; }
+    /// <summary>Evidence text for this edge.</summary>
+    public string? Evidence { get; init; }
+}
+
+/// <summary>Summary of all reference edges from one file to another file.</summary>
+public sealed class FileDependencySummary
+{
+    /// <summary>Relative file path of the target file.</summary>
+    public required string TargetFilePath { get; init; }
+    /// <summary>Distinct relationship kinds observed across all edges to this target file.</summary>
+    public IReadOnlyList<string> RelationshipKinds { get; init; } = [];
+    /// <summary>Total number of edges pointing to this target file.</summary>
+    public int EvidenceCount { get; init; }
+    /// <summary>Representative examples (up to 3).</summary>
+    public IReadOnlyList<ReferenceExample> Examples { get; init; } = [];
+}
+
+/// <summary>Response containing file-level dependency projections.</summary>
+public sealed class GetFileDependenciesResponse
+{
+    /// <summary>Snapshot ID the query ran against.</summary>
+    public required string SnapshotId { get; init; }
+    /// <summary>The file path that was queried.</summary>
+    public required string FilePath { get; init; }
+    /// <summary>File-level dependency summaries grouped by target file.</summary>
+    public IReadOnlyList<FileDependencySummary> Dependencies { get; init; } = [];
+    /// <summary>Error message if the file was not found.</summary>
+    public string? Error { get; init; }
+}
+
 // ── Phase 3 — Reference and import query request/response types ──────────────
 
 /// <summary>Request parameters for <see cref="IIndexQueryService.GetImportsAsync"/>.</summary>
@@ -522,11 +762,23 @@ public sealed class GetImportsResponse
     /// <summary>Relative file path that was queried.</summary>
     public string? FilePath { get; init; }
 
-    /// <summary>Import entries found in the file.</summary>
+    /// <summary>Import entries found in the file, for this page.</summary>
     public IReadOnlyList<ImportSummary> Items { get; init; } = [];
 
     /// <summary>Error message if the file was not found or has no index data.</summary>
     public string? Error { get; init; }
+
+    /// <summary>Current page (one-based).</summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>Page size used.</summary>
+    public int PageSize { get; init; } = 50;
+
+    /// <summary>Total imports across all pages.</summary>
+    public int TotalItems { get; init; }
+
+    /// <summary>Whether additional pages are available.</summary>
+    public bool HasMore { get; init; }
 }
 
 /// <summary>Request parameters for <see cref="IIndexQueryService.GetReferencesAsync"/>.</summary>
@@ -577,6 +829,9 @@ public sealed class ReferenceSummary
 
     /// <summary>Confidence in [0.0, 1.0].</summary>
     public double Confidence { get; init; }
+
+    /// <summary>How the resolution was determined (e.g. "exact", "import-qualified", "scoped", "alias", "heuristic").</summary>
+    public string ResolutionMethod { get; init; } = "exact";
 }
 
 /// <summary>Response containing outgoing and/or incoming references for a symbol.</summary>
@@ -588,14 +843,29 @@ public sealed class GetReferencesResponse
     /// <summary>The symbol ID that was queried.</summary>
     public required string SymbolId { get; init; }
 
-    /// <summary>References from this symbol to others (outgoing).</summary>
+    /// <summary>References from this symbol to others (outgoing), paginated.</summary>
     public IReadOnlyList<ReferenceSummary> OutgoingRefs { get; init; } = [];
 
-    /// <summary>References from other symbols to this one (incoming).</summary>
+    /// <summary>References from other symbols to this one (incoming), always full list.</summary>
     public IReadOnlyList<ReferenceSummary> IncomingRefs { get; init; } = [];
 
     /// <summary>Error message if the symbol was not found.</summary>
     public string? Error { get; init; }
+
+    /// <summary>Current page for outgoing refs (one-based).</summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>Page size used for outgoing refs.</summary>
+    public int PageSize { get; init; } = 50;
+
+    /// <summary>Total outgoing references across all pages.</summary>
+    public int TotalOutgoing { get; init; }
+
+    /// <summary>Total incoming references (always full).</summary>
+    public int TotalIncoming { get; init; }
+
+    /// <summary>Whether additional pages of outgoing refs are available.</summary>
+    public bool HasMore { get; init; }
 }
 
 /// <summary>Request parameters for <see cref="IIndexQueryService.GetFileReferencesAsync"/>.</summary>
@@ -620,9 +890,21 @@ public sealed class GetFileReferencesResponse
     /// <summary>Relative file path that was queried.</summary>
     public string? FilePath { get; init; }
 
-    /// <summary>Reference edges found in or targeting the file.</summary>
+    /// <summary>Reference edges found in or targeting the file, for this page.</summary>
     public IReadOnlyList<ReferenceSummary> Items { get; init; } = [];
 
     /// <summary>Error message if the file was not found.</summary>
     public string? Error { get; init; }
+
+    /// <summary>Current page (one-based).</summary>
+    public int Page { get; init; } = 1;
+
+    /// <summary>Page size used.</summary>
+    public int PageSize { get; init; } = 50;
+
+    /// <summary>Total file references across all pages.</summary>
+    public int TotalItems { get; init; }
+
+    /// <summary>Whether additional pages are available.</summary>
+    public bool HasMore { get; init; }
 }

@@ -69,6 +69,21 @@ public sealed class InMemorySnapshotStore : ISnapshotStore
         return Task.FromResult(roots);
     }
 
+    /// <inheritdoc/>
+    public Task<int> ClearRepositoryAsync(string rootPath, CancellationToken ct = default)
+    {
+        var normalizedRoot = NormalizeRoot(rootPath);
+        int removed = 0;
+
+        if (_latestByRoot.TryRemove(normalizedRoot, out var snapshot))
+        {
+            _byId.TryRemove(snapshot.Metadata.SnapshotId, out _);
+            removed++;
+        }
+
+        return Task.FromResult(removed);
+    }
+
     private static string NormalizeRoot(string rootPath) =>
         rootPath.TrimEnd('/', '\\').Replace('\\', '/');
 }

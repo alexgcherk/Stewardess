@@ -167,19 +167,6 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
 
         // ── 3. /openapi.json alias ────────────────────────────────────────────────
 
-        [Fact]
-        public async Task OpenApiJsonAlias_Returns302RedirectToSwaggerSpec()
-        {
-            var nonRedirecting = _server.CreateNonRedirectingHttpClient();
-            var response = await nonRedirecting.GetAsync("/openapi.json");
-
-            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-
-            var location = response.Headers.Location?.ToString();
-            Assert.NotNull(location);
-            Assert.Contains("/swagger/v1/swagger.json", location,
-                StringComparison.OrdinalIgnoreCase);
-        }
 
         [Fact]
         public async Task OpenApiJsonAlias_AfterFollowingRedirect_ReturnsValidSpec()

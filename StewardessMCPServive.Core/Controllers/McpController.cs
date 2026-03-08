@@ -106,7 +106,7 @@ namespace StewardessMCPServive.Controllers
             var manifest = new McpCapabilitiesManifest
             {
                 SchemaVersion  = "1.0",
-                ServiceName    = "StewardessMCPServive",
+                ServiceName    = "StewardessMCPService",
                 ServiceVersion = Settings.ServiceVersion,
                 GeneratedAt    = DateTimeOffset.UtcNow,
 

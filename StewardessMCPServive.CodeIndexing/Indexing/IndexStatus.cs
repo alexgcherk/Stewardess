@@ -24,4 +24,16 @@ public sealed class IndexStatus
 
     /// <summary>In-progress build progress, if a build is active.</summary>
     public IndexProgress? Progress { get; init; }
+
+    /// <summary>Number of indexed files in the latest snapshot.</summary>
+    public int FileCount { get; init; }
+
+    /// <summary>Number of logical symbols in the latest snapshot.</summary>
+    public int SymbolCount { get; init; }
+
+    /// <summary>Number of resolved reference edges in the latest snapshot.</summary>
+    public int ReferenceCount { get; init; }
+
+    /// <summary>Delta information from the most recent incremental update, if applicable.</summary>
+    public SnapshotDelta? LastDelta { get; init; }
 }

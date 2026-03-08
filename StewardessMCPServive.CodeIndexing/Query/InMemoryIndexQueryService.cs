@@ -269,7 +269,7 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
 
     /// <inheritdoc/>
     public async Task<GetSymbolOccurrencesResponse> GetSymbolOccurrencesAsync(
-        GetSymbolOccurrencesRequest request, CancellationToken ct = default)
+        GetSymbolOccurrencesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
         var snapshotId = snapshot?.Metadata.SnapshotId ?? "(none)";
@@ -288,7 +288,7 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
             occurrences = occurrences.Where(o => roleSet.Contains(o.Role));
         }
 
-        var details = occurrences.Select(occ =>
+        var allDetails = occurrences.Select(occ =>
         {
             var filePath = snapshot.Files.TryGetValue(occ.FileId, out var f) ? f.Path : occ.FileId;
             return new OccurrenceDetail
@@ -303,17 +303,25 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
             };
         }).ToList();
 
+        int totalItems = allDetails.Count;
+        int skip = (page - 1) * pageSize;
+        var pageItems = allDetails.Skip(skip).Take(pageSize).ToList();
+
         return new GetSymbolOccurrencesResponse
         {
             SnapshotId = snapshotId,
             SymbolId = request.SymbolId,
-            Occurrences = details,
+            Occurrences = pageItems,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            HasMore = skip + pageItems.Count < totalItems,
         };
     }
 
     /// <inheritdoc/>
     public async Task<GetSymbolChildrenResponse> GetSymbolChildrenAsync(
-        GetSymbolChildrenRequest request, CancellationToken ct = default)
+        GetSymbolChildrenRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
         var snapshotId = snapshot?.Metadata.SnapshotId ?? "(none)";
@@ -335,16 +343,24 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
         if (!request.IncludeNestedTypes)
             children = children.Where(s => !IsTypeLike(s.Kind));
 
-        var summaries = children
+        var allSummaries = children
             .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
             .Select(sym => BuildSymbolSummary(sym, snapshot, includeOccurrenceCount: true, includeMembersSummary: false))
             .ToList();
+
+        int totalItems = allSummaries.Count;
+        int skip = (page - 1) * pageSize;
+        var pageItems = allSummaries.Skip(skip).Take(pageSize).ToList();
 
         return new GetSymbolChildrenResponse
         {
             SnapshotId = snapshotId,
             SymbolId = request.SymbolId,
-            Children = summaries,
+            Children = pageItems,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            HasMore = skip + pageItems.Count < totalItems,
         };
     }
 
@@ -699,7 +715,7 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
 
     /// <inheritdoc/>
     public async Task<GetImportsResponse> GetImportsAsync(
-        GetImportsRequest request, CancellationToken ct = default)
+        GetImportsRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var snapshot = await ResolveSnapshotAsync(request.SnapshotId, request.RootPath, ct);
         if (snapshot is null)
@@ -722,17 +738,26 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
         if (!snapshot.ImportsByFileId.TryGetValue(fileId, out var imports))
             imports = [];
 
+        var allItems = imports.Select(ToImportSummary).ToList();
+        int totalItems = allItems.Count;
+        int skip = (page - 1) * pageSize;
+        var pageItems = allItems.Skip(skip).Take(pageSize).ToList();
+
         return new GetImportsResponse
         {
             SnapshotId = snapshot.Metadata.SnapshotId,
             FilePath = request.FilePath,
-            Items = imports.Select(ToImportSummary).ToList(),
+            Items = pageItems,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            HasMore = skip + pageItems.Count < totalItems,
         };
     }
 
     /// <inheritdoc/>
     public async Task<GetReferencesResponse> GetReferencesAsync(
-        GetReferencesRequest request, CancellationToken ct = default)
+        GetReferencesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
         if (snapshot is null)
@@ -751,7 +776,7 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
                 Error = $"Symbol not found: {request.SymbolId}",
             };
 
-        var outgoing = new List<ReferenceSummary>();
+        var allOutgoing = new List<ReferenceSummary>();
         var incoming = new List<ReferenceSummary>();
 
         if (request.IncludeOutgoing &&
@@ -761,7 +786,7 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
             {
                 if (!snapshot.References.TryGetValue(edgeId, out var edge)) continue;
                 if (request.KindFilter?.Count > 0 && !request.KindFilter.Contains(edge.RelationshipKind)) continue;
-                outgoing.Add(ToReferenceSummary(edge));
+                allOutgoing.Add(ToReferenceSummary(edge));
             }
         }
 
@@ -775,18 +800,28 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
             }
         }
 
+        int totalOutgoing = allOutgoing.Count;
+        int totalIncoming = incoming.Count;
+        int skip = (page - 1) * pageSize;
+        var pageOutgoing = allOutgoing.Skip(skip).Take(pageSize).ToList();
+
         return new GetReferencesResponse
         {
             SnapshotId = snapshot.Metadata.SnapshotId,
             SymbolId = request.SymbolId,
-            OutgoingRefs = outgoing,
+            OutgoingRefs = pageOutgoing,
             IncomingRefs = incoming,
+            Page = page,
+            PageSize = pageSize,
+            TotalOutgoing = totalOutgoing,
+            TotalIncoming = totalIncoming,
+            HasMore = skip + pageOutgoing.Count < totalOutgoing,
         };
     }
 
     /// <inheritdoc/>
     public async Task<GetFileReferencesResponse> GetFileReferencesAsync(
-        GetFileReferencesRequest request, CancellationToken ct = default)
+        GetFileReferencesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
     {
         var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
         if (snapshot is null)
@@ -806,23 +841,296 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
                 Error = $"File not found in snapshot: {request.FilePath}",
             };
 
-        var items = new List<ReferenceSummary>();
+        var allItems = new List<ReferenceSummary>();
         if (snapshot.ReferencesByFileId.TryGetValue(fileId, out var edgeIds))
         {
             foreach (var edgeId in edgeIds)
             {
                 if (!snapshot.References.TryGetValue(edgeId, out var edge)) continue;
                 if (request.KindFilter?.Count > 0 && !request.KindFilter.Contains(edge.RelationshipKind)) continue;
-                items.Add(ToReferenceSummary(edge));
+                allItems.Add(ToReferenceSummary(edge));
             }
         }
+
+        int totalItems = allItems.Count;
+        int skip = (page - 1) * pageSize;
+        var pageItems = allItems.Skip(skip).Take(pageSize).ToList();
 
         return new GetFileReferencesResponse
         {
             SnapshotId = snapshot.Metadata.SnapshotId,
             FilePath = request.FilePath,
-            Items = items,
+            Items = pageItems,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            HasMore = skip + pageItems.Count < totalItems,
         };
+    }
+
+    // ── Phase 4 — Dependency projection queries ───────────────────────────────
+
+    /// <inheritdoc/>
+    public async Task<GetDependenciesResponse> GetDependenciesAsync(
+        GetDependenciesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
+        var snapshotId = snapshot?.Metadata.SnapshotId ?? "(none)";
+
+        if (snapshot is null)
+            return new GetDependenciesResponse { SnapshotId = snapshotId, SymbolId = request.SymbolId, Error = "No snapshot found." };
+
+        if (!snapshot.Symbols.ContainsKey(request.SymbolId))
+            return new GetDependenciesResponse { SnapshotId = snapshotId, SymbolId = request.SymbolId, Error = $"Symbol not found: {request.SymbolId}" };
+
+        var allDeps = new List<DependencySummary>();
+
+        if (snapshot.ReferencesBySourceSymbolId.TryGetValue(request.SymbolId, out var edgeIds))
+        {
+            foreach (var edgeId in edgeIds)
+            {
+                if (!snapshot.References.TryGetValue(edgeId, out var edge)) continue;
+                if (request.HardOnly && !IsHardDependency(edge.ResolutionClass)) continue;
+                if (request.RelationshipKinds?.Count > 0 && !request.RelationshipKinds.Contains(edge.RelationshipKind)) continue;
+
+                string? qualifiedName = null;
+                SymbolKind? kind = null;
+                string? langId = null;
+                if (edge.TargetSymbolId is not null && snapshot.Symbols.TryGetValue(edge.TargetSymbolId, out var targetSym))
+                {
+                    qualifiedName = targetSym.QualifiedName;
+                    kind = targetSym.Kind;
+                    langId = targetSym.LanguageId;
+                }
+
+                var (_, method) = GetConfidence(edge.ResolutionClass);
+                allDeps.Add(new DependencySummary
+                {
+                    TargetSymbolId   = edge.TargetSymbolId,
+                    QualifiedName    = qualifiedName,
+                    Kind             = kind,
+                    LanguageId       = langId,
+                    RelationshipKind = edge.RelationshipKind,
+                    ResolutionClass  = edge.ResolutionClass,
+                    Evidence         = request.IncludeEvidence ? edge.Evidence : null,
+                    EvidenceSpan     = request.IncludeEvidence ? edge.EvidenceSpan : null,
+                    Confidence       = request.IncludeConfidence ? edge.Confidence : 0,
+                    ResolutionMethod = method,
+                });
+            }
+        }
+
+        int totalItems = allDeps.Count;
+        int skip = (page - 1) * pageSize;
+        var pageItems = allDeps.Skip(skip).Take(pageSize).ToList();
+
+        return new GetDependenciesResponse
+        {
+            SnapshotId = snapshotId,
+            SymbolId = request.SymbolId,
+            Dependencies = pageItems,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            HasMore = skip + pageItems.Count < totalItems,
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<GetDependentsResponse> GetDependentsAsync(
+        GetDependentsRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
+        var snapshotId = snapshot?.Metadata.SnapshotId ?? "(none)";
+
+        if (snapshot is null)
+            return new GetDependentsResponse { SnapshotId = snapshotId, SymbolId = request.SymbolId, Error = "No snapshot found." };
+
+        if (!snapshot.Symbols.ContainsKey(request.SymbolId))
+            return new GetDependentsResponse { SnapshotId = snapshotId, SymbolId = request.SymbolId, Error = $"Symbol not found: {request.SymbolId}" };
+
+        var allDependents = new List<DependentSummary>();
+
+        foreach (var edge in snapshot.References.Values)
+        {
+            if (edge.TargetSymbolId != request.SymbolId) continue;
+            if (request.HardOnly && !IsHardDependency(edge.ResolutionClass)) continue;
+            if (request.RelationshipKinds?.Count > 0 && !request.RelationshipKinds.Contains(edge.RelationshipKind)) continue;
+
+            string? qualifiedName = null;
+            SymbolKind? kind = null;
+            string? langId = null;
+            if (edge.SourceSymbolId is not null && snapshot.Symbols.TryGetValue(edge.SourceSymbolId, out var srcSym))
+            {
+                qualifiedName = srcSym.QualifiedName;
+                kind = srcSym.Kind;
+                langId = srcSym.LanguageId;
+            }
+
+            var (_, method) = GetConfidence(edge.ResolutionClass);
+            allDependents.Add(new DependentSummary
+            {
+                SourceSymbolId   = edge.SourceSymbolId,
+                QualifiedName    = qualifiedName,
+                Kind             = kind,
+                LanguageId       = langId,
+                RelationshipKind = edge.RelationshipKind,
+                ResolutionClass  = edge.ResolutionClass,
+                Evidence         = request.IncludeEvidence ? edge.Evidence : null,
+                EvidenceSpan     = request.IncludeEvidence ? edge.EvidenceSpan : null,
+                Confidence       = edge.Confidence,
+                ResolutionMethod = method,
+            });
+        }
+
+        int totalItems = allDependents.Count;
+        int skip = (page - 1) * pageSize;
+        var pageItems = allDependents.Skip(skip).Take(pageSize).ToList();
+
+        return new GetDependentsResponse
+        {
+            SnapshotId = snapshotId,
+            SymbolId = request.SymbolId,
+            Dependents = pageItems,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            HasMore = skip + pageItems.Count < totalItems,
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<GetSymbolRelationshipsResponse> GetSymbolRelationshipsAsync(
+        GetSymbolRelationshipsRequest request, CancellationToken ct = default)
+    {
+        var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
+        var snapshotId = snapshot?.Metadata.SnapshotId ?? "(none)";
+
+        if (snapshot is null)
+            return new GetSymbolRelationshipsResponse { SnapshotId = snapshotId, SymbolId = request.SymbolId, Error = "No snapshot found." };
+
+        if (!snapshot.Symbols.ContainsKey(request.SymbolId))
+            return new GetSymbolRelationshipsResponse { SnapshotId = snapshotId, SymbolId = request.SymbolId, Error = $"Symbol not found: {request.SymbolId}" };
+
+        int limit = request.MaxItemsPerSection ?? int.MaxValue;
+
+        IReadOnlyList<SymbolSummary>? children = null;
+        if (request.IncludeChildren)
+        {
+            var childResp = await GetSymbolChildrenAsync(
+                new GetSymbolChildrenRequest { SymbolId = request.SymbolId, SnapshotId = snapshotId }, 1, int.MaxValue, ct);
+            children = childResp.Children.Take(limit).ToList();
+        }
+
+        IReadOnlyList<ReferenceSummary>? references = null;
+        if (request.IncludeReferences)
+        {
+            var refResp = await GetReferencesAsync(
+                new GetReferencesRequest
+                {
+                    SymbolId        = request.SymbolId,
+                    SnapshotId      = snapshotId,
+                    IncludeOutgoing = true,
+                    IncludeIncoming = true,
+                }, 1, int.MaxValue, ct);
+            references = refResp.OutgoingRefs.Concat(refResp.IncomingRefs).Take(limit).ToList();
+        }
+
+        IReadOnlyList<DependencySummary>? deps = null;
+        if (request.IncludeDependencies)
+        {
+            var depResp = await GetDependenciesAsync(
+                new GetDependenciesRequest { SymbolId = request.SymbolId, SnapshotId = snapshotId }, 1, int.MaxValue, ct);
+            deps = depResp.Dependencies.Take(limit).ToList();
+        }
+
+        IReadOnlyList<DependentSummary>? dependents = null;
+        if (request.IncludeDependents)
+        {
+            var depsResp = await GetDependentsAsync(
+                new GetDependentsRequest { SymbolId = request.SymbolId, SnapshotId = snapshotId }, 1, int.MaxValue, ct);
+            dependents = depsResp.Dependents.Take(limit).ToList();
+        }
+
+        return new GetSymbolRelationshipsResponse
+        {
+            SnapshotId   = snapshotId,
+            SymbolId     = request.SymbolId,
+            Children     = children,
+            References   = references,
+            Dependencies = deps,
+            Dependents   = dependents,
+        };
+    }
+
+    /// <inheritdoc/>
+    public async Task<GetFileDependenciesResponse> GetFileDependenciesAsync(
+        GetFileDependenciesRequest request, CancellationToken ct = default)
+    {
+        var snapshot = await ResolveSnapshotAsync(request.SnapshotId, null, ct);
+        var snapshotId = snapshot?.Metadata.SnapshotId ?? "(none)";
+
+        if (snapshot is null)
+            return new GetFileDependenciesResponse { SnapshotId = snapshotId, FilePath = request.FilePath, Error = "No snapshot found." };
+
+        var normalizedPath = request.FilePath.Replace('\\', '/');
+        if (!snapshot.PathToFileId.TryGetValue(normalizedPath.ToLowerInvariant(), out var fileId))
+            return new GetFileDependenciesResponse
+            {
+                SnapshotId = snapshotId,
+                FilePath   = request.FilePath,
+                Error      = $"File not found in snapshot: {request.FilePath}",
+            };
+
+        if (!snapshot.ReferencesByFileId.TryGetValue(fileId, out var edgeIds))
+            return new GetFileDependenciesResponse { SnapshotId = snapshotId, FilePath = request.FilePath, Dependencies = [] };
+
+        var grouped = new Dictionary<string, List<ReferenceEdge>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var edgeId in edgeIds)
+        {
+            if (!snapshot.References.TryGetValue(edgeId, out var edge)) continue;
+            if (request.HardOnly && !IsHardDependency(edge.ResolutionClass)) continue;
+            if (edge.TargetSymbolId is null) continue;
+
+            if (!snapshot.Symbols.TryGetValue(edge.TargetSymbolId, out var targetSym)) continue;
+            if (!snapshot.Files.TryGetValue(targetSym.PrimaryFileId, out var targetFile)) continue;
+
+            // Skip self-references (same file)
+            if (targetFile.FileId == fileId) continue;
+
+            if (!grouped.TryGetValue(targetFile.Path, out var edgeList))
+                grouped[targetFile.Path] = edgeList = new List<ReferenceEdge>();
+            edgeList.Add(edge);
+        }
+
+        var result = grouped
+            .OrderBy(kvp => kvp.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(kvp =>
+            {
+                var edges = kvp.Value;
+                var kinds = edges.Select(e => e.RelationshipKind.ToString())
+                                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                                 .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+                                 .ToList();
+                var examples = edges.Take(3).Select(e => new ReferenceExample
+                {
+                    SourceSymbolId   = e.SourceSymbolId,
+                    TargetSymbolId   = e.TargetSymbolId,
+                    RelationshipKind = e.RelationshipKind.ToString(),
+                    Evidence         = e.Evidence,
+                }).ToList();
+                return new FileDependencySummary
+                {
+                    TargetFilePath    = kvp.Key,
+                    RelationshipKinds = kinds,
+                    EvidenceCount     = edges.Count,
+                    Examples          = examples,
+                };
+            })
+            .ToList();
+
+        return new GetFileDependenciesResponse { SnapshotId = snapshotId, FilePath = request.FilePath, Dependencies = result };
     }
 
     // ── Phase 3 conversion helpers ────────────────────────────────────────────
@@ -838,16 +1146,39 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
         ResolvedSymbolId = e.ResolvedSymbolId,
     };
 
-    private static ReferenceSummary ToReferenceSummary(ReferenceEdge e) => new()
+    private static ReferenceSummary ToReferenceSummary(ReferenceEdge e)
     {
-        EdgeId = e.EdgeId,
-        SourceSymbolId = e.SourceSymbolId,
-        TargetSymbolId = e.TargetSymbolId,
-        RelationshipKind = e.RelationshipKind,
-        ResolutionClass = e.ResolutionClass,
-        Evidence = e.Evidence,
-        EvidenceSpan = e.EvidenceSpan,
-        LanguageId = e.LanguageId,
-        Confidence = e.Confidence,
+        var (_, method) = e.TargetSymbolId != null
+            ? GetConfidence(e.ResolutionClass)
+            : (0.3, "ambiguous");
+        return new ReferenceSummary
+        {
+            EdgeId           = e.EdgeId,
+            SourceSymbolId   = e.SourceSymbolId,
+            TargetSymbolId   = e.TargetSymbolId,
+            RelationshipKind = e.RelationshipKind,
+            ResolutionClass  = e.ResolutionClass,
+            Evidence         = e.Evidence,
+            EvidenceSpan     = e.EvidenceSpan,
+            LanguageId       = e.LanguageId,
+            Confidence       = e.Confidence,
+            ResolutionMethod = method,
+        };
+    }
+
+    /// <summary>Maps a <see cref="ResolutionClass"/> to a (confidence, method) tuple.</summary>
+    private static (double confidence, string method) GetConfidence(ResolutionClass rc) => rc switch
+    {
+        ResolutionClass.ExactBound  => (1.0,  "exact"),
+        ResolutionClass.ScopedBound => (0.95, "scoped"),
+        ResolutionClass.ImportBound => (0.9,  "import-qualified"),
+        ResolutionClass.AliasBound  => (0.85, "alias"),
+        ResolutionClass.Ambiguous   => (0.3,  "ambiguous"),
+        ResolutionClass.External    => (0.8,  "external"),
+        _                           => (0.1,  "unresolved"),
     };
+
+    private static bool IsHardDependency(ResolutionClass rc) =>
+        rc is ResolutionClass.ExactBound or ResolutionClass.ScopedBound
+           or ResolutionClass.ImportBound or ResolutionClass.AliasBound;
 }

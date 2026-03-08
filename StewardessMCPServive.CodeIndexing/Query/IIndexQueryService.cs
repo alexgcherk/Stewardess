@@ -51,13 +51,13 @@ public interface IIndexQueryService
     /// Returns all known occurrences of a logical symbol.
     /// </summary>
     Task<GetSymbolOccurrencesResponse> GetSymbolOccurrencesAsync(
-        GetSymbolOccurrencesRequest request, CancellationToken ct = default);
+        GetSymbolOccurrencesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
 
     /// <summary>
     /// Returns direct child symbols of the specified symbol.
     /// </summary>
     Task<GetSymbolChildrenResponse> GetSymbolChildrenAsync(
-        GetSymbolChildrenRequest request, CancellationToken ct = default);
+        GetSymbolChildrenRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
 
     /// <summary>
     /// Returns categorized members (constructors, methods, properties, fields, events, nested types)
@@ -85,15 +85,42 @@ public interface IIndexQueryService
     /// <summary>
     /// Returns all import/using directives for a single file.
     /// </summary>
-    Task<GetImportsResponse> GetImportsAsync(GetImportsRequest request, CancellationToken ct = default);
+    Task<GetImportsResponse> GetImportsAsync(GetImportsRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
 
     /// <summary>
     /// Returns outgoing and/or incoming reference edges for a single symbol.
     /// </summary>
-    Task<GetReferencesResponse> GetReferencesAsync(GetReferencesRequest request, CancellationToken ct = default);
+    Task<GetReferencesResponse> GetReferencesAsync(GetReferencesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
 
     /// <summary>
     /// Returns all reference edges originating in a single file.
     /// </summary>
-    Task<GetFileReferencesResponse> GetFileReferencesAsync(GetFileReferencesRequest request, CancellationToken ct = default);
+    Task<GetFileReferencesResponse> GetFileReferencesAsync(GetFileReferencesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
+
+    // ── Phase 4 — Dependency projection queries ───────────────────────────────
+
+    /// <summary>
+    /// Returns outgoing hard dependency projections for a symbol.
+    /// Hard dependencies are edges resolved with <see cref="ResolutionClass.ExactBound"/>,
+    /// <see cref="ResolutionClass.ScopedBound"/>, <see cref="ResolutionClass.ImportBound"/>,
+    /// or <see cref="ResolutionClass.AliasBound"/>.
+    /// </summary>
+    Task<GetDependenciesResponse> GetDependenciesAsync(GetDependenciesRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns inbound hard dependent projections for a symbol (symbols that depend on this one).
+    /// </summary>
+    Task<GetDependentsResponse> GetDependentsAsync(GetDependentsRequest request, int page = 1, int pageSize = 50, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns a consolidated relationship payload combining children, references,
+    /// dependencies, and dependents for a symbol.
+    /// </summary>
+    Task<GetSymbolRelationshipsResponse> GetSymbolRelationshipsAsync(GetSymbolRelationshipsRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns file-level dependency projections: which other files does this file depend on,
+    /// grouped by target file with relationship kind and evidence summaries.
+    /// </summary>
+    Task<GetFileDependenciesResponse> GetFileDependenciesAsync(GetFileDependenciesRequest request, CancellationToken ct = default);
 }

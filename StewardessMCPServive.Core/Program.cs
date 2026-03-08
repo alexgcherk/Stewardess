@@ -8,10 +8,20 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using NLog;
 using NLog.Web;
+using StewardessMCPServive.CodeIndexing.Eligibility;
+using StewardessMCPServive.CodeIndexing.Indexing;
+using StewardessMCPServive.CodeIndexing.LanguageDetection;
+using StewardessMCPServive.CodeIndexing.Parsers.Abstractions;
+using StewardessMCPServive.CodeIndexing.Parsers.Python;
+using StewardessMCPServive.CodeIndexing.Projection;
+using StewardessMCPServive.CodeIndexing.Query;
+using StewardessMCPServive.CodeIndexing.Snapshots;
+using StewardessMCPServive.CodeIndexing.Source;
 using StewardessMCPServive.Configuration;
 using StewardessMCPServive.Infrastructure;
 using StewardessMCPServive.Mcp;
 using StewardessMCPServive.Services;
+using StewardessMCPServive.Parsers.CSharp;
 using System;
 using System.IO;
 using System.Reflection;
@@ -84,6 +94,36 @@ builder.Services.AddSingleton<IProjectDetectionService>(sp =>
         sp.GetRequiredService<McpServiceSettings>(),
         sp.GetRequiredService<PathValidator>()));
 
+// ── Code Indexing services ────────────────────────────────────────────────────
+builder.Services.AddSingleton<ILanguageDetector>(_ => new DefaultLanguageDetector());
+builder.Services.AddSingleton<IEligibilityPolicy>(_ => new DefaultEligibilityPolicy());
+builder.Services.AddSingleton<ISourceProvider>(_ => new FileSystemSourceProvider());
+builder.Services.AddSingleton<ISnapshotStore>(_ => new InMemorySnapshotStore());
+
+builder.Services.AddSingleton<IEnumerable<IParserAdapter>>(sp => new IParserAdapter[]
+{
+    new CSharpParserAdapter(),
+    new PythonParserAdapter(),
+});
+
+builder.Services.AddSingleton<IEnumerable<ISymbolProjector>>(sp => new ISymbolProjector[]
+{
+    new CSharpSymbolProjector(),
+    new PythonSymbolProjector(),
+});
+
+builder.Services.AddSingleton<IIndexingEngine>(sp =>
+    new IndexingEngine(
+        sp.GetRequiredService<ISourceProvider>(),
+        sp.GetRequiredService<IEligibilityPolicy>(),
+        sp.GetRequiredService<ILanguageDetector>(),
+        sp.GetRequiredService<IEnumerable<IParserAdapter>>(),
+        sp.GetRequiredService<ISnapshotStore>(),
+        sp.GetRequiredService<IEnumerable<ISymbolProjector>>()));
+
+builder.Services.AddSingleton<IIndexQueryService>(sp =>
+    new InMemoryIndexQueryService(sp.GetRequiredService<ISnapshotStore>()));
+
 builder.Services.AddSingleton<McpToolRegistry>(sp =>
     new McpToolRegistry(
         sp.GetRequiredService<McpServiceSettings>(),
@@ -91,7 +131,9 @@ builder.Services.AddSingleton<McpToolRegistry>(sp =>
         sp.GetRequiredService<ISearchService>(),
         sp.GetRequiredService<IEditService>(),
         sp.GetRequiredService<IGitService>(),
-        sp.GetRequiredService<ICommandService>()));
+        sp.GetRequiredService<ICommandService>(),
+        sp.GetRequiredService<IIndexingEngine>(),
+        sp.GetRequiredService<IIndexQueryService>()));
 
 builder.Services.AddSingleton<McpToolHandler>(sp =>
     new McpToolHandler(

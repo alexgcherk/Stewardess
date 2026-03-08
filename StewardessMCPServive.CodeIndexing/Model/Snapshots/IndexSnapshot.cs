@@ -2,6 +2,7 @@ using StewardessMCPServive.CodeIndexing.Model.Diagnostics;
 using StewardessMCPServive.CodeIndexing.Model.References;
 using StewardessMCPServive.CodeIndexing.Model.Semantic;
 using StewardessMCPServive.CodeIndexing.Model.Structural;
+using StewardessMCPServive.CodeIndexing.Parsers.Abstractions;
 
 namespace StewardessMCPServive.CodeIndexing.Model.Snapshots;
 
@@ -45,6 +46,19 @@ public sealed class IndexSnapshot
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ImportEntry>> ImportsByFileId { get; init; } =
         new Dictionary<string, IReadOnlyList<ImportEntry>>();
+
+    /// <summary>
+    /// Unresolved reference hints per file, keyed by file ID.
+    /// Retained to enable efficient incremental re-resolution in subsequent updates.
+    /// </summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<ReferenceHint>> HintsByFileId { get; init; } =
+        new Dictionary<string, IReadOnlyList<ReferenceHint>>();
+
+    /// <summary>
+    /// Delta information describing what changed relative to the previous snapshot.
+    /// Null for full builds.
+    /// </summary>
+    public SnapshotDelta? Delta { get; init; }
 
     /// <summary>
     /// Maps SourceSymbolId to a list of EdgeIds where that symbol is the reference source (Phase 3+).

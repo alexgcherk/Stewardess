@@ -362,6 +362,3 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /nuget.exe
-
-# Open WebUI source (local development reference only)
-open-webui-0.8.9/
