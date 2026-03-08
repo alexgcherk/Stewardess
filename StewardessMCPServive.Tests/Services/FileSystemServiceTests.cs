@@ -208,7 +208,118 @@ namespace StewardessMCPServive.Tests.Services
             Assert.False(result.Exists);
         }
 
+        // ── ListTree ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Regression test: path="." resolves to the repository root, whose absolute path
+        /// is one character shorter than _repositoryRoot (which has a trailing separator).
+        /// Previously this caused "startIndex cannot be larger than length of string".
+        /// </summary>
+        [Fact]
+        public async Task ListTree_DotPath_DoesNotThrow()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = ".", MaxDepth = 1 }, CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.NotNull(result.Root);
+            Assert.True(result.TotalDirectories >= 0);
+        }
+
+        /// <summary>
+        /// Regression test: path="" (empty) also maps to the repository root and must
+        /// not throw the startIndex error.
+        /// </summary>
+        [Fact]
+        public async Task ListTree_EmptyPath_DoesNotThrow()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "", MaxDepth = 1 }, CancellationToken.None);
+
+            Assert.NotNull(result);
+            Assert.NotNull(result.Root);
+        }
+
+        /// <summary>
+        /// Regression test: maxDepth=-1 (unbounded) previously caused Math.Min(-1, limit) = -1,
+        /// making currentDepth (0) >= maxDepth (-1) immediately true so no directory was expanded.
+        /// </summary>
+        [Fact]
+        public async Task ListTree_NegativeMaxDepth_ExpandsTree()
+        {
+            // Structure has at least src/ and tests/ directories.
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "", MaxDepth = -1 }, CancellationToken.None);
+
+            Assert.NotNull(result.Root);
+            Assert.NotEmpty(result.Root.Children);
+            Assert.True(result.TotalDirectories > 0, "Expected directories to be enumerated");
+        }
+
+        [Fact]
+        public async Task ListTree_MaxDepthZero_ReturnsOnlyRootWithNoChildren()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "", MaxDepth = 0 }, CancellationToken.None);
+
+            Assert.NotNull(result.Root);
+            Assert.Empty(result.Root.Children ?? new System.Collections.Generic.List<StewardessMCPServive.Models.TreeNode>());
+        }
+
+        [Fact]
+        public async Task ListTree_MaxDepthOne_ReturnsOnlyTopLevelChildren()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "", MaxDepth = 1 }, CancellationToken.None);
+
+            Assert.NotNull(result.Root);
+            Assert.NotEmpty(result.Root.Children);
+            // No grandchildren should be present at depth 1.
+            Assert.All(result.Root.Children, child =>
+                Assert.Empty(child.Children ?? new System.Collections.Generic.List<StewardessMCPServive.Models.TreeNode>()));
+        }
+
+        [Fact]
+        public async Task ListTree_DirectoriesOnly_ContainsNoFileNodes()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "", MaxDepth = 3, DirectoriesOnly = true },
+                CancellationToken.None);
+
+            // Walk all nodes and assert none are files.
+            AssertNoFileNodes(result.Root);
+        }
+
+        [Fact]
+        public async Task ListTree_SubDirectory_RootNodeHasCorrectRelativePath()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "src", MaxDepth = 1 }, CancellationToken.None);
+
+            Assert.Equal("src", result.Path, StringComparer.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task ListTree_RepositoryRoot_RelativePathIsEmpty()
+        {
+            var result = await _svc.ListTreeAsync(
+                new ListTreeRequest { Path = "", MaxDepth = 1 }, CancellationToken.None);
+
+            // The root node's relative path should be empty (it IS the root).
+            Assert.Equal(string.Empty, result.Root.RelativePath);
+        }
+
         // ── Helpers ──────────────────────────────────────────────────────────────
+
+        private static void AssertNoFileNodes(StewardessMCPServive.Models.TreeNode node)
+        {
+            if (node == null) return;
+            foreach (var child in node.Children ?? new System.Collections.Generic.List<StewardessMCPServive.Models.TreeNode>())
+            {
+                Assert.NotEqual("file", child.Type, StringComparer.OrdinalIgnoreCase);
+                AssertNoFileNodes(child);
+            }
+        }
 
         private static FileSystemService Build(string root)
         {
