@@ -81,6 +81,19 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
             return new McpRestClient(client, apiKey);
         }
 
+        /// <summary>
+        /// Creates a raw <see cref="HttpClient"/> that does NOT follow redirects.
+        /// Useful for testing redirect responses (e.g. /openapi.json → /swagger/v1/swagger.json).
+        /// </summary>
+        public HttpClient CreateNonRedirectingHttpClient()
+        {
+            return _factory.CreateClient(
+                new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+                {
+                    AllowAutoRedirect = false
+                });
+        }
+
         // ── IDisposable ──────────────────────────────────────────────────────────
 
         public void Dispose()

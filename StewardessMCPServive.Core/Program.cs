@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -115,6 +116,12 @@ builder.Services
         o.SerializerSettings.Formatting           = Formatting.None;
     });
 
+// ── 5b. CORS — allow Open WebUI (and any local origin) to call the API ───────
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+    p.AllowAnyOrigin()
+     .AllowAnyMethod()
+     .AllowAnyHeader()));
+
 // ── 6. Swagger / OpenAPI 3.0 ────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -124,6 +131,15 @@ builder.Services.AddSwaggerGen(c =>
         Title       = "StewardessMCPServive — Local Repository MCP API",
         Version     = "v1",
         Description = "MCP-compatible HTTP API that exposes a local source-code repository to AI agents."
+    });
+
+    // Generate operationId for every endpoint so Open WebUI's OpenAPI tool
+    // integration can discover and call them (it skips operations without operationId).
+    c.CustomOperationIds(e =>
+    {
+        var controller = e.ActionDescriptor.RouteValues["controller"];
+        var action     = e.ActionDescriptor.RouteValues["action"];
+        return $"{controller}_{action}";
     });
 
     c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
@@ -189,6 +205,7 @@ app.UseMiddleware<RequestResponseLoggingMiddleware>();
 #endif
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<RequestIdMiddleware>();
+app.UseCors();
 
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -197,6 +214,13 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix  = "swagger";
     c.DocumentTitle = "StewardessMCPServive API";
 });
+
+// Alias /openapi.json → /swagger/v1/swagger.json so Open WebUI can
+// discover the spec using its default path without any extra configuration.
+app.MapGet("/openapi.json", async ctx =>
+{
+    ctx.Response.Redirect("/swagger/v1/swagger.json", permanent: false);
+}).WithMetadata(new AllowAnonymousAttribute());
 
 app.MapControllers();
 
