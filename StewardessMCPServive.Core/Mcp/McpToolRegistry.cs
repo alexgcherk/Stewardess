@@ -114,6 +114,7 @@ namespace StewardessMCPServive.Mcp
             RegisterGitTools();
             RegisterCommandTools();
             RegisterCodeIndexTools();
+            AnnotateAllTools();
         }
 
         // ── Repository / navigation tools ────────────────────────────────────────
@@ -213,7 +214,9 @@ namespace StewardessMCPServive.Mcp
                     Prop("extensions",  "array",   "File extensions to include, e.g. [\".cs\",\".json\"]. Empty = all."),
                     Prop("ignore_case", "boolean", "Case-insensitive search (default true).", def: true),
                     Prop("whole_word",  "boolean", "Match whole words only (default false).", def: false),
-                    Prop("max_results", "integer", "Max results to return (default 100).", def: 100)),
+                    Prop("max_results", "integer", "Max results to return (default 100).", def: 100),
+                    Prop("page",        "integer", "Page number (1-based, default 1).", def: 1),
+                    Prop("page_size",   "integer", "Results per page (default 50, max 200).", def: 50)),
                 handler: async (args, ct) =>
                 {
                     var req = new SearchTextRequest
@@ -226,6 +229,9 @@ namespace StewardessMCPServive.Mcp
                         MaxResults = Int(args, "max_results", 100)
                     };
                     var result = await _search.SearchTextAsync(req, ct).ConfigureAwait(false);
+                    var page = Math.Max(1, Int(args, "page", 1));
+                    var pageSize = Int(args, "page_size", 50);
+                    ApplyPagination(result, page, pageSize);
                     return ToResult(result);
                 });
 
@@ -237,7 +243,9 @@ namespace StewardessMCPServive.Mcp
                     Prop("search_path", "string",  "Restrict to subdirectory."),
                     Prop("extensions",  "array",   "File extensions to include."),
                     Prop("ignore_case", "boolean", "Case-insensitive (default true).", def: true),
-                    Prop("max_results", "integer", "Max results (default 100).", def: 100)),
+                    Prop("max_results", "integer", "Max results (default 100).", def: 100),
+                    Prop("page",        "integer", "Page number (1-based, default 1).", def: 1),
+                    Prop("page_size",   "integer", "Results per page (default 50, max 200).", def: 50)),
                 handler: async (args, ct) =>
                 {
                     var req = new SearchRegexRequest
@@ -249,6 +257,9 @@ namespace StewardessMCPServive.Mcp
                         MaxResults = Int(args, "max_results", 100)
                     };
                     var result = await _search.SearchRegexAsync(req, ct).ConfigureAwait(false);
+                    var page = Math.Max(1, Int(args, "page", 1));
+                    var pageSize = Int(args, "page_size", 50);
+                    ApplyPagination(result, page, pageSize);
                     return ToResult(result);
                 });
 
@@ -258,7 +269,9 @@ namespace StewardessMCPServive.Mcp
                 schema: Schema(
                     Prop("pattern",     "string", "Filename pattern (substring or glob).", required: true),
                     Prop("search_path", "string", "Restrict to subdirectory."),
-                    Prop("max_results", "integer", "Max results (default 100).", def: 100)),
+                    Prop("max_results", "integer", "Max results (default 100).", def: 100),
+                    Prop("page",        "integer", "Page number (1-based, default 1).", def: 1),
+                    Prop("page_size",   "integer", "Results per page (default 50, max 200).", def: 50)),
                 handler: async (args, ct) =>
                 {
                     var req = new SearchFileNamesRequest
@@ -268,6 +281,9 @@ namespace StewardessMCPServive.Mcp
                         MaxResults = Int(args, "max_results", 100)
                     };
                     var result = await _search.SearchFileNamesAsync(req, ct).ConfigureAwait(false);
+                    var page = Math.Max(1, Int(args, "page", 1));
+                    var pageSize = Int(args, "page_size", 50);
+                    ApplyFileNamePagination(result, page, pageSize);
                     return ToResult(result);
                 });
 
@@ -277,7 +293,9 @@ namespace StewardessMCPServive.Mcp
                 schema: Schema(
                     Prop("extensions",  "array",  "Extensions to find, e.g. [\".cs\",\".js\"].", required: true),
                     Prop("search_path", "string", "Restrict to subdirectory."),
-                    Prop("max_results", "integer","Max results (default 200).", def: 200)),
+                    Prop("max_results", "integer","Max results (default 200).", def: 200),
+                    Prop("page",        "integer", "Page number (1-based, default 1).", def: 1),
+                    Prop("page_size",   "integer", "Results per page (default 50, max 200).", def: 50)),
                 handler: async (args, ct) =>
                 {
                     var req = new SearchByExtensionRequest
@@ -287,6 +305,9 @@ namespace StewardessMCPServive.Mcp
                         MaxResults = Int(args, "max_results", 200)
                     };
                     var result = await _search.SearchByExtensionAsync(req, ct).ConfigureAwait(false);
+                    var page = Math.Max(1, Int(args, "page", 1));
+                    var pageSize = Int(args, "page_size", 50);
+                    ApplyFileNamePagination(result, page, pageSize);
                     return ToResult(result);
                 });
 
@@ -295,6 +316,7 @@ namespace StewardessMCPServive.Mcp
                 description: "Best-effort symbol search using text heuristics (class, method, interface declarations).",
                 schema: Schema(
                     Prop("symbol_name", "string",  "Symbol name to search for.", required: true),
+                    Prop("symbol_kind", "string",  "Optional symbol kind filter.", enums: new[] { "class", "interface", "method", "property", "enum", "field", "constructor", "event", "delegate", "namespace" }),
                     Prop("search_path", "string",  "Restrict to subdirectory."),
                     Prop("extensions",  "array",   "File extensions."),
                     Prop("max_results", "integer", "Max results (default 50).", def: 50)),
@@ -303,6 +325,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchSymbolRequest
                     {
                         SymbolName = Str(args, "symbol_name"),
+                        SymbolKind = Str(args, "symbol_kind", ""),
                         SearchPath = Str(args, "search_path", ""),
                         Extensions = StrList(args, "extensions"),
                         MaxResults = Int(args, "max_results", 50)
@@ -395,7 +418,7 @@ namespace StewardessMCPServive.Mcp
                 description: "Computes a hash digest (SHA-256 by default) of a file's contents.",
                 schema: Schema(
                     Prop("path",      "string", "Relative file path.", required: true),
-                    Prop("algorithm", "string", "Hash algorithm: SHA256 (default), MD5, SHA1.")),
+                    Prop("algorithm", "string", "Hash algorithm: SHA256 (default), MD5, SHA1.", enums: new[] { "MD5", "SHA1", "SHA256" })),
                 handler: async (args, ct) =>
                 {
                     var req = new FileHashRequest
@@ -408,7 +431,7 @@ namespace StewardessMCPServive.Mcp
                 });
 
             Add("get_file_structure",
-                category: "files",
+                category: "code-intelligence",
                 description: "Returns a structural summary of a code file: namespaces, types, and methods (parsed via text heuristics).",
                 schema: Schema(
                     Prop("path", "string", "Relative file path.", required: true)),
@@ -435,7 +458,7 @@ namespace StewardessMCPServive.Mcp
                 schema: Schema(
                     Prop("path",         "string",  "Relative file path.", required: true),
                     Prop("content",      "string",  "New full content of the file.", required: true),
-                    Prop("encoding",     "string",  "Encoding: utf-8 (default), utf-8-bom, utf-16, ascii."),
+                    Prop("encoding",     "string",  "Encoding: utf-8 (default), utf-8-bom, utf-16, ascii.", enums: new[] { "utf-8", "utf-8-bom", "utf-16", "ascii" }),
                     Prop("dry_run",      "boolean", "Simulate without writing (default false).", def: false),
                     Prop("create_backup","boolean", "Create backup before overwriting (default true).", def: true),
                     Prop("change_reason","string",  "Agent-supplied reason for the change (audit log).")),
@@ -691,7 +714,27 @@ namespace StewardessMCPServive.Mcp
                 description: "Executes multiple heterogeneous edits atomically. Rolls back all changes if any operation fails.",
                 isDestructive: true, isDisabled: ro, disabledReason: ro ? "Read-only mode" : null,
                 schema: Schema(
-                    Prop("edits",   "array",   "Array of edit items. Each item must have 'operation' and 'path'.", required: true),
+                    PropWithItems("edits", "Array of edit items. Each item must have 'operation' and 'arguments'.", required: true,
+                        items: new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                operation = new
+                                {
+                                    type = "string",
+                                    description = "The edit operation to perform.",
+                                    @enum = new[] { "write_file", "replace_text", "replace_lines", "delete_file" }
+                                },
+                                arguments = new
+                                {
+                                    type = "object",
+                                    description = "Operation-specific arguments (same as the corresponding single-file tool)."
+                                }
+                            },
+                            required = new[] { "operation", "arguments" },
+                            additionalProperties = false
+                        }),
                     Prop("dry_run", "boolean", "Simulate the whole batch (default false).", def: false)),
                 handler: async (args, ct) =>
                 {
@@ -748,7 +791,7 @@ namespace StewardessMCPServive.Mcp
                 description: "Returns the unified diff for working-tree or staged changes. Scope: unstaged (default), staged, head, or commit:sha1..sha2.",
                 schema: Schema(
                     Prop("path",          "string",  "Restrict to this file or directory (empty = all)."),
-                    Prop("scope",         "string",  "Diff scope: unstaged (default), staged, head.", def: "unstaged"),
+                    Prop("scope",         "string",  "Diff scope: unstaged (default), staged, head.", def: "unstaged", enums: new[] { "unstaged", "staged", "head" }),
                     Prop("context_lines", "integer", "Context lines around each change (default 3).", def: 3)),
                 handler: async (args, ct) =>
                 {
@@ -767,7 +810,7 @@ namespace StewardessMCPServive.Mcp
                 description: "Returns the unified diff for a single file.",
                 schema: Schema(
                     Prop("path",  "string", "Relative file path.", required: true),
-                    Prop("scope", "string", "Diff scope: unstaged (default), staged, head.", def: "unstaged")),
+                    Prop("scope", "string", "Diff scope: unstaged (default), staged, head.", def: "unstaged", enums: new[] { "unstaged", "staged", "head" })),
                 handler: async (args, ct) =>
                 {
                     var result = await _git.GetDiffForFileAsync(
@@ -806,7 +849,7 @@ namespace StewardessMCPServive.Mcp
                 category: "git",
                 description: "Returns the full details of a single commit by SHA: author, committer, message, changed files, and optionally the diff patch.",
                 schema: Schema(
-                    Prop("sha",          "string",  "Full or abbreviated commit SHA (required, minimum 4 hex chars)."),
+                    Prop("sha",          "string",  "Full or abbreviated commit SHA (minimum 4 hex chars).", required: true),
                     Prop("include_diff", "boolean", "Include the unified diff patch in the response (default: true).", def: true)),
                 handler: async (args, ct) =>
                 {
@@ -835,7 +878,7 @@ namespace StewardessMCPServive.Mcp
                 schema: Schema(
                     Prop("build_command",    "string",  $"Build command to run. Allowed prefixes: {allowedLabel}"),
                     Prop("arguments",        "string",  "Additional CLI arguments."),
-                    Prop("configuration",    "string",  "Build configuration: Debug (default) or Release.", def: "Debug"),
+                    Prop("configuration",    "string",  "Build configuration: Debug (default) or Release.", def: "Debug", enums: new[] { "Debug", "Release" }),
                     Prop("working_directory","string",  "Working directory relative to repo root (empty = root)."),
                     Prop("timeout_seconds",  "integer", "Timeout override in seconds.")),
                 handler: async (args, ct) =>
@@ -915,7 +958,8 @@ namespace StewardessMCPServive.Mcp
                              "Returns the resulting snapshot ID and statistics.",
                 schema: Schema(
                     Prop("root_path",    "string",  "Absolute path to the repository root to index.", required: true),
-                    Prop("parse_mode",   "string",  "Depth of parsing: OutlineOnly, Declarations (default), DeclarationsAndReferences.", def: "Declarations"),
+                    Prop("parse_mode",   "string",  "Depth of parsing.", def: "Declarations",
+                        enums: new[] { "OutlineOnly", "Declarations", "DeclarationsAndReferences" }),
                     Prop("force_rebuild","boolean", "Discard existing index and rebuild from scratch (default false).", def: false)),
                 handler: async (args, ct) =>
                 {
@@ -935,7 +979,7 @@ namespace StewardessMCPServive.Mcp
 
             Add("code_index.get_status",
                 category: "code_index",
-                description: "Returns the current indexing state for a repository root: state, latest snapshot ID, and last completed timestamp.",
+                description: "[Deprecated: use code_index.get_index_status instead] Returns the current indexing state for a repository root.",
                 schema: Schema(
                     Prop("root_path", "string", "Absolute repository root path.", required: true)),
                 handler: async (args, ct) =>
@@ -1017,7 +1061,7 @@ namespace StewardessMCPServive.Mcp
 
             Add("code_index.list_roots",
                 category: "code_index",
-                description: "Returns the list of repository root paths that have a published code index snapshot.",
+                description: "[Deprecated: use code_index.list_repositories instead] Returns the list of repository root paths that have a published code index snapshot.",
                 schema: Schema(),
                 handler: async (args, ct) =>
                 {
@@ -1060,7 +1104,8 @@ namespace StewardessMCPServive.Mcp
                     Prop("query_text",   "string",  "Text to match against symbol names or qualified names.", required: true),
                     Prop("snapshot_id",  "string",  "Specific snapshot ID to query (overrides root_path)."),
                     Prop("root_path",    "string",  "Repository root path; used to resolve the latest snapshot."),
-                    Prop("match_mode",   "string",  "Match mode: exact, prefix (default), or contains.", def: "prefix"),
+                    Prop("match_mode",   "string",  "Symbol name match mode.", def: "prefix",
+                        enums: new[] { "exact", "prefix", "contains" }),
                     Prop("language",     "string",  "Filter by language ID (e.g. csharp, python)."),
                     Prop("kind",         "string",  "Filter by symbol kind (Namespace, Class, Method, Function, etc.)."),
                     Prop("container",    "string",  "Restrict to symbols inside this container qualified name."),
@@ -1101,7 +1146,8 @@ namespace StewardessMCPServive.Mcp
                     Prop("snapshot_id",            "string",  "Specific snapshot ID to query."),
                     Prop("include_primary_occurrence", "boolean", "Include primary declaration location (default true).", def: true),
                     Prop("include_members_summary",   "boolean", "Include members summary for type symbols (default true).", def: true),
-                    Prop("mode",                   "string",  "Response mode: 'summary' (compact) or 'expanded' (full, default).", def: "expanded")),
+                    Prop("mode",                   "string",  "Response mode.", def: "expanded",
+                        enums: new[] { "summary", "expanded" })),
                 handler: async (args, ct) =>
                 {
                     var mode = Str(args, "mode", "expanded");
@@ -1299,7 +1345,7 @@ namespace StewardessMCPServive.Mcp
                              "(e.g., base types, field types, method parameter types). " +
                              "Incoming references show what symbols depend on this symbol.",
                 schema: Schema(
-                    Prop("symbol_id",        "string",  "Symbol ID to query references for (required)."),
+                    Prop("symbol_id",        "string",  "Symbol ID to query references for.", required: true),
                     Prop("snapshot_id",      "string",  "Specific snapshot ID to query."),
                     Prop("include_outgoing", "boolean", "Include outgoing references (default true).", def: true),
                     Prop("include_incoming", "boolean", "Include incoming references (default false).", def: false),
@@ -1359,7 +1405,7 @@ namespace StewardessMCPServive.Mcp
                              "Hard dependencies are edges resolved with high confidence: ExactBound, ScopedBound, ImportBound, or AliasBound. " +
                              "Use hard_only=false to include all edges regardless of resolution confidence.",
                 schema: Schema(
-                    Prop("symbol_id",          "string",  "Symbol ID to query dependencies for (required)."),
+                    Prop("symbol_id",          "string",  "Symbol ID to query dependencies for.", required: true),
                     Prop("snapshot_id",        "string",  "Specific snapshot ID to query."),
                     Prop("hard_only",          "boolean", "Only include hard-bound dependencies (default true).", def: true),
                     Prop("include_evidence",   "boolean", "Include evidence text in results (default true).", def: true),
@@ -1393,7 +1439,7 @@ namespace StewardessMCPServive.Mcp
                              "Shows which other symbols in the repository depend on this symbol. " +
                              "Use hard_only=false to include weakly-resolved edges.",
                 schema: Schema(
-                    Prop("symbol_id",        "string",  "Symbol ID to query dependents for (required)."),
+                    Prop("symbol_id",        "string",  "Symbol ID to query dependents for.", required: true),
                     Prop("snapshot_id",      "string",  "Specific snapshot ID to query."),
                     Prop("hard_only",        "boolean", "Only include hard-bound dependents (default true).", def: true),
                     Prop("include_evidence", "boolean", "Include evidence text in results (default true).", def: true),
@@ -1433,7 +1479,8 @@ namespace StewardessMCPServive.Mcp
                     Prop("include_dependents",    "boolean", "Include inbound hard dependent projections (default true).", def: true),
                     Prop("include_children",      "boolean", "Include direct child symbols (default true).", def: true),
                     Prop("max_items_per_section", "integer", "Maximum items to return per section (0 = unlimited).", def: 0),
-                    Prop("mode",                  "string",  "Response mode: 'summary' (5 items per section) or 'expanded' (default).", def: "expanded")),
+                    Prop("mode",                  "string",  "Response mode.", def: "expanded",
+                        enums: new[] { "summary", "expanded" })),
                 handler: async (args, ct) =>
                 {
                     var symbolId = Str(args, "symbol_id", null);
@@ -1495,20 +1542,16 @@ namespace StewardessMCPServive.Mcp
                              "Falls back to a full build if no previous index exists.",
                 schema: Schema(
                     Prop("root_path",     "string", "Absolute repository root path to update (required).", required: true),
-                    Prop("changed_files", "string", "Comma-separated list of changed relative file paths (optional hint to skip change detection).")),
+                    PropWithItems("changed_files", "Optional array of changed relative file paths. If omitted, change detection runs automatically by comparing file hashes.",
+                        items: new { type = "string" })),
                 handler: async (args, ct) =>
                 {
                     var rootPath = Str(args, "root_path", null);
                     if (string.IsNullOrEmpty(rootPath))
                         return ErrorResult(StewardessMCPServive.CodeIndexing.Query.McpErrorCode.ValidationError, "root_path is required", new { parameter = "root_path" });
 
-                    var changedFilesStr = Str(args, "changed_files", null);
-                    IReadOnlyList<string> changedFiles = null;
-                    if (!string.IsNullOrEmpty(changedFilesStr))
-                        changedFiles = changedFilesStr.Split(',')
-                            .Select(s => s.Trim())
-                            .Where(s => s.Length > 0)
-                            .ToArray();
+                    var changedFilesList = StrList(args, "changed_files");
+                    IReadOnlyList<string> changedFiles = changedFilesList.Count > 0 ? changedFilesList : null;
 
                     var req = new StewardessMCPServive.CodeIndexing.Indexing.IndexUpdateRequest
                     {
@@ -1615,6 +1658,797 @@ namespace StewardessMCPServive.Mcp
                 });
         }
 
+        // ── Tool annotations ─────────────────────────────────────────────────────
+
+        private void AnnotateAllTools()
+        {
+            // ── Repository / navigation ──────────────────────────────────────────
+            Annotate("get_repository_info", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "repository" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get high-level repository metadata (name, root, file counts, policy).",
+                    DoNotUseWhen = "Do not use to list files or search content.",
+                    TypicalNextTools = new[] { "list_directory", "list_tree", "get_git_status" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { name = new { type = "string" }, rootPath = new { type = "string" }, language = new { type = "string" }, framework = new { type = "string" } } };
+            });
+
+            Annotate("list_directory", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "filesystem" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to enumerate files/subdirectories at a path. Best for exploring unfamiliar repository structure.",
+                    DoNotUseWhen = "Do not use for searching file contents or symbols.",
+                    TypicalNextTools = new[] { "read_file", "get_file_structure", "list_tree" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { items = new { type = "array", items = new { type = "object", properties = new { name = new { type = "string" }, path = new { type = "string" }, type = new { type = "string", @enum = new[] { "file", "directory" } } } } }, totalItems = new { type = "integer" } } };
+            });
+
+            Annotate("list_tree", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "filesystem" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get a recursive directory tree. Useful for understanding project structure at a glance.",
+                    DoNotUseWhen = "Do not use for very deep trees or large repositories where list_directory is more efficient.",
+                    TypicalNextTools = new[] { "read_file", "get_file_structure" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { tree = new { type = "object" }, totalNodes = new { type = "integer" } } };
+            });
+
+            Annotate("path_exists", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "filesystem" };
+                d.OutputSchema = new { type = "object", properties = new { exists = new { type = "boolean" }, path = new { type = "string" } } };
+            });
+
+            Annotate("get_metadata", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "filesystem" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, sizeBytes = new { type = "integer" }, lastModified = new { type = "string" }, encoding = new { type = "string" }, lineCount = new { type = "integer" } } };
+            });
+
+            Annotate("detect_encoding", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "filesystem" };
+                d.OutputSchema = new { type = "object", properties = new { encoding = new { type = "string" } } };
+            });
+
+            // ── Search tools ─────────────────────────────────────────────────────
+            Annotate("search_text", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "search", "text" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to find literal strings across all repository files with context lines.",
+                    DoNotUseWhen = "Do not use for symbol/semantic searches — prefer search_symbol or code_index.find_symbols.",
+                    TypicalNextTools = new[] { "read_file_range", "read_file", "replace_text" }
+                };
+                d.OutputSchema = new
+                {
+                    type = "object",
+                    properties = new
+                    {
+                        files = new
+                        {
+                            type  = "array",
+                            items = new
+                            {
+                                type       = "object",
+                                properties = new
+                                {
+                                    path    = new { type = "string" },
+                                    matches = new
+                                    {
+                                        type  = "array",
+                                        items = new
+                                        {
+                                            type       = "object",
+                                            properties = new
+                                            {
+                                                line    = new { type = "integer" },
+                                                column  = new { type = "integer" },
+                                                text    = new { type = "string", description = "Matched line text" },
+                                                excerpt = new { type = "string", description = "Surrounding context" }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        totalMatchCount        = new { type = "integer" },
+                        filesWithMatchesCount  = new { type = "integer" },
+                        truncated              = new { type = "boolean" },
+                        page                   = new { type = "integer" },
+                        pageSize               = new { type = "integer" },
+                        totalItems             = new { type = "integer" },
+                        hasMore                = new { type = "boolean" }
+                    }
+                };
+            });
+
+            Annotate("search_regex", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "search", "regex" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to find text matching a .NET regular expression pattern.",
+                    DoNotUseWhen = "Do not use for simple literal string searches — prefer search_text for better performance.",
+                    TypicalNextTools = new[] { "read_file_range", "replace_text" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { files = new { type = "array" }, totalMatchCount = new { type = "integer" }, filesWithMatchesCount = new { type = "integer" }, truncated = new { type = "boolean" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("search_file_names", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "search", "filesystem" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to find files by name pattern (* and ? wildcards supported).",
+                    DoNotUseWhen = "Do not use for content search — use search_text instead.",
+                    TypicalNextTools = new[] { "read_file", "get_file_structure" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { matches = new { type = "array" }, totalCount = new { type = "integer" }, truncated = new { type = "boolean" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("search_by_extension", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "search", "filesystem" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to list all files with specific extensions across the repository.",
+                    DoNotUseWhen = "Do not use for content or symbol searches.",
+                    TypicalNextTools = new[] { "read_file", "search_text" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { matches = new { type = "array" }, totalCount = new { type = "integer" }, truncated = new { type = "boolean" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("search_symbol", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "search", "code-intelligence", "semantic" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to find class, method, property, or interface declarations by name using text heuristics.",
+                    DoNotUseWhen = "Do not use when the code index is available — prefer code_index.find_symbols for semantic accuracy.",
+                    TypicalNextTools = new[] { "read_file_range", "find_references", "code_index.get_symbol" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { files = new { type = "array" }, totalMatchCount = new { type = "integer" }, filesWithMatchesCount = new { type = "integer" }, truncated = new { type = "boolean" } } };
+            });
+
+            Annotate("find_references", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "search", "code-intelligence", "semantic" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to find textual usages of an identifier across the repository.",
+                    DoNotUseWhen = "Do not use when semantic code index is available — prefer code_index.get_references.",
+                    TypicalNextTools = new[] { "read_file_range", "code_index.get_references" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { files = new { type = "array" }, totalMatchCount = new { type = "integer" }, filesWithMatchesCount = new { type = "integer" }, truncated = new { type = "boolean" } } };
+            });
+
+            // ── File read tools ───────────────────────────────────────────────────
+            Annotate("read_file", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "files" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to read the full content of a file.",
+                    DoNotUseWhen = "Do not use for very large files — use read_file_range for targeted reads.",
+                    TypicalNextTools = new[] { "replace_text", "search_text", "write_file" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, content = new { type = "string" }, encoding = new { type = "string" }, lines = new { type = "integer" }, sizeBytes = new { type = "integer" } } };
+            });
+
+            Annotate("read_file_range", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "files" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to read a specific range of lines from a file. More efficient than reading the entire file.",
+                    DoNotUseWhen = "Do not use when you need the full file — use read_file instead.",
+                    TypicalNextTools = new[] { "replace_lines", "replace_text" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, startLine = new { type = "integer" }, endLine = new { type = "integer" }, content = new { type = "string" }, totalLines = new { type = "integer" } } };
+            });
+
+            Annotate("read_multiple_files", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "files" };
+                d.OutputSchema = new { type = "object", properties = new { results = new { type = "array" } } };
+            });
+
+            Annotate("get_file_hash", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "files", "integrity" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, algorithm = new { type = "string" }, hash = new { type = "string" } } };
+            });
+
+            Annotate("get_file_structure", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "structure" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get a structural outline (namespaces, types, members) of a code file.",
+                    DoNotUseWhen = "Do not use for non-code files. For semantic accuracy prefer code_index.get_file_outline.",
+                    TypicalNextTools = new[] { "read_file_range", "search_symbol" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, namespaces = new { type = "array" }, types = new { type = "array" }, methods = new { type = "array" } } };
+            });
+
+            // ── Edit tools ────────────────────────────────────────────────────────
+            Annotate("write_file", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsRollback = true; d.SupportsAuditReason = true;
+                d.Tags = new[] { "edit", "destructive" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to overwrite or create a file with new content. Supports dry_run and backup.",
+                    DoNotUseWhen = "Do not use when you only need to change a few lines — prefer replace_text or replace_lines.",
+                    TypicalNextTools = new[] { "read_file", "get_git_diff" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" }, bytesWritten = new { type = "integer" }, backupPath = new { type = "string" } } };
+            });
+
+            Annotate("create_file", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsRollback = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("create_directory", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "low";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, created = new { type = "boolean" } } };
+            });
+
+            Annotate("rename_path", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { oldPath = new { type = "string" }, newPath = new { type = "string" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("move_path", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { sourcePath = new { type = "string" }, destinationPath = new { type = "string" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("delete_file", d =>
+            {
+                d.SideEffectClass = "destructive"; d.RiskLevel = "high";
+                d.SupportsDryRun = true; d.SupportsRollback = true;
+                d.Tags = new[] { "edit", "destructive" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to permanently delete a file. A backup is created by default for rollback.",
+                    DoNotUseWhen = "Do not use without reviewing the file contents first.",
+                    TypicalNextTools = new[] { "rollback", "get_git_diff" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" }, backupPath = new { type = "string" } } };
+            });
+
+            Annotate("delete_directory", d =>
+            {
+                d.SideEffectClass = "destructive"; d.RiskLevel = "high";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit", "destructive" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("append_file", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" }, bytesAppended = new { type = "integer" } } };
+            });
+
+            Annotate("replace_text", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsRollback = true; d.SupportsAuditReason = true;
+                d.Tags = new[] { "edit" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to replace occurrences of a literal string in a file.",
+                    DoNotUseWhen = "Do not use for multi-file changes — use batch_edit instead.",
+                    TypicalNextTools = new[] { "read_file", "get_git_diff" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, replacementsApplied = new { type = "integer" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("replace_lines", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsRollback = true; d.SupportsAuditReason = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" }, linesReplaced = new { type = "integer" } } };
+            });
+
+            Annotate("patch_file", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsRollback = true;
+                d.Tags = new[] { "edit" };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" }, hunksApplied = new { type = "integer" } } };
+            });
+
+            Annotate("apply_diff", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit", "batch" };
+                d.OutputSchema = new { type = "object", properties = new { success = new { type = "boolean" }, filesModified = new { type = "integer" } } };
+            });
+
+            Annotate("batch_edit", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsAuditReason = true;
+                d.Tags = new[] { "edit", "batch" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to execute multiple heterogeneous edits atomically. All-or-nothing with automatic rollback on failure.",
+                    DoNotUseWhen = "Do not use for a single file edit — use the specific tool instead.",
+                    TypicalNextTools = new[] { "get_git_diff", "read_file" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { success = new { type = "boolean" }, operationsApplied = new { type = "integer" }, rollbackToken = new { type = "string" } } };
+            });
+
+            Annotate("preview_changes", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.SupportsDryRun = true;
+                d.Tags = new[] { "edit", "preview" };
+                d.OutputSchema = new { type = "object", properties = new { diff = new { type = "string" }, approvalToken = new { type = "string" } } };
+            });
+
+            Annotate("rollback", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.Tags = new[] { "edit", "rollback" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to restore a file from a backup created by a prior write/delete operation.",
+                    DoNotUseWhen = "Do not use without a valid rollback token from a prior operation.",
+                    TypicalNextTools = new[] { "read_file", "get_git_diff" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, success = new { type = "boolean" } } };
+            });
+
+            // ── Git tools ─────────────────────────────────────────────────────────
+            Annotate("get_git_status", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "git" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get the current git status: branch, HEAD, staged/unstaged changes.",
+                    DoNotUseWhen = null,
+                    TypicalNextTools = new[] { "get_git_diff", "get_git_log" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { currentBranch = new { type = "string" }, headCommit = new { type = "string" }, files = new { type = "array" } } };
+            });
+
+            Annotate("get_git_diff", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "git" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get a unified diff for working-tree or staged changes.",
+                    DoNotUseWhen = null,
+                    TypicalNextTools = new[] { "get_git_status", "write_file", "replace_text" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { diff = new { type = "string" }, scope = new { type = "string" } } };
+            });
+
+            Annotate("get_git_diff_file", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "git" };
+                d.OutputSchema = new { type = "object", properties = new { diff = new { type = "string" }, path = new { type = "string" } } };
+            });
+
+            Annotate("get_git_log", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "git" };
+                d.OutputSchema = new { type = "object", properties = new { commits = new { type = "array" }, count = new { type = "integer" } } };
+            });
+
+            Annotate("get_commit", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "git" };
+                d.OutputSchema = new { type = "object", properties = new { sha = new { type = "string" }, author = new { type = "string" }, message = new { type = "string" }, files = new { type = "array" }, diff = new { type = "string" } } };
+            });
+
+            // ── Command tools ─────────────────────────────────────────────────────
+            Annotate("run_build", d =>
+            {
+                d.SideEffectClass = "process-execution"; d.RiskLevel = "medium";
+                d.Tags = new[] { "command", "ci", "build" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to run the configured build command (dotnet build or msbuild).",
+                    DoNotUseWhen = "Do not use with untrusted command strings — only allowed prefixes are accepted.",
+                    TypicalNextTools = new[] { "run_tests", "get_git_diff" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { exitCode = new { type = "integer" }, output = new { type = "string" }, success = new { type = "boolean" }, durationMs = new { type = "integer" } } };
+            });
+
+            Annotate("run_tests", d =>
+            {
+                d.SideEffectClass = "process-execution"; d.RiskLevel = "medium";
+                d.Tags = new[] { "command", "ci", "test" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to run the configured test command (dotnet test).",
+                    DoNotUseWhen = "Do not use with untrusted command strings.",
+                    TypicalNextTools = new[] { "run_build", "read_file" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { exitCode = new { type = "integer" }, output = new { type = "string" }, passed = new { type = "integer" }, failed = new { type = "integer" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("run_command", d =>
+            {
+                d.SideEffectClass = "process-execution"; d.RiskLevel = "high";
+                d.Tags = new[] { "command", "dangerous" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to run a custom command from the AllowedCommands whitelist.",
+                    DoNotUseWhen = "Do not use commands not in the AllowedCommands list — they will be rejected.",
+                    TypicalNextTools = new[] { "run_build", "run_tests" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { exitCode = new { type = "integer" }, output = new { type = "string" }, success = new { type = "boolean" } } };
+            });
+
+            // ── Code Index tools ──────────────────────────────────────────────────
+            Annotate("code_index.build", d =>
+            {
+                d.SideEffectClass = "service-state-write"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "write" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to build or rebuild the structural code index for a repository.",
+                    DoNotUseWhen = "Do not use if an up-to-date index already exists — prefer code_index.update.",
+                    TypicalNextTools = new[] { "code_index.list_files", "code_index.find_symbols", "code_index.get_snapshot_info" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, fileCount = new { type = "integer" }, symbolCount = new { type = "integer" }, durationMs = new { type = "integer" } } };
+            });
+
+            Annotate("code_index.get_status", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use to quickly check whether a repository has been indexed.",
+                    DoNotUseWhen = "Prefer code_index.get_index_status which includes richer metadata (file/symbol/reference counts and delta information).",
+                };
+                d.OutputSchema = new { type = "object", properties = new { state = new { type = "string" }, latestSnapshotId = new { type = "string" }, lastCompletedAt = new { type = "string" } } };
+            });
+
+            Annotate("code_index.list_files", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, items = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_file_outline", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "structure" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get a precise structural outline of a file from the semantic code index.",
+                    DoNotUseWhen = "Do not use if the file has not been indexed — fall back to get_file_structure.",
+                    TypicalNextTools = new[] { "read_file_range", "code_index.find_symbols" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { filePath = new { type = "string" }, nodes = new { type = "array" } } };
+            });
+
+            Annotate("code_index.get_snapshot_info", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, rootPath = new { type = "string" }, fileCount = new { type = "integer" }, symbolCount = new { type = "integer" }, createdAt = new { type = "string" } } };
+            });
+
+            Annotate("code_index.list_roots", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use to get a simple list of indexed root paths.",
+                    DoNotUseWhen = "Prefer code_index.list_repositories which includes per-repo status (state, snapshot ID, file/symbol counts).",
+                };
+                d.OutputSchema = new { type = "object", properties = new { roots = new { type = "array", items = new { type = "string" } } } };
+            });
+
+            Annotate("code_index.get_language_capabilities", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.OutputSchema = new { type = "object", properties = new { adapters = new { type = "array" } } };
+            });
+
+            Annotate("code_index.find_symbols", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to search the symbol index by name or qualified name with semantic accuracy.",
+                    DoNotUseWhen = "Do not use for plain text search — use search_text or search_symbol instead.",
+                    TypicalNextTools = new[] { "code_index.get_symbol", "code_index.get_symbol_occurrences", "code_index.get_dependencies" }
+                };
+                d.OutputSchema = new
+                {
+                    type       = "object",
+                    properties = new
+                    {
+                        snapshotId = new { type = "string" },
+                        items      = new
+                        {
+                            type  = "array",
+                            items = new
+                            {
+                                type       = "object",
+                                properties = new
+                                {
+                                    symbolId      = new { type = "string" },
+                                    name          = new { type = "string" },
+                                    kind          = new { type = "string" },
+                                    qualifiedName = new { type = "string" },
+                                    filePath      = new { type = "string" },
+                                    line          = new { type = "integer" }
+                                }
+                            }
+                        },
+                        page       = new { type = "integer" },
+                        pageSize   = new { type = "integer" },
+                        totalItems = new { type = "integer" },
+                        hasMore    = new { type = "boolean" }
+                    }
+                };
+            });
+
+            Annotate("code_index.get_symbol", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to retrieve full details for a single logical symbol by its stable symbol ID.",
+                    DoNotUseWhen = "Do not use without a valid symbol ID from code_index.find_symbols.",
+                    TypicalNextTools = new[] { "code_index.get_symbol_occurrences", "code_index.get_dependencies", "code_index.get_references" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, symbol = new { type = "object" }, primaryOccurrence = new { type = "object" }, error = new { type = "object", properties = new { code = new { type = "string" }, message = new { type = "string" }, context = new { type = "object" } } } } };
+            });
+
+            Annotate("code_index.get_symbol_occurrences", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { symbolId = new { type = "string" }, occurrences = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_symbol_children", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { symbolId = new { type = "string" }, children = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_type_members", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { typeSymbolId = new { type = "string" }, constructors = new { type = "array" }, methods = new { type = "array" }, properties = new { type = "array" }, fields = new { type = "array" }, events = new { type = "array" } } };
+            });
+
+            Annotate("code_index.resolve_location", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { filePath = new { type = "string" }, line = new { type = "integer" }, column = new { type = "integer" } } };
+            });
+
+            Annotate("code_index.get_namespace_tree", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { nodes = new { type = "array" } } };
+            });
+
+            Annotate("code_index.get_imports", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { filePath = new { type = "string" }, imports = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_references", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get outgoing and incoming reference edges for a logical symbol.",
+                    DoNotUseWhen = "Do not use without a valid symbol ID.",
+                    TypicalNextTools = new[] { "code_index.get_symbol", "code_index.get_dependencies" }
+                };
+                d.OutputSchema = new
+                {
+                    type       = "object",
+                    properties = new
+                    {
+                        snapshotId   = new { type = "string" },
+                        symbolId     = new { type = "string" },
+                        outgoingRefs = new
+                        {
+                            type  = "array",
+                            items = new
+                            {
+                                type       = "object",
+                                properties = new
+                                {
+                                    targetSymbolId   = new { type = "string" },
+                                    targetName       = new { type = "string" },
+                                    kind             = new { type = "string" },
+                                    confidence       = new { type = "number" },
+                                    resolutionMethod = new { type = "string" }
+                                }
+                            }
+                        },
+                        incomingRefs = new
+                        {
+                            type  = "array",
+                            items = new
+                            {
+                                type       = "object",
+                                properties = new
+                                {
+                                    targetSymbolId   = new { type = "string" },
+                                    targetName       = new { type = "string" },
+                                    kind             = new { type = "string" },
+                                    confidence       = new { type = "number" },
+                                    resolutionMethod = new { type = "string" }
+                                }
+                            }
+                        },
+                        page         = new { type = "integer" },
+                        pageSize     = new { type = "integer" },
+                        totalOutgoing= new { type = "integer" },
+                        totalIncoming= new { type = "integer" },
+                        hasMore      = new { type = "boolean" }
+                    }
+                };
+            });
+
+            Annotate("code_index.get_file_references", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { filePath = new { type = "string" }, references = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_dependencies", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to get outbound hard dependency projections for a logical symbol.",
+                    DoNotUseWhen = "Do not use without a valid symbol ID.",
+                    TypicalNextTools = new[] { "code_index.get_symbol", "code_index.get_dependents" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, symbolId = new { type = "string" }, dependencies = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_dependents", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, symbolId = new { type = "string" }, dependents = new { type = "array" }, page = new { type = "integer" }, pageSize = new { type = "integer" }, totalItems = new { type = "integer" }, hasMore = new { type = "boolean" } } };
+            });
+
+            Annotate("code_index.get_symbol_relationships", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { symbolId = new { type = "string" }, children = new { type = "array" }, references = new { type = "array" }, dependencies = new { type = "array" }, dependents = new { type = "array" } } };
+            });
+
+            Annotate("code_index.get_file_dependencies", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "semantic" };
+                d.OutputSchema = new { type = "object", properties = new { filePath = new { type = "string" }, dependencyFiles = new { type = "array" }, totalEdges = new { type = "integer" } } };
+            });
+
+            Annotate("code_index.update", d =>
+            {
+                d.SideEffectClass = "service-state-write"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing", "write" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to incrementally update the code index after file changes.",
+                    DoNotUseWhen = "Do not use for an initial index build — use code_index.build instead.",
+                    TypicalNextTools = new[] { "code_index.get_index_status", "code_index.find_symbols" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { snapshotId = new { type = "string" }, filesProcessed = new { type = "integer" }, symbolsAdded = new { type = "integer" }, symbolsRemoved = new { type = "integer" } } };
+            });
+
+            Annotate("code_index.get_index_status", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, state = new { type = "string" }, latestSnapshotId = new { type = "string" }, fileCount = new { type = "integer" }, symbolCount = new { type = "integer" } } };
+            });
+
+            Annotate("code_index.list_repositories", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "code-intelligence", "indexing" };
+                d.OutputSchema = new { type = "object", properties = new { repositories = new { type = "array" } } };
+            });
+
+            Annotate("code_index.clear_repository", d =>
+            {
+                d.SideEffectClass = "destructive"; d.RiskLevel = "medium";
+                d.Tags = new[] { "code-intelligence", "indexing", "destructive" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to remove all stored index state for a repository root. Cannot be undone.",
+                    DoNotUseWhen = "Do not use unless you want to permanently clear the index for a repository.",
+                    TypicalNextTools = new[] { "code_index.build" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, removedSnapshots = new { type = "integer" }, status = new { type = "string" } } };
+            });
+
+            Annotate("code_index.ping", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "health" };
+                d.OutputSchema = new { type = "object", properties = new { status = new { type = "string" }, service = new { type = "string" }, version = new { type = "string" }, languages = new { type = "array", items = new { type = "string" } }, tool_chains = new { type = "array", items = new { type = "string" } } } };
+            });
+        }
+
         // ── Registration helper ──────────────────────────────────────────────────
         private void Add(
             string name,
@@ -1644,28 +2478,48 @@ namespace StewardessMCPServive.Mcp
 
         // ── Schema builder helpers ───────────────────────────────────────────────
 
-        private static McpInputSchema Schema(params (string Name, McpPropertySchema Schema)[] props)
+        private static McpInputSchema Schema(params (string Name, McpPropertySchema Schema, bool Required)[] props)
         {
             var schema = new McpInputSchema();
-            foreach (var (name, propSchema) in props)
+            foreach (var (name, propSchema, req) in props)
+            {
                 schema.Properties[name] = propSchema;
+                if (req) schema.Required.Add(name);
+            }
             return schema;
         }
 
-        private static (string, McpPropertySchema) Prop(
+        private static (string, McpPropertySchema, bool) Prop(
             string name,
             string type,
             string description,
             bool   required = false,
-            object def      = null)
+            object def      = null,
+            string[] enums  = null)
         {
             var prop = new McpPropertySchema
             {
                 Type        = type,
                 Description = description,
-                Default     = def
+                Default     = def,
+                Enum        = enums != null ? new System.Collections.Generic.List<string>(enums) : null
             };
-            return (name, prop);
+            return (name, prop, required);
+        }
+
+        private static (string, McpPropertySchema, bool) PropWithItems(
+            string name,
+            string description,
+            bool   required = false,
+            object items    = null)
+        {
+            var prop = new McpPropertySchema
+            {
+                Type        = "array",
+                Description = description,
+                Items       = items
+            };
+            return (name, prop, required);
         }
 
         // ── Argument extraction helpers ──────────────────────────────────────────
@@ -1746,14 +2600,46 @@ namespace StewardessMCPServive.Mcp
             _ => StewardessMCPServive.CodeIndexing.Query.McpErrorCode.InternalError,
         };
 
+        // ── Pagination helpers ───────────────────────────────────────────────────
+
+        private static void ApplyPagination(SearchResponse result, int page, int pageSize)
+        {
+            result.TotalItems = result.Files.Count;
+            result.Page       = Math.Max(1, page);
+            pageSize          = Math.Min(200, Math.Max(1, pageSize));
+            result.PageSize   = pageSize;
+            var skip          = (result.Page - 1) * pageSize;
+            result.HasMore    = skip + pageSize < result.Files.Count;
+            result.Files      = result.Files.Skip(skip).Take(pageSize).ToList();
+        }
+
+        private static void ApplyFileNamePagination(FileNameSearchResponse result, int page, int pageSize)
+        {
+            result.Page     = Math.Max(1, page);
+            pageSize        = Math.Min(200, Math.Max(1, pageSize));
+            result.PageSize = pageSize;
+            var skip        = (result.Page - 1) * pageSize;
+            result.HasMore  = skip + pageSize < result.Matches.Count;
+            result.Matches  = result.Matches.Skip(skip).Take(pageSize).ToList();
+        }
+
+        // ── Annotation helper ─────────────────────────────────────────────────────
+
+        private void Annotate(string name, Action<McpToolDefinition> configure)
+        {
+            if (_tools.TryGetValue(name, out var entry))
+                configure(entry.Definition);
+        }
+
         // ── Result factory ───────────────────────────────────────────────────────
 
         private static McpToolCallResult ToResult(object data)
         {
             var settings = new JsonSerializerSettings
             {
-                Formatting  = Formatting.Indented,
-                Converters  = { new Newtonsoft.Json.Converters.StringEnumConverter() },
+                Formatting        = Formatting.Indented,
+                Converters        = { new Newtonsoft.Json.Converters.StringEnumConverter() },
+                ContractResolver  = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
             };
             var json = JsonConvert.SerializeObject(data, settings);
             return new McpToolCallResult

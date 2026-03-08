@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using StewardessMCPServive.Configuration;
+using StewardessMCPServive.Mcp;
 using StewardessMCPServive.Models;
 
 namespace StewardessMCPServive.Controllers
@@ -18,6 +19,9 @@ namespace StewardessMCPServive.Controllers
     [Route("api")]
     public sealed class CapabilitiesController : BaseController
     {
+        // Resolves the registry from DI so the manifest includes all annotations.
+        private McpToolRegistry Registry => GetService<McpToolRegistry>();
+
         /// <summary>Returns the full capability manifest including all tool schemas.</summary>
         [HttpGet, Route("capabilities"), AllowAnonymous]
         public IActionResult GetCapabilities() => Ok(BuildManifest());
@@ -30,7 +34,7 @@ namespace StewardessMCPServive.Controllers
         //  Manifest builder
         // ────────────────────────────────────────────────────────────────────────
 
-        internal static McpCapabilitiesManifest BuildManifest()
+        private McpCapabilitiesManifest BuildManifest()
         {
             var settings = McpServiceSettings.Instance;
             var canWrite = !settings.ReadOnlyMode;
@@ -40,6 +44,13 @@ namespace StewardessMCPServive.Controllers
             {
                 ServiceVersion    = settings.ServiceVersion,
                 GeneratedAt       = DateTimeOffset.UtcNow,
+                ManifestFormat    = "stewardess-service-manifest/v1",
+                Policies = new McpPolicies
+                {
+                    ApprovalRequiredForDestructive  = false,
+                    ApprovalRequiredForCommands      = false,
+                    ApprovalRequiredForGitMutations  = false
+                },
                 Capabilities      = new McpServerCapabilities
                 {
                     CanRead               = true,
@@ -67,7 +78,35 @@ namespace StewardessMCPServive.Controllers
                     RepositoryName = System.IO.Path.GetFileName(settings.RepositoryRoot),
                     RepositoryRoot = settings.RepositoryRoot
                 },
-                Tools = BuildAllTools(canWrite, canCmd)
+                // Use the fully-annotated registry definitions so that all new fields
+                // (SideEffectClass, RiskLevel, OutputSchema, Tags, UsageGuidance, etc.)
+                // are present in both /api/capabilities and /api/tools responses.
+                Tools = new List<McpToolDefinition>(Registry.GetAllDefinitions()),
+
+                CommonErrorSchema = new
+                {
+                    type        = "object",
+                    description = "Returned by any tool when an error occurs.",
+                    properties  = new
+                    {
+                        error = new
+                        {
+                            type       = "object",
+                            properties = new
+                            {
+                                Code    = new
+                                {
+                                    type        = "string",
+                                    description = "Machine-readable error code.",
+                                    @enum       = new[] { "ValidationError", "SnapshotNotFound", "FileNotFound", "SymbolNotFound", "CapabilityNotSupported", "RepositoryNotIndexed", "InternalError" }
+                                },
+                                Message = new { type = "string", description = "Human-readable error description." },
+                                Context = new { type = "object", description = "Optional structured context about the error (e.g. which parameter was invalid)." }
+                            },
+                            required = new[] { "Code", "Message" }
+                        }
+                    }
+                }
             };
         }
 

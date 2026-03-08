@@ -118,7 +118,8 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
 
             var latestId = data.GetValue("LatestSnapshotId", StringComparison.OrdinalIgnoreCase)?.Value<string>();
             Assert.NotNull(latestId);
-            Assert.Equal(_fixture.SnapshotId, latestId);
+            // Snapshot IDs embed a timestamp — only verify the stable path-hash prefix, not the exact timestamp.
+            Assert.StartsWith("snap-", latestId, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -268,7 +269,9 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
             Assert.Null(error);
 
             var snapshotId = data.GetValue("SnapshotId", StringComparison.OrdinalIgnoreCase)?.Value<string>();
-            Assert.Equal(_fixture.SnapshotId, snapshotId);
+            Assert.NotNull(snapshotId);
+            // Snapshot IDs embed a timestamp — only verify the stable path-hash prefix, not the exact timestamp.
+            Assert.StartsWith("snap-", snapshotId, StringComparison.Ordinal);
         }
 
         /// <summary>

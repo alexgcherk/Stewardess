@@ -254,7 +254,7 @@ namespace StewardessMCPServive.Models
         /// <summary>Risk level: "low", "medium", or "high".</summary>
         public string RiskLevel { get; set; } = "low";
 
-        /// <summary>Side effect class: "read-only", "file-write", "process-execution", "git-mutation", "destructive".</summary>
+        /// <summary>Side effect class: "read-only", "file-write", "process-execution", "git-mutation", "destructive", "service-state-write".</summary>
         public string SideEffectClass { get; set; } = "read-only";
 
         /// <summary>Additional semantic tags for agent routing (e.g. "code-intelligence", "semantic", "ci").</summary>
@@ -410,6 +410,13 @@ namespace StewardessMCPServive.Models
         public McpServerConstraints Constraints { get; set; }
         /// <summary>Repository-specific context for the connected AI agent.</summary>
         public McpRepositoryContext RepositoryContext { get; set; }
+
+        /// <summary>
+        /// Common error schema used by all tools when an error occurs.
+        /// All tools return { "error": { "Code": string, "Message": string, "Context": object? } }
+        /// on failure. The Code field contains a machine-readable error code.
+        /// </summary>
+        public object CommonErrorSchema { get; set; }
     }
 
     /// <summary>High-level feature flags declared in the capability manifest.</summary>

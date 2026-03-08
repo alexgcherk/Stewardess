@@ -90,10 +90,5 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
             _factory?.Dispose();
             _repo?.Dispose();
         }
-
-        public object CreateNonRedirectingHttpClient()
-        {
-            throw new NotImplementedException();
-        }
     }
 }

@@ -147,6 +147,18 @@ namespace StewardessMCPServive.Models
 
         /// <summary>Search duration in milliseconds.</summary>
         public long ElapsedMs { get; set; }
+
+        /// <summary>Current page number (1-based).</summary>
+        public int Page { get; set; } = 1;
+
+        /// <summary>Number of file results per page.</summary>
+        public int PageSize { get; set; }
+
+        /// <summary>Total number of file results across all pages.</summary>
+        public int TotalItems { get; set; }
+
+        /// <summary>True when there are additional pages of results.</summary>
+        public bool HasMore { get; set; }
     }
 
     /// <summary>Matches within a single file.</summary>
@@ -197,6 +209,15 @@ namespace StewardessMCPServive.Models
         public bool Truncated { get; set; }
         /// <summary>Search duration in milliseconds.</summary>
         public long ElapsedMs { get; set; }
+
+        /// <summary>Current page number (1-based).</summary>
+        public int Page { get; set; } = 1;
+
+        /// <summary>Number of matches per page.</summary>
+        public int PageSize { get; set; }
+
+        /// <summary>True when there are additional pages of results.</summary>
+        public bool HasMore { get; set; }
     }
 
     /// <summary>A single file-name match.</summary>
