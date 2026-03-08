@@ -40,7 +40,7 @@ namespace StewardessMCPServive.Services
             var root  = _settings.RepositoryRoot;
             var info  = new DirectoryInfo(root);
 
-            GitRepoSummary? git = null;
+            GitRepoSummary git = null;
             var gitDir = Path.Combine(root, ".git");
             if (Directory.Exists(gitDir))
             {
@@ -75,7 +75,7 @@ namespace StewardessMCPServive.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!Directory.Exists(absPath))
-                throw new DirectoryNotFoundException($"Directory not found: {request?.Path}");
+                throw new DirectoryNotFoundException($"Directory not found: {request.Path}");
 
             var dirInfo   = new DirectoryInfo(absPath);
             var allItems  = dirInfo.GetFileSystemInfos();
@@ -86,9 +86,9 @@ namespace StewardessMCPServive.Services
                 bool isBlocked = _pathValidator.IsFolderBlocked(item.FullName)
                               || (_settings.BlockedFolders.Contains(item.Name));
 
-                if (isBlocked && !(request?.IncludeBlocked ?? false)) continue;
+                if (isBlocked && !request.IncludeBlocked) continue;
 
-                if (!string.IsNullOrEmpty(request?.NamePattern) &&
+                if (!string.IsNullOrEmpty(request.NamePattern) &&
                     !MatchesWildcard(item.Name, request.NamePattern))
                     continue;
 
@@ -136,12 +136,12 @@ namespace StewardessMCPServive.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!Directory.Exists(absPath))
-                throw new DirectoryNotFoundException($"Directory not found: {request?.Path}");
+                throw new DirectoryNotFoundException($"Directory not found: {request.Path}");
 
             // maxDepth < 0 means "use the configured limit" (callers pass -1 for unbounded).
-            int maxDepth = request!.MaxDepth < 0
+            int maxDepth = request.MaxDepth < 0
                 ? _settings.MaxDirectoryDepth
-                : Math.Min(request!.MaxDepth, _settings.MaxDirectoryDepth);
+                : Math.Min(request.MaxDepth, _settings.MaxDirectoryDepth);
             int totalFiles = 0, totalDirs = 0;
             bool truncated = false;
 
@@ -180,7 +180,7 @@ namespace StewardessMCPServive.Services
         /// <inheritdoc />
         public Task<FileMetadataResponse> GetMetadataAsync(FileMetadataRequest request, CancellationToken ct = default)
         {
-            var validation = _pathValidator.ValidateRead(request?.Path ?? "", out var absPath);
+            var validation = _pathValidator.ValidateRead(request?.Path, out var absPath);
             if (!validation.IsValid)
                 throw new ArgumentException(validation.ErrorMessage);
 
@@ -227,7 +227,7 @@ namespace StewardessMCPServive.Services
                 });
             }
 
-            throw new FileNotFoundException($"Path not found: {request!.Path}");
+            throw new FileNotFoundException($"Path not found: {request.Path}");
         }
 
         // ── File reading ─────────────────────────────────────────────────────────
@@ -235,15 +235,15 @@ namespace StewardessMCPServive.Services
         /// <inheritdoc />
         public async Task<ReadFileResponse> ReadFileAsync(ReadFileRequest request, CancellationToken ct = default)
         {
-            var validation = _pathValidator.ValidateRead(request?.Path ?? "", out var absPath);
+            var validation = _pathValidator.ValidateRead(request?.Path, out var absPath);
             if (!validation.IsValid)
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request!.Path}");
+                throw new FileNotFoundException($"File not found: {request.Path}");
 
             var fi       = new FileInfo(absPath);
-            long maxBytes = request!.MaxBytes.HasValue
+            long maxBytes = request.MaxBytes.HasValue
                 ? Math.Min(request.MaxBytes.Value, _settings.MaxFileReadBytes)
                 : _settings.MaxFileReadBytes;
 
@@ -251,8 +251,8 @@ namespace StewardessMCPServive.Services
             bool truncated  = fi.Length > maxBytes;
             long toRead     = truncated ? maxBytes : fi.Length;
 
-            string? content       = null;
-            string? contentBase64 = null;
+            string content       = null;
+            string contentBase64 = null;
             string encoding      = "utf-8";
             string lineEnding    = "lf";
             int lineCount        = 0;
@@ -292,17 +292,17 @@ namespace StewardessMCPServive.Services
         /// <inheritdoc />
         public async Task<ReadFileRangeResponse> ReadFileRangeAsync(ReadFileRangeRequest request, CancellationToken ct = default)
         {
-            var validation = _pathValidator.ValidateRead(request?.Path ?? "", out var absPath);
+            var validation = _pathValidator.ValidateRead(request?.Path, out var absPath);
             if (!validation.IsValid)
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request!.Path}");
+                throw new FileNotFoundException($"File not found: {request.Path}");
 
             var allLines = await Task.Run(() => File.ReadAllLines(absPath), ct).ConfigureAwait(false);
             int total    = allLines.Length;
-            int start    = Math.Max(1, request!.StartLine);
-            int end      = request!.EndLine < 1 ? total : Math.Min(request!.EndLine, total);
+            int start    = Math.Max(1, request.StartLine);
+            int end      = request.EndLine < 1 ? total : Math.Min(request.EndLine, total);
 
             if (start > total)
                 throw new ArgumentOutOfRangeException(nameof(request.StartLine),
@@ -369,15 +369,15 @@ namespace StewardessMCPServive.Services
         /// <inheritdoc />
         public async Task<FileHashResponse> GetFileHashAsync(FileHashRequest request, CancellationToken ct = default)
         {
-            var validation = _pathValidator.ValidateRead(request?.Path ?? "", out var absPath);
+            var validation = _pathValidator.ValidateRead(request?.Path, out var absPath);
             if (!validation.IsValid)
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request!.Path}");
+                throw new FileNotFoundException($"File not found: {request.Path}");
 
             var fi        = new FileInfo(absPath);
-            var algorithm = (request!.Algorithm ?? "SHA256").ToUpperInvariant();
+            var algorithm = (request.Algorithm ?? "SHA256").ToUpperInvariant();
 
             string hash;
             using (var stream = new FileStream(absPath, FileMode.Open, FileAccess.Read, FileShare.Read,
@@ -409,12 +409,12 @@ namespace StewardessMCPServive.Services
         public Task<FileStructureSummaryResponse> GetFileStructureSummaryAsync(
             FileStructureSummaryRequest request, CancellationToken ct = default)
         {
-            var validation = _pathValidator.ValidateRead(request?.Path ?? "", out var absPath);
+            var validation = _pathValidator.ValidateRead(request?.Path, out var absPath);
             if (!validation.IsValid)
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request!.Path}");
+                throw new FileNotFoundException($"File not found: {request.Path}");
 
             var ext      = Path.GetExtension(absPath).ToLowerInvariant();
             var language = MapExtensionToLanguage(ext);
@@ -526,7 +526,7 @@ namespace StewardessMCPServive.Services
 
         // ── Git head helpers ─────────────────────────────────────────────────────
 
-        private static string? TryReadGitHead(string gitDir)
+        private static string TryReadGitHead(string gitDir)
         {
             try
             {
@@ -540,7 +540,7 @@ namespace StewardessMCPServive.Services
             catch { return null; }
         }
 
-        private static string? TryReadHeadCommitSha(string gitDir, string? branch)
+        private static string TryReadHeadCommitSha(string gitDir, string branch)
         {
             try
             {
@@ -724,8 +724,8 @@ namespace StewardessMCPServive.Services
                 Language     = language
             };
 
-            NamespaceInfo? currentNs = null;
-            TypeInfo?      currentType = null;
+            NamespaceInfo currentNs = null;
+            TypeInfo      currentType = null;
 
             for (int i = 0; i < lines.Length; i++)
             {

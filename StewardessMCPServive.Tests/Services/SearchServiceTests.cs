@@ -169,8 +169,8 @@ namespace StewardessMCPServive.Tests.Services
             var hasCs = false; var hasMd = false;
             foreach (var f in result.Matches)
             {
-                if (f.RelativePath?.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) == true) hasCs = true;
-                if (f.RelativePath?.EndsWith(".md", StringComparison.OrdinalIgnoreCase) == true) hasMd = true;
+                if (f.RelativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) hasCs = true;
+                if (f.RelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) hasMd = true;
             }
             Assert.True(hasCs, "Expected .cs files");
             Assert.True(hasMd, "Expected .md files");

@@ -27,12 +27,12 @@ namespace StewardessMCPServive.Services
         /// <summary>
         /// Validates a path for write access: sandbox + extension + read-only mode check.
         /// </summary>
-        SecurityCheckResult ValidateWritePath(string relativePath, out string? absolutePath);
+        SecurityCheckResult ValidateWritePath(string relativePath, out string absolutePath);
 
         // ── Authentication ───────────────────────────────────────────────────────
 
         /// <summary>Validates the supplied API key against the configured value.</summary>
-        bool ValidateApiKey(string? suppliedKey);
+        bool ValidateApiKey(string suppliedKey);
 
         /// <summary>Returns true when the given IP address is allowed by the IP allowlist.</summary>
         bool IsIpAllowed(string clientIp);
@@ -43,7 +43,7 @@ namespace StewardessMCPServive.Services
         bool CanWrite();
 
         /// <summary>Validates a destructive-operation approval token.</summary>
-        bool ValidateApprovalToken(string? token);
+        bool ValidateApprovalToken(string token);
 
         /// <summary>Generates a one-time approval token for a pending destructive operation.</summary>
         string GenerateApprovalToken(string operationDescription);
@@ -55,9 +55,9 @@ namespace StewardessMCPServive.Services
         /// <summary>True when the operation is permitted.</summary>
         public bool IsAllowed { get; set; }
         /// <summary>Machine-readable error code when the check failed; null on success.</summary>
-        public string? ErrorCode { get; set; }
+        public string ErrorCode { get; set; }
         /// <summary>Human-readable error message when the check failed; null on success.</summary>
-        public string? ErrorMessage { get; set; }
+        public string ErrorMessage { get; set; }
 
         /// <summary>Creates a passing result.</summary>
         public static SecurityCheckResult Allow() =>

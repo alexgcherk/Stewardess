@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using StewardessMCPServive.CodeIndexing.Indexing;
+using StewardessMCPServive.CodeIndexing.Query;
 using StewardessMCPServive.Configuration;
 using StewardessMCPServive.Infrastructure;
 using StewardessMCPServive.Models;
@@ -23,8 +25,8 @@ namespace StewardessMCPServive.Mcp
 
         internal sealed class ToolEntry
         {
-            public McpToolDefinition? Definition { get; set; }
-            public Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>>? Handler { get; set; }
+            public McpToolDefinition Definition { get; set; }
+            public Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> Handler { get; set; }
         }
 
         // ── Fields ───────────────────────────────────────────────────────────────
@@ -38,6 +40,8 @@ namespace StewardessMCPServive.Mcp
         private readonly IEditService        _edit;
         private readonly IGitService         _git;
         private readonly ICommandService     _command;
+        private readonly IIndexingEngine?    _indexer;
+        private readonly IIndexQueryService? _indexQuery;
 
         // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -48,14 +52,18 @@ namespace StewardessMCPServive.Mcp
             ISearchService     search,
             IEditService       edit,
             IGitService        git,
-            ICommandService    command)
+            ICommandService    command,
+            IIndexingEngine?    indexer = null,
+            IIndexQueryService? indexQuery = null)
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
-            _files    = files    ?? throw new ArgumentNullException(nameof(files));
-            _search   = search   ?? throw new ArgumentNullException(nameof(search));
-            _edit     = edit     ?? throw new ArgumentNullException(nameof(edit));
-            _git      = git      ?? throw new ArgumentNullException(nameof(git));
-            _command  = command  ?? throw new ArgumentNullException(nameof(command));
+            _settings   = settings   ?? throw new ArgumentNullException(nameof(settings));
+            _files      = files      ?? throw new ArgumentNullException(nameof(files));
+            _search     = search     ?? throw new ArgumentNullException(nameof(search));
+            _edit       = edit       ?? throw new ArgumentNullException(nameof(edit));
+            _git        = git        ?? throw new ArgumentNullException(nameof(git));
+            _command    = command    ?? throw new ArgumentNullException(nameof(command));
+            _indexer    = indexer;
+            _indexQuery = indexQuery;
 
             RegisterAll();
         }
@@ -64,10 +72,10 @@ namespace StewardessMCPServive.Mcp
 
         /// <summary>Returns all registered tool definitions.</summary>
         public IReadOnlyList<McpToolDefinition> GetAllDefinitions()
-            => _tools.Values.Select(e => e.Definition!).ToList();
+            => _tools.Values.Select(e => e.Definition).ToList();
 
         /// <summary>Returns true and the definition when a tool with the given name exists.</summary>
-        public bool TryGetDefinition(string name, out McpToolDefinition? definition)
+        public bool TryGetDefinition(string name, out McpToolDefinition definition)
         {
             definition = null;
             if (_tools.TryGetValue(name, out var entry))
@@ -91,7 +99,7 @@ namespace StewardessMCPServive.Mcp
             if (!_tools.TryGetValue(name, out var entry))
                 throw new KeyNotFoundException($"Tool not found: {name}");
 
-            return await entry.Handler!(arguments ?? new Dictionary<string, object>(), ct)
+            return await entry.Handler(arguments ?? new Dictionary<string, object>(), ct)
                                .ConfigureAwait(false);
         }
 
@@ -105,6 +113,7 @@ namespace StewardessMCPServive.Mcp
             RegisterWriteTools();
             RegisterGitTools();
             RegisterCommandTools();
+            RegisterCodeIndexTools();
         }
 
         // ── Repository / navigation tools ────────────────────────────────────────
@@ -131,7 +140,7 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new ListDirectoryRequest
                     {
-                        Path           = Str(args, "path", "") ?? "",
+                        Path           = Str(args, "path", ""),
                         IncludeBlocked = Bool(args, "include_blocked", false)
                     };
                     var result = await _files.ListDirectoryAsync(req, ct).ConfigureAwait(false);
@@ -148,7 +157,7 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new ListTreeRequest
                     {
-                        Path     = Str(args, "path", "") ?? "",
+                        Path     = Str(args, "path", ""),
                         MaxDepth = Int(args, "max_depth", 3)
                     };
                     var result = await _files.ListTreeAsync(req, ct).ConfigureAwait(false);
@@ -162,7 +171,7 @@ namespace StewardessMCPServive.Mcp
                     Prop("path", "string", "Relative path to check.", required: true)),
                 handler: async (args, ct) =>
                 {
-                    var path   = Str(args, "path") ?? "";
+                    var path   = Str(args, "path");
                     var result = await _files.PathExistsAsync(path, ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
@@ -186,7 +195,7 @@ namespace StewardessMCPServive.Mcp
                     Prop("path", "string", "Relative file path.", required: true)),
                 handler: async (args, ct) =>
                 {
-                    var enc = await _files.DetectEncodingAsync(Str(args, "path") ?? "", ct).ConfigureAwait(false);
+                    var enc = await _files.DetectEncodingAsync(Str(args, "path"), ct).ConfigureAwait(false);
                     return ToResult(new { Encoding = enc });
                 });
         }
@@ -210,7 +219,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchTextRequest
                     {
                         Query      = Str(args, "query"),
-                        SearchPath = Str(args, "search_path", "") ?? "",
+                        SearchPath = Str(args, "search_path", ""),
                         Extensions = StrList(args, "extensions"),
                         IgnoreCase = Bool(args, "ignore_case", true),
                         WholeWord  = Bool(args, "whole_word", false),
@@ -234,7 +243,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchRegexRequest
                     {
                         Pattern    = Str(args, "pattern"),
-                        SearchPath = Str(args, "search_path", "") ?? "",
+                        SearchPath = Str(args, "search_path", ""),
                         Extensions = StrList(args, "extensions"),
                         IgnoreCase = Bool(args, "ignore_case", true),
                         MaxResults = Int(args, "max_results", 100)
@@ -255,7 +264,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchFileNamesRequest
                     {
                         Pattern    = Str(args, "pattern"),
-                        SearchPath = Str(args, "search_path", "") ?? "",
+                        SearchPath = Str(args, "search_path", ""),
                         MaxResults = Int(args, "max_results", 100)
                     };
                     var result = await _search.SearchFileNamesAsync(req, ct).ConfigureAwait(false);
@@ -274,7 +283,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchByExtensionRequest
                     {
                         Extensions = StrList(args, "extensions"),
-                        SearchPath = Str(args, "search_path", "") ?? "",
+                        SearchPath = Str(args, "search_path", ""),
                         MaxResults = Int(args, "max_results", 200)
                     };
                     var result = await _search.SearchByExtensionAsync(req, ct).ConfigureAwait(false);
@@ -294,7 +303,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new SearchSymbolRequest
                     {
                         SymbolName = Str(args, "symbol_name"),
-                        SearchPath = Str(args, "search_path", "") ?? "",
+                        SearchPath = Str(args, "search_path", ""),
                         Extensions = StrList(args, "extensions"),
                         MaxResults = Int(args, "max_results", 50)
                     };
@@ -315,7 +324,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new FindReferencesRequest
                     {
                         IdentifierName = Str(args, "identifier"),
-                        SearchPath     = Str(args, "search_path", "") ?? "",
+                        SearchPath     = Str(args, "search_path", ""),
                         Extensions     = StrList(args, "extensions"),
                         MaxResults     = Int(args, "max_results", 100)
                     };
@@ -392,7 +401,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new FileHashRequest
                     {
                         Path      = Str(args, "path"),
-                        Algorithm = Str(args, "algorithm", "SHA256") ?? "SHA256"
+                        Algorithm = Str(args, "algorithm", "SHA256")
                     };
                     var result = await _files.GetFileHashAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
@@ -436,7 +445,7 @@ namespace StewardessMCPServive.Mcp
                     {
                         Path    = Str(args, "path"),
                         Content = Str(args, "content"),
-                        Encoding = Str(args, "encoding", "utf-8") ?? "utf-8",
+                        Encoding = Str(args, "encoding", "utf-8"),
                         Options = EditOpts(args)
                     };
                     var result = await _edit.WriteFileAsync(req, ct).ConfigureAwait(false);
@@ -457,7 +466,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new CreateFileRequest
                     {
                         Path      = Str(args, "path"),
-                        Content   = Str(args, "content", "") ?? "",
+                        Content   = Str(args, "content", ""),
                         Overwrite = Bool(args, "overwrite", false),
                         Options   = EditOpts(args)
                     };
@@ -729,7 +738,7 @@ namespace StewardessMCPServive.Mcp
                     Prop("path", "string", "Restrict status to this sub-path (empty = whole repo).")),
                 handler: async (args, ct) =>
                 {
-                    var req    = new GitStatusRequest { Path = Str(args, "path", "") ?? "" };
+                    var req    = new GitStatusRequest { Path = Str(args, "path", "") };
                     var result = await _git.GetStatusAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
@@ -745,8 +754,8 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req    = new GitDiffRequest
                     {
-                        Path         = Str(args, "path", "") ?? "",
-                        Scope        = Str(args, "scope", "unstaged") ?? "unstaged",
+                        Path         = Str(args, "path", ""),
+                        Scope        = Str(args, "scope", "unstaged"),
                         ContextLines = Int(args, "context_lines", 3)
                     };
                     var result = await _git.GetDiffAsync(req, ct).ConfigureAwait(false);
@@ -762,8 +771,8 @@ namespace StewardessMCPServive.Mcp
                 handler: async (args, ct) =>
                 {
                     var result = await _git.GetDiffForFileAsync(
-                        Str(args, "path") ?? "",
-                        Str(args, "scope", "unstaged") ?? "unstaged",
+                        Str(args, "path"),
+                        Str(args, "scope", "unstaged"),
                         ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
@@ -782,12 +791,12 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req    = new GitLogRequest
                     {
-                        Path     = Str(args, "path", "") ?? "",
+                        Path     = Str(args, "path", ""),
                         MaxCount = Int(args, "max_count", 20),
-                        Ref      = Str(args, "ref", "") ?? "",
-                        Author   = Str(args, "author", "") ?? "",
-                        Since    = Str(args, "since", "") ?? "",
-                        Until    = Str(args, "until", "") ?? ""
+                        Ref      = Str(args, "ref", ""),
+                        Author   = Str(args, "author", ""),
+                        Since    = Str(args, "since", ""),
+                        Until    = Str(args, "until", "")
                     };
                     var result = await _git.GetLogAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
@@ -803,7 +812,7 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req    = new GitShowRequest
                     {
-                        Sha         = Str(args, "sha", "") ?? "",
+                        Sha         = Str(args, "sha", ""),
                         IncludeDiff = Bool(args, "include_diff", true)
                     };
                     var result = await _git.GetCommitAsync(req, ct).ConfigureAwait(false);
@@ -833,10 +842,10 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new RunBuildRequest
                     {
-                        BuildCommand     = Str(args, "build_command", "dotnet build") ?? "dotnet build",
-                        Arguments        = Str(args, "arguments", "") ?? "",
-                        Configuration    = Str(args, "configuration", "Debug") ?? "Debug",
-                        WorkingDirectory = Str(args, "working_directory", "") ?? "",
+                        BuildCommand     = Str(args, "build_command", "dotnet build"),
+                        Arguments        = Str(args, "arguments", ""),
+                        Configuration    = Str(args, "configuration", "Debug"),
+                        WorkingDirectory = Str(args, "working_directory", ""),
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
                     var result = await _command.RunBuildAsync(req, ct).ConfigureAwait(false);
@@ -858,11 +867,11 @@ namespace StewardessMCPServive.Mcp
                 {
                     var req = new RunTestsRequest
                     {
-                        TestCommand      = Str(args, "test_command", "dotnet test") ?? "dotnet test",
-                        Arguments        = Str(args, "arguments", "") ?? "",
-                        Filter           = Str(args, "filter", "") ?? "",
-                        Configuration    = Str(args, "configuration", "Debug") ?? "Debug",
-                        WorkingDirectory = Str(args, "working_directory", "") ?? "",
+                        TestCommand      = Str(args, "test_command", "dotnet test"),
+                        Arguments        = Str(args, "arguments", ""),
+                        Filter           = Str(args, "filter", ""),
+                        Configuration    = Str(args, "configuration", "Debug"),
+                        WorkingDirectory = Str(args, "working_directory", ""),
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
                     var result = await _command.RunTestsAsync(req, ct).ConfigureAwait(false);
@@ -882,7 +891,7 @@ namespace StewardessMCPServive.Mcp
                     var req = new RunCustomCommandRequest
                     {
                         Command          = Str(args, "command"),
-                        WorkingDirectory = Str(args, "working_directory", "") ?? "",
+                        WorkingDirectory = Str(args, "working_directory", ""),
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
                     var result = await _command.RunCustomCommandAsync(req, ct).ConfigureAwait(false);
@@ -890,8 +899,425 @@ namespace StewardessMCPServive.Mcp
                 });
         }
 
-        // ── Registration helper ──────────────────────────────────────────────────
+        // ── Code Index tools ─────────────────────────────────────────────────────
 
+        private void RegisterCodeIndexTools()
+        {
+            if (_indexer == null || _indexQuery == null) return;
+
+            var indexer = _indexer;
+            var query   = _indexQuery;
+
+            Add("code_index.build",
+                category: "code_index",
+                description: "Builds or rebuilds the structural code index for the given repository root. " +
+                             "Enumerates all eligible files, detects languages, and parses declarations. " +
+                             "Returns the resulting snapshot ID and statistics.",
+                schema: Schema(
+                    Prop("root_path",    "string",  "Absolute path to the repository root to index.", required: true),
+                    Prop("parse_mode",   "string",  "Depth of parsing: OutlineOnly, Declarations (default), DeclarationsAndReferences.", def: "Declarations"),
+                    Prop("force_rebuild","boolean", "Discard existing index and rebuild from scratch (default false).", def: false)),
+                handler: async (args, ct) =>
+                {
+                    var modeStr = Str(args, "parse_mode", "Declarations");
+                    var mode = Enum.TryParse<StewardessMCPServive.CodeIndexing.Model.Structural.ParseMode>(modeStr, true, out var m)
+                        ? m : StewardessMCPServive.CodeIndexing.Model.Structural.ParseMode.Declarations;
+
+                    var req = new IndexBuildRequest
+                    {
+                        RootPath     = Str(args, "root_path"),
+                        ParseMode    = mode,
+                        ForceRebuild = Bool(args, "force_rebuild", false),
+                    };
+                    var result = await indexer.BuildAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_status",
+                category: "code_index",
+                description: "Returns the current indexing state for a repository root: state, latest snapshot ID, and last completed timestamp.",
+                schema: Schema(
+                    Prop("root_path", "string", "Absolute repository root path.", required: true)),
+                handler: async (args, ct) =>
+                {
+                    var result = await indexer.GetStatusAsync(Str(args, "root_path"), ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.list_files",
+                category: "code_index",
+                description: "Returns a paginated list of indexed files with their language, parse status, and node counts. " +
+                             "Optionally filter by language, parse status, or path prefix.",
+                schema: Schema(
+                    Prop("root_path",     "string",  "Repository root path (used to resolve the latest snapshot)."),
+                    Prop("snapshot_id",   "string",  "Specific snapshot ID to query (overrides root_path)."),
+                    Prop("language",      "string",  "Filter to a single language ID (e.g. csharp, python)."),
+                    Prop("path_prefix",   "string",  "Only return files under this path prefix."),
+                    Prop("page",          "integer", "Page number (1-based, default 1).", def: 1),
+                    Prop("page_size",     "integer", "Results per page (default 50, max 200).", def: 50)),
+                handler: async (args, ct) =>
+                {
+                    var lang = Str(args, "language", null);
+                    var req = new StewardessMCPServive.CodeIndexing.Query.ListFilesRequest
+                    {
+                        SnapshotId   = Str(args, "snapshot_id", null),
+                        RootPath     = Str(args, "root_path", null),
+                        LanguageFilter = lang != null ? new[] { lang } : null,
+                        PathPrefix   = Str(args, "path_prefix", null),
+                        Page         = Int(args, "page", 1),
+                        PageSize     = Math.Min(Int(args, "page_size", 50), 200),
+                    };
+                    var result = await query.ListFilesAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_file_outline",
+                category: "code_index",
+                description: "Returns the structural outline of a single file: namespaces, classes, methods, functions, and other declarations. " +
+                             "Include source line spans for each node.",
+                schema: Schema(
+                    Prop("file_path",       "string",  "Repository-relative path to the file.", required: true),
+                    Prop("snapshot_id",     "string",  "Specific snapshot ID to query."),
+                    Prop("max_depth",       "integer", "Maximum nesting depth to return (0 = unlimited).", def: 0),
+                    Prop("include_spans",   "boolean", "Include source line spans (default true).", def: true),
+                    Prop("include_confidence", "boolean", "Include parser confidence scores (default false).", def: false)),
+                handler: async (args, ct) =>
+                {
+                    var maxDepth = Int(args, "max_depth", 0);
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetFileOutlineRequest
+                    {
+                        FilePath       = Str(args, "file_path"),
+                        SnapshotId     = Str(args, "snapshot_id", null),
+                        MaxDepth       = maxDepth == 0 ? null : maxDepth,
+                        IncludeSourceSpans = Bool(args, "include_spans", true),
+                        IncludeConfidence  = Bool(args, "include_confidence", false),
+                    };
+                    var result = await query.GetFileOutlineAsync(req, ct).ConfigureAwait(false);
+                    if (result == null)
+                        return ToResult(new { error = "File not found in index", file_path = req.FilePath });
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_snapshot_info",
+                category: "code_index",
+                description: "Returns metadata for the latest snapshot of a repository root: file counts, language breakdown, and build timestamps.",
+                schema: Schema(
+                    Prop("root_path",   "string", "Repository root path to query the latest snapshot for."),
+                    Prop("snapshot_id", "string", "Specific snapshot ID (overrides root_path).")),
+                handler: async (args, ct) =>
+                {
+                    var result = await query.GetSnapshotInfoAsync(
+                        Str(args, "snapshot_id", null),
+                        Str(args, "root_path", null),
+                        ct).ConfigureAwait(false);
+                    if (result == null)
+                        return ToResult(new { error = "No snapshot found" });
+                    return ToResult(result);
+                });
+
+            Add("code_index.list_roots",
+                category: "code_index",
+                description: "Returns the list of repository root paths that have a published code index snapshot.",
+                schema: Schema(),
+                handler: async (args, ct) =>
+                {
+                    var roots = await query.ListRootPathsAsync(ct).ConfigureAwait(false);
+                    return ToResult(new { roots });
+                });
+
+            Add("code_index.get_language_capabilities",
+                category: "code_index",
+                description: "Returns the list of supported language IDs and their parser adapter capabilities.",
+                schema: Schema(),
+                handler: (args, ct) =>
+                {
+                    var adapters = new StewardessMCPServive.CodeIndexing.Parsers.Abstractions.IParserAdapter[]
+                    {
+                        new StewardessMCPServive.Parsers.CSharp.CSharpParserAdapter(),
+                        new StewardessMCPServive.CodeIndexing.Parsers.Python.PythonParserAdapter(),
+                    };
+                    var caps = adapters.Select(a => new
+                    {
+                        language_id       = a.LanguageId,
+                        adapter_version   = a.Capabilities.AdapterVersion,
+                        supports_outline  = a.Capabilities.SupportsOutline,
+                        supports_declarations = a.Capabilities.SupportsDeclarations,
+                        supports_callables   = a.Capabilities.SupportsCallableExtraction,
+                        heuristic_fallback   = a.Capabilities.SupportsHeuristicFallback,
+                        notes             = a.Capabilities.GuaranteeNotes,
+                    }).ToList();
+                    return Task.FromResult(ToResult(new { adapters = caps }));
+                });
+
+            // ── Phase 2: Logical Symbol tools ────────────────────────────────────
+
+            Add("code_index.find_symbols",
+                category: "code_index",
+                description: "Searches the symbol index by name or qualified name. " +
+                             "Supports exact, prefix (default), or contains match modes. " +
+                             "Results can be filtered by language, symbol kind, or container namespace.",
+                schema: Schema(
+                    Prop("query_text",   "string",  "Text to match against symbol names or qualified names.", required: true),
+                    Prop("snapshot_id",  "string",  "Specific snapshot ID to query (overrides root_path)."),
+                    Prop("root_path",    "string",  "Repository root path; used to resolve the latest snapshot."),
+                    Prop("match_mode",   "string",  "Match mode: exact, prefix (default), or contains.", def: "prefix"),
+                    Prop("language",     "string",  "Filter by language ID (e.g. csharp, python)."),
+                    Prop("kind",         "string",  "Filter by symbol kind (Namespace, Class, Method, Function, etc.)."),
+                    Prop("container",    "string",  "Restrict to symbols inside this container qualified name."),
+                    Prop("include_occurrence_count", "boolean", "Include occurrence counts per symbol (default true).", def: true),
+                    Prop("include_members_summary",  "boolean", "Include member summary for type symbols (default false).", def: false),
+                    Prop("page",         "integer", "Page number (1-based, default 1).", def: 1),
+                    Prop("page_size",    "integer", "Results per page (default 50, max 200).", def: 50)),
+                handler: async (args, ct) =>
+                {
+                    var langStr = Str(args, "language", null);
+                    var kindStr = Str(args, "kind", null);
+                    var containerStr = Str(args, "container", null);
+                    var req = new StewardessMCPServive.CodeIndexing.Query.FindSymbolsRequest
+                    {
+                        QueryText             = Str(args, "query_text"),
+                        SnapshotId            = Str(args, "snapshot_id", null) ?? (Str(args, "root_path", null) != null ? null : null),
+                        MatchMode             = Str(args, "match_mode", "prefix"),
+                        LanguageFilter        = langStr != null ? new[] { langStr } : null,
+                        KindFilter            = kindStr != null && System.Enum.TryParse<StewardessMCPServive.CodeIndexing.Model.Semantic.SymbolKind>(kindStr, true, out var k)
+                                                    ? new[] { k } : null,
+                        ContainerFilter       = containerStr != null ? new[] { containerStr } : null,
+                        IncludeOccurrenceCount = Bool(args, "include_occurrence_count", true),
+                        IncludeMembersSummary  = Bool(args, "include_members_summary", false),
+                        Page                  = Int(args, "page", 1),
+                        PageSize              = Math.Min(Int(args, "page_size", 50), 200),
+                    };
+                    var result = await query.FindSymbolsAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_symbol",
+                category: "code_index",
+                description: "Returns full details for a single logical symbol by its stable symbol ID, " +
+                             "including kind, qualified name, parent, primary location, and optional members summary.",
+                schema: Schema(
+                    Prop("symbol_id",              "string",  "Stable symbol ID to retrieve.", required: true),
+                    Prop("snapshot_id",            "string",  "Specific snapshot ID to query."),
+                    Prop("include_primary_occurrence", "boolean", "Include primary declaration location (default true).", def: true),
+                    Prop("include_members_summary",   "boolean", "Include members summary for type symbols (default true).", def: true)),
+                handler: async (args, ct) =>
+                {
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetSymbolRequest
+                    {
+                        SymbolId                = Str(args, "symbol_id"),
+                        SnapshotId              = Str(args, "snapshot_id", null),
+                        IncludePrimaryOccurrence = Bool(args, "include_primary_occurrence", true),
+                        IncludeMembersSummary   = Bool(args, "include_members_summary", true),
+                    };
+                    var result = await query.GetSymbolAsync(req, ct).ConfigureAwait(false);
+                    if (result?.Symbol == null)
+                        return ToResult(new { error = "Symbol not found", symbol_id = req.SymbolId });
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_symbol_occurrences",
+                category: "code_index",
+                description: "Returns all occurrences (declarations, references, definitions) of a symbol across the indexed files. " +
+                             "Each occurrence carries a file path and source line/column.",
+                schema: Schema(
+                    Prop("symbol_id",  "string", "Stable symbol ID to look up occurrences for.", required: true),
+                    Prop("snapshot_id","string", "Specific snapshot ID to query."),
+                    Prop("role",       "string", "Filter to a specific occurrence role: Declaration, Reference, Definition, etc.")),
+                handler: async (args, ct) =>
+                {
+                    var roleStr = Str(args, "role", null);
+                    StewardessMCPServive.CodeIndexing.Model.Semantic.OccurrenceRole[]? roleFilter = null;
+                    if (roleStr != null && System.Enum.TryParse<StewardessMCPServive.CodeIndexing.Model.Semantic.OccurrenceRole>(roleStr, true, out var role))
+                        roleFilter = new[] { role };
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetSymbolOccurrencesRequest
+                    {
+                        SymbolId   = Str(args, "symbol_id"),
+                        SnapshotId = Str(args, "snapshot_id", null),
+                        RoleFilter = roleFilter,
+                    };
+                    var result = await query.GetSymbolOccurrencesAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_symbol_children",
+                category: "code_index",
+                description: "Returns the direct child symbols of a parent symbol (e.g. members of a namespace, nested types in a class). " +
+                             "Optionally filter by symbol kind.",
+                schema: Schema(
+                    Prop("symbol_id",          "string",  "Parent symbol ID.", required: true),
+                    Prop("snapshot_id",        "string",  "Specific snapshot ID to query."),
+                    Prop("kind",               "string",  "Filter children to this symbol kind."),
+                    Prop("include_nested_types","boolean", "Include nested type symbols (default true).", def: true)),
+                handler: async (args, ct) =>
+                {
+                    var kindStr = Str(args, "kind", null);
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetSymbolChildrenRequest
+                    {
+                        SymbolId           = Str(args, "symbol_id"),
+                        SnapshotId         = Str(args, "snapshot_id", null),
+                        KindFilter         = kindStr != null && System.Enum.TryParse<StewardessMCPServive.CodeIndexing.Model.Semantic.SymbolKind>(kindStr, true, out var k)
+                                                 ? new[] { k } : null,
+                        IncludeNestedTypes = Bool(args, "include_nested_types", true),
+                    };
+                    var result = await query.GetSymbolChildrenAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_type_members",
+                category: "code_index",
+                description: "Returns the members of a type symbol (class, struct, interface, etc.) " +
+                             "grouped into constructors, methods, properties, fields, events, and nested types.",
+                schema: Schema(
+                    Prop("type_symbol_id",      "string",  "Symbol ID of the type to inspect.", required: true),
+                    Prop("snapshot_id",         "string",  "Specific snapshot ID to query."),
+                    Prop("include_accessors",   "boolean", "Include property accessor symbols (default true).", def: true),
+                    Prop("include_nested_types","boolean", "Include nested type symbols (default true).", def: true)),
+                handler: async (args, ct) =>
+                {
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetTypeMembersRequest
+                    {
+                        TypeSymbolId       = Str(args, "type_symbol_id"),
+                        SnapshotId         = Str(args, "snapshot_id", null),
+                        IncludeAccessors   = Bool(args, "include_accessors", true),
+                        IncludeNestedTypes = Bool(args, "include_nested_types", true),
+                    };
+                    var result = await query.GetTypeMembersAsync(req, ct).ConfigureAwait(false);
+                    if (result == null)
+                        return ToResult(new { error = "Type symbol not found or not a type", symbol_id = req.TypeSymbolId });
+                    return ToResult(result);
+                });
+
+            Add("code_index.resolve_location",
+                category: "code_index",
+                description: "Resolves a symbol ID or occurrence ID to a concrete source location (file path, line, column). " +
+                             "Provide exactly one of symbol_id or occurrence_id.",
+                schema: Schema(
+                    Prop("symbol_id",    "string", "Stable symbol ID to resolve to its primary declaration location."),
+                    Prop("occurrence_id","string", "Occurrence ID to resolve to its exact source position."),
+                    Prop("snapshot_id",  "string", "Specific snapshot ID to query.")),
+                handler: async (args, ct) =>
+                {
+                    var req = new StewardessMCPServive.CodeIndexing.Query.ResolveLocationRequest
+                    {
+                        SymbolId     = Str(args, "symbol_id", null),
+                        OccurrenceId = Str(args, "occurrence_id", null),
+                        SnapshotId   = Str(args, "snapshot_id", null),
+                    };
+                    var result = await query.ResolveLocationAsync(req, ct).ConfigureAwait(false);
+                    if (result.Error != null)
+                        return ToResult(new { error = result.Error });
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_namespace_tree",
+                category: "code_index",
+                description: "Returns a hierarchical tree of namespaces and module containers extracted from the code index. " +
+                             "Useful for navigating the top-level structure of a repository. " +
+                             "Optionally filter by language or root container, and control depth.",
+                schema: Schema(
+                    Prop("snapshot_id",     "string",  "Specific snapshot ID to query."),
+                    Prop("root_path",       "string",  "Repository root path; used to resolve the latest snapshot."),
+                    Prop("language",        "string",  "Filter to a single language ID."),
+                    Prop("root_container",  "string",  "Only return descendants of this container qualified name."),
+                    Prop("include_counts",  "boolean", "Include symbol and file counts per node (default true).", def: true),
+                    Prop("max_depth",       "integer", "Maximum tree depth (0 = unlimited).", def: 0)),
+                handler: async (args, ct) =>
+                {
+                    var langStr = Str(args, "language", null);
+                    var maxDepth = Int(args, "max_depth", 0);
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetNamespaceTreeRequest
+                    {
+                        SnapshotId     = Str(args, "snapshot_id", null),
+                        LanguageFilter = langStr != null ? new[] { langStr } : null,
+                        RootContainer  = Str(args, "root_container", null),
+                        IncludeCounts  = Bool(args, "include_counts", true),
+                        MaxDepth       = maxDepth == 0 ? null : maxDepth,
+                    };
+                    var result = await query.GetNamespaceTreeAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_imports",
+                category: "code_index",
+                description: "Returns import, using, and require directives extracted from a specific file. " +
+                             "Shows all dependencies declared at the top of the file, including namespace " +
+                             "imports (C#), module imports (Python), and their resolution status.",
+                schema: Schema(
+                    Prop("file_path",   "string",  "Relative file path to query imports for (required)."),
+                    Prop("snapshot_id", "string",  "Specific snapshot ID to query."),
+                    Prop("root_path",   "string",  "Repository root path; used to resolve the latest snapshot.")),
+                handler: async (args, ct) =>
+                {
+                    var filePath = Str(args, "file_path", null);
+                    if (string.IsNullOrEmpty(filePath))
+                        return ToResult(new { error = "file_path is required." });
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetImportsRequest
+                    {
+                        FilePath   = filePath,
+                        SnapshotId = Str(args, "snapshot_id", null),
+                        RootPath   = Str(args, "root_path", null),
+                    };
+                    var result = await query.GetImportsAsync(req, ct).ConfigureAwait(false);
+                    if (result.Error != null)
+                        return ToResult(new { error = result.Error });
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_references",
+                category: "code_index",
+                description: "Returns reference edges for a specific logical symbol. " +
+                             "Outgoing references show what other symbols this symbol depends on " +
+                             "(e.g., base types, field types, method parameter types). " +
+                             "Incoming references show what symbols depend on this symbol.",
+                schema: Schema(
+                    Prop("symbol_id",        "string",  "Symbol ID to query references for (required)."),
+                    Prop("snapshot_id",      "string",  "Specific snapshot ID to query."),
+                    Prop("include_outgoing", "boolean", "Include outgoing references (default true).", def: true),
+                    Prop("include_incoming", "boolean", "Include incoming references (default false).", def: false)),
+                handler: async (args, ct) =>
+                {
+                    var symbolId = Str(args, "symbol_id", null);
+                    if (string.IsNullOrEmpty(symbolId))
+                        return ToResult(new { error = "symbol_id is required." });
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetReferencesRequest
+                    {
+                        SymbolId        = symbolId,
+                        SnapshotId      = Str(args, "snapshot_id", null),
+                        IncludeOutgoing = Bool(args, "include_outgoing", true),
+                        IncludeIncoming = Bool(args, "include_incoming", false),
+                    };
+                    var result = await query.GetReferencesAsync(req, ct).ConfigureAwait(false);
+                    if (result.Error != null)
+                        return ToResult(new { error = result.Error });
+                    return ToResult(result);
+                });
+
+            Add("code_index.get_file_references",
+                category: "code_index",
+                description: "Returns all reference edges originating from symbols declared in a specific file. " +
+                             "Shows the complete dependency picture for a file: which types it inherits from, " +
+                             "which types its members use, and which types it instantiates.",
+                schema: Schema(
+                    Prop("file_path",   "string",  "Relative file path to query references for (required)."),
+                    Prop("snapshot_id", "string",  "Specific snapshot ID to query.")),
+                handler: async (args, ct) =>
+                {
+                    var filePath = Str(args, "file_path", null);
+                    if (string.IsNullOrEmpty(filePath))
+                        return ToResult(new { error = "file_path is required." });
+                    var req = new StewardessMCPServive.CodeIndexing.Query.GetFileReferencesRequest
+                    {
+                        FilePath   = filePath,
+                        SnapshotId = Str(args, "snapshot_id", null),
+                    };
+                    var result = await query.GetFileReferencesAsync(req, ct).ConfigureAwait(false);
+                    if (result.Error != null)
+                        return ToResult(new { error = result.Error });
+                    return ToResult(result);
+                });
+        }
+
+        // ── Registration helper ──────────────────────────────────────────────────
         private void Add(
             string name,
             string category,
@@ -900,7 +1326,7 @@ namespace StewardessMCPServive.Mcp
             Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> handler,
             bool isDestructive  = false,
             bool isDisabled     = false,
-            string? disabledReason = null)
+            string disabledReason = null)
         {
             _tools[name] = new ToolEntry
             {
@@ -933,7 +1359,7 @@ namespace StewardessMCPServive.Mcp
             string type,
             string description,
             bool   required = false,
-            object? def      = null)
+            object def      = null)
         {
             var prop = new McpPropertySchema
             {
@@ -946,7 +1372,7 @@ namespace StewardessMCPServive.Mcp
 
         // ── Argument extraction helpers ──────────────────────────────────────────
 
-        private static string? Str(Dictionary<string, object> args, string key, string? def = null)
+        private static string Str(Dictionary<string, object> args, string key, string def = null)
         {
             if (!args.TryGetValue(key, out var val) || val == null)
                 return def;
@@ -983,8 +1409,8 @@ namespace StewardessMCPServive.Mcp
         {
             if (!args.TryGetValue(key, out var val) || val == null) return new List<string>();
             if (val is List<string> ls) return ls;
-            if (val is Newtonsoft.Json.Linq.JArray ja) return ja.ToObject<List<string>>()!;
-            if (val is IEnumerable<object> en) return en.Select(x => x?.ToString()).Where(x => x != null).Select(x => x!).ToList();
+            if (val is Newtonsoft.Json.Linq.JArray ja) return ja.ToObject<List<string>>();
+            if (val is IEnumerable<object> en) return en.Select(x => x?.ToString()).Where(x => x != null).ToList();
             return new List<string>();
         }
 
@@ -1005,14 +1431,19 @@ namespace StewardessMCPServive.Mcp
         {
             var json = JsonConvert.SerializeObject(args,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            return JsonConvert.DeserializeObject<T>(json)!;
+            return JsonConvert.DeserializeObject<T>(json);
         }
 
         // ── Result factory ───────────────────────────────────────────────────────
 
         private static McpToolCallResult ToResult(object data)
         {
-            var json = JsonConvert.SerializeObject(data, Formatting.Indented);
+            var settings = new JsonSerializerSettings
+            {
+                Formatting  = Formatting.Indented,
+                Converters  = { new Newtonsoft.Json.Converters.StringEnumConverter() },
+            };
+            var json = JsonConvert.SerializeObject(data, settings);
             return new McpToolCallResult
             {
                 Content = new List<McpContent> { McpContent.FromText(json) }

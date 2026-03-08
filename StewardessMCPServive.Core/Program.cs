@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -9,10 +10,20 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using NLog;
 using NLog.Web;
+using StewardessMCPServive.CodeIndexing.Eligibility;
+using StewardessMCPServive.CodeIndexing.Indexing;
+using StewardessMCPServive.CodeIndexing.LanguageDetection;
+using StewardessMCPServive.CodeIndexing.Parsers.Abstractions;
+using StewardessMCPServive.CodeIndexing.Parsers.Python;
+using StewardessMCPServive.CodeIndexing.Projection;
+using StewardessMCPServive.CodeIndexing.Query;
+using StewardessMCPServive.CodeIndexing.Snapshots;
+using StewardessMCPServive.CodeIndexing.Source;
 using StewardessMCPServive.Configuration;
 using StewardessMCPServive.Infrastructure;
 using StewardessMCPServive.Mcp;
 using StewardessMCPServive.Services;
+using StewardessMCPServive.Parsers.CSharp;
 using System;
 using System.IO;
 using System.Reflection;
@@ -85,6 +96,36 @@ builder.Services.AddSingleton<IProjectDetectionService>(sp =>
         sp.GetRequiredService<McpServiceSettings>(),
         sp.GetRequiredService<PathValidator>()));
 
+// ── Code Indexing services ────────────────────────────────────────────────────
+builder.Services.AddSingleton<ILanguageDetector>(_ => new DefaultLanguageDetector());
+builder.Services.AddSingleton<IEligibilityPolicy>(_ => new DefaultEligibilityPolicy());
+builder.Services.AddSingleton<ISourceProvider>(_ => new FileSystemSourceProvider());
+builder.Services.AddSingleton<ISnapshotStore>(_ => new InMemorySnapshotStore());
+
+builder.Services.AddSingleton<IEnumerable<IParserAdapter>>(sp => new IParserAdapter[]
+{
+    new CSharpParserAdapter(),
+    new PythonParserAdapter(),
+});
+
+builder.Services.AddSingleton<IEnumerable<ISymbolProjector>>(sp => new ISymbolProjector[]
+{
+    new CSharpSymbolProjector(),
+    new PythonSymbolProjector(),
+});
+
+builder.Services.AddSingleton<IIndexingEngine>(sp =>
+    new IndexingEngine(
+        sp.GetRequiredService<ISourceProvider>(),
+        sp.GetRequiredService<IEligibilityPolicy>(),
+        sp.GetRequiredService<ILanguageDetector>(),
+        sp.GetRequiredService<IEnumerable<IParserAdapter>>(),
+        sp.GetRequiredService<ISnapshotStore>(),
+        sp.GetRequiredService<IEnumerable<ISymbolProjector>>()));
+
+builder.Services.AddSingleton<IIndexQueryService>(sp =>
+    new InMemoryIndexQueryService(sp.GetRequiredService<ISnapshotStore>()));
+
 builder.Services.AddSingleton<McpToolRegistry>(sp =>
     new McpToolRegistry(
         sp.GetRequiredService<McpServiceSettings>(),
@@ -92,7 +133,9 @@ builder.Services.AddSingleton<McpToolRegistry>(sp =>
         sp.GetRequiredService<ISearchService>(),
         sp.GetRequiredService<IEditService>(),
         sp.GetRequiredService<IGitService>(),
-        sp.GetRequiredService<ICommandService>()));
+        sp.GetRequiredService<ICommandService>(),
+        sp.GetRequiredService<IIndexingEngine>(),
+        sp.GetRequiredService<IIndexQueryService>()));
 
 builder.Services.AddSingleton<McpToolHandler>(sp =>
     new McpToolHandler(
@@ -116,12 +159,6 @@ builder.Services
         o.SerializerSettings.Formatting           = Formatting.None;
     });
 
-// ── 5b. CORS — allow Open WebUI (and any local origin) to call the API ───────
-builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.AllowAnyOrigin()
-     .AllowAnyMethod()
-     .AllowAnyHeader()));
-
 // ── 6. Swagger / OpenAPI 3.0 ────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -131,15 +168,6 @@ builder.Services.AddSwaggerGen(c =>
         Title       = "StewardessMCPServive — Local Repository MCP API",
         Version     = "v1",
         Description = "MCP-compatible HTTP API that exposes a local source-code repository to AI agents."
-    });
-
-    // Generate operationId for every endpoint so Open WebUI's OpenAPI tool
-    // integration can discover and call them (it skips operations without operationId).
-    c.CustomOperationIds(e =>
-    {
-        var controller = e.ActionDescriptor.RouteValues["controller"];
-        var action     = e.ActionDescriptor.RouteValues["action"];
-        return $"{controller}_{action}";
     });
 
     c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
@@ -165,13 +193,23 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 
-    var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name, ".xml") ?? "";
+    var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name, ".xml");
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
         c.IncludeXmlComments(xmlPath);
+
+    // Generate operationId as "Controller_Action" for Open WebUI and other clients.
+    c.CustomOperationIds(e =>
+        e.ActionDescriptor is ControllerActionDescriptor a
+            ? $"{a.ControllerName}_{a.ActionName}"
+            : null);
 });
 
-// ── 7. Build ──────────────────────────────────────────────────────────────────
+// ── 7. CORS — allow all origins so Open WebUI and browser clients can reach the API ──
+builder.Services.AddCors(opts =>
+    opts.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+
+// ── 8. Build ──────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
 // Resolve singletons so lazy DI factories run and McpServiceSettings.Instance is set.
@@ -198,13 +236,14 @@ startupLog.Info($"RepositoryRoot : {settings.RepositoryRoot}");
 startupLog.Info($"ReadOnlyMode   : {settings.ReadOnlyMode}");
 startupLog.Info($"RequireApiKey  : {settings.RequireApiKey}");
 
-// ── 8. Middleware pipeline ───────────────────────────────────────────────────
+// ── 9. Middleware pipeline ───────────────────────────────────────────────────
 #if DEBUG
 // Log every request/response to stdout in DEBUG builds only.
 app.UseMiddleware<RequestResponseLoggingMiddleware>();
 #endif
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseMiddleware<RequestIdMiddleware>();
+
 app.UseCors();
 
 app.UseSwagger();

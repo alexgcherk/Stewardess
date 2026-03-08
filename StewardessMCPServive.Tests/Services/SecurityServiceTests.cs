@@ -189,9 +189,9 @@ namespace StewardessMCPServive.Tests.Services
         // ── Helpers ──────────────────────────────────────────────────────────────
 
         private SecurityService BuildService(
-            string    apiKey     = "",
-            bool      readOnly   = false,
-            string[]? allowedIps = null)
+            string   apiKey     = "",
+            bool     readOnly   = false,
+            string[] allowedIps = null)
         {
             var settings = McpServiceSettings.CreateForTesting(
                 repositoryRoot    : _repo.Root,

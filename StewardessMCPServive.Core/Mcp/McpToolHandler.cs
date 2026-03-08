@@ -46,7 +46,7 @@ namespace StewardessMCPServive.Mcp
         /// to the caller).  Returns null for notifications; always returns a well-formed
         /// <see cref="McpResponse"/> for requests (id present).  Never throws.
         /// </summary>
-        public async Task<McpResponse?> DispatchAsync(McpRequest? request, CancellationToken ct = default)
+        public async Task<McpResponse> DispatchAsync(McpRequest request, CancellationToken ct = default)
         {
             if (request == null)
                 return McpResponse.Err(null, McpErrorCodes.InvalidRequest, "Request body is null.");
@@ -156,7 +156,7 @@ namespace StewardessMCPServive.Mcp
 
             // MCP spec supports cursor-based pagination for tools/list.
             // Extract optional cursor from params (may be null for first page).
-            string? cursor = null;
+            string cursor = null;
             try
             {
                 var p = DeserializeParams<System.Collections.Generic.Dictionary<string, object>>(request.Params);
@@ -173,7 +173,7 @@ namespace StewardessMCPServive.Mcp
             const int PageSize = 50;
             var page = tools.Skip(offset).Take(PageSize).ToList();
             int nextOffset = offset + page.Count;
-            string? nextCursor = nextOffset < tools.Count ? nextOffset.ToString() : null;
+            string nextCursor = nextOffset < tools.Count ? nextOffset.ToString() : null;
 
             return McpResponse.Ok(request.Id, new McpListToolsResult
             {
@@ -185,7 +185,7 @@ namespace StewardessMCPServive.Mcp
         private async Task<McpResponse> HandleToolsCallAsync(McpRequest request, CancellationToken ct)
         {
             // Deserialize the params into McpToolCallParams.
-            McpToolCallParams? callParams;
+            McpToolCallParams callParams;
             try
             {
                 callParams = DeserializeParams<McpToolCallParams>(request.Params);
@@ -203,7 +203,7 @@ namespace StewardessMCPServive.Mcp
                 return McpResponse.Err(request.Id, McpErrorCodes.ToolNotFound,
                     $"Tool not found: {callParams.Name}");
 
-            if (definition!.IsDisabled)
+            if (definition.IsDisabled)
                 return McpResponse.Err(request.Id, McpErrorCodes.ReadOnlyMode,
                     $"Tool '{callParams.Name}' is disabled: {definition.DisabledReason}");
 
@@ -248,7 +248,7 @@ namespace StewardessMCPServive.Mcp
         /// Deserializes a params object (which may be a JObject, Dictionary, or already typed) 
         /// into the target type using JSON round-trip conversion.
         /// </summary>
-        private static T? DeserializeParams<T>(object? raw) where T : class
+        private static T DeserializeParams<T>(object raw)
         {
             if (raw == null) return default;
             if (raw is T typed) return typed;

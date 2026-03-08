@@ -12,7 +12,7 @@ namespace StewardessMCPServive.Infrastructure
     ///
     /// All file access MUST go through this class.  The implementation:
     ///   1. Rejects null/empty paths.
-    ///   2. Strips and normalises the path with <see cref="Path.GetFullPath(string)"/>.
+    ///   2. Strips and normalises the path with <see cref="Path.GetFullPath"/>.
     ///   3. Ensures the normalised absolute path starts with RepositoryRoot.
     ///   4. Checks the path against blocked-folder and blocked-extension lists.
     ///
@@ -131,7 +131,7 @@ namespace StewardessMCPServive.Infrastructure
         // ── Conversion helpers ───────────────────────────────────────────────────
 
         /// <summary>Converts a server-side absolute path to a repository-relative path.</summary>
-        public string ToRelativePath(string? absolutePath)
+        public string ToRelativePath(string absolutePath)
         {
             if (string.IsNullOrEmpty(absolutePath)) return string.Empty;
 
@@ -254,9 +254,9 @@ namespace StewardessMCPServive.Infrastructure
         /// <summary>True when the path passed all validation checks.</summary>
         public bool IsValid { get; private set; }
         /// <summary>Machine-readable error code when validation failed; null on success.</summary>
-        public string? ErrorCode { get; private set; }
+        public string ErrorCode { get; private set; }
         /// <summary>Human-readable error message when validation failed; null on success.</summary>
-        public string? ErrorMessage { get; private set; }
+        public string ErrorMessage { get; private set; }
 
         private ValidationResult() { }
 

@@ -82,17 +82,14 @@ namespace StewardessMCPServive.IntegrationTests.Helpers
         }
 
         /// <summary>
-        /// Creates a raw <see cref="HttpClient"/> that does NOT follow redirects.
-        /// Useful for testing redirect responses (e.g. /openapi.json → /swagger/v1/swagger.json).
+        /// Creates a plain <see cref="HttpClient"/> that does NOT follow redirects.
+        /// Useful for testing 3xx responses directly (e.g. the /openapi.json alias).
         /// </summary>
-        public HttpClient CreateNonRedirectingHttpClient()
-        {
-            return _factory.CreateClient(
-                new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-                {
-                    AllowAutoRedirect = false
-                });
-        }
+        public HttpClient CreateNonRedirectingHttpClient() =>
+            _factory.CreateClient(new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false
+            });
 
         // ── IDisposable ──────────────────────────────────────────────────────────
 

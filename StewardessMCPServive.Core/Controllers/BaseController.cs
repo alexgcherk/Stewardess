@@ -29,14 +29,14 @@ namespace StewardessMCPServive.Controllers
         // ── Response factories ───────────────────────────────────────────────────
 
         /// <summary>Returns a 200 OK response wrapping the given data.</summary>
-        protected IActionResult Ok<T>(T data) where T : class
+        protected IActionResult Ok<T>(T data)
         {
             var payload = ApiResponse<T>.Ok(data, RequestId);
             return new ObjectResult(payload) { StatusCode = 200 };
         }
 
         /// <summary>Returns a 201 Created response wrapping the given data.</summary>
-        protected IActionResult Created<T>(T data) where T : class
+        protected IActionResult Created<T>(T data)
         {
             var payload = ApiResponse<T>.Ok(data, RequestId);
             return new ObjectResult(payload) { StatusCode = 201 };

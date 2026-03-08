@@ -12,12 +12,12 @@ namespace StewardessMCPServive.Infrastructure
     public sealed class McpLogger
     {
         private readonly Logger _logger;
-        private readonly string? _requestId;
-        private readonly string? _sessionId;
+        private readonly string _requestId;
+        private readonly string _sessionId;
 
         // ── Construction ────────────────────────────────────────────────────────
 
-        private McpLogger(Logger logger, string? requestId, string? sessionId)
+        private McpLogger(Logger logger, string requestId, string sessionId)
         {
             _logger    = logger ?? throw new ArgumentNullException(nameof(logger));
             _requestId = requestId;
@@ -29,7 +29,7 @@ namespace StewardessMCPServive.Infrastructure
             new McpLogger(LogManager.GetLogger(typeof(T).FullName), null, null);
 
         /// <summary>Creates a logger with request-scoped correlation context.</summary>
-        public static McpLogger ForRequest<T>(string requestId, string? sessionId = null) =>
+        public static McpLogger ForRequest<T>(string requestId, string sessionId = null) =>
             new McpLogger(LogManager.GetLogger(typeof(T).FullName), requestId, sessionId);
 
         // ── Logging methods ──────────────────────────────────────────────────────
@@ -43,12 +43,12 @@ namespace StewardessMCPServive.Infrastructure
         /// <summary>Logs a message at Warn level.</summary>
         public void Warn(string message)  => Write(NLogLevel.Warn,  message, null);
         /// <summary>Logs a message at Error level, optionally attaching an exception.</summary>
-        public void Error(string message, Exception? ex = null) => Write(NLogLevel.Error, message, ex);
+        public void Error(string message, Exception ex = null) => Write(NLogLevel.Error, message, ex);
         /// <summary>Logs a message at Fatal level, optionally attaching an exception.</summary>
-        public void Fatal(string message, Exception? ex = null) => Write(NLogLevel.Fatal, message, ex);
+        public void Fatal(string message, Exception ex = null) => Write(NLogLevel.Fatal, message, ex);
 
         /// <summary>Logs a tool-call audit line at Info level.</summary>
-        public void LogToolCall(string toolName, string? targetPath, bool success, long elapsedMs)
+        public void LogToolCall(string toolName, string targetPath, bool success, long elapsedMs)
         {
             var ev = BuildEvent(NLogLevel.Info,
                 $"TOOL_CALL {toolName} path={targetPath} success={success} elapsed={elapsedMs}ms", null);
@@ -74,14 +74,14 @@ namespace StewardessMCPServive.Infrastructure
 
         // ── Private ──────────────────────────────────────────────────────────────
 
-        private void Write(NLogLevel level, string message, Exception? ex)
+        private void Write(NLogLevel level, string message, Exception ex)
         {
             if (!_logger.IsEnabled(level)) return;
             var ev = BuildEvent(level, message, ex);
             _logger.Log(typeof(McpLogger), ev);
         }
 
-        private LogEventInfo BuildEvent(NLogLevel level, string message, Exception? ex)
+        private LogEventInfo BuildEvent(NLogLevel level, string message, Exception ex)
         {
             var ev = new LogEventInfo(level, _logger.Name, message) { Exception = ex };
             if (!string.IsNullOrEmpty(_requestId)) ev.Properties["RequestId"] = _requestId;

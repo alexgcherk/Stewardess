@@ -244,12 +244,12 @@ namespace StewardessMCPServive.Tests.Services
             => System.Threading.Tasks.Task.CompletedTask;
 
         public System.Threading.Tasks.Task LogOperationAsync(
-            string requestId, string? sessionId,
+            string requestId, string sessionId,
             StewardessMCPServive.Models.AuditOperationType operationType,
-            string operationName, string clientIp, string? targetPath,
-            StewardessMCPServive.Models.AuditOutcome outcome, string? errorCode,
-            string? description, long elapsedMs,
-            string? changeReason = null, string? backupPath = null,
+            string operationName, string clientIp, string targetPath,
+            StewardessMCPServive.Models.AuditOutcome outcome, string errorCode,
+            string description, long elapsedMs,
+            string changeReason = null, string backupPath = null,
             CancellationToken ct = default)
             => System.Threading.Tasks.Task.CompletedTask;
 

@@ -98,7 +98,7 @@ namespace StewardessMCPServive.Services
                 if (!m.Success) continue;
 
                 var projRelPath = m.Groups[2].Value.Replace('\\', Path.DirectorySeparatorChar);
-                var projAbsPath = Path.GetFullPath(Path.Combine(slnDir!, projRelPath));
+                var projAbsPath = Path.GetFullPath(Path.Combine(slnDir, projRelPath));
 
                 if (!File.Exists(projAbsPath)) continue;
 
@@ -185,7 +185,7 @@ namespace StewardessMCPServive.Services
 
         // ── Private: project file parsing ────────────────────────────────────────
 
-        private ProjectInfo? ParseProjectFile(string absPath)
+        private ProjectInfo ParseProjectFile(string absPath)
         {
             try
             {

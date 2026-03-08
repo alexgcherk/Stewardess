@@ -211,15 +211,15 @@ namespace StewardessMCPServive.Configuration
         public static McpServiceSettings CreateForTesting(
             string   repositoryRoot     = "",
             bool     readOnly           = false,
-            string[]? blockedFolders     = null,
-            string[]? blockedExtensions  = null,
-            string[]? allowedExtensions  = null,
-            string[]? allowedIps         = null,
-            long      maxFileReadBytes   = 5 * 1024 * 1024,
-            int       maxSearchResults   = 200,
-            int       maxDirectoryDepth  = 10,
-            string    apiKey             = "",
-            string[]? allowedCommands    = null)
+            string[] blockedFolders     = null!,
+            string[] blockedExtensions  = null!,
+            string[] allowedExtensions  = null!,
+            string[] allowedIps         = null!,
+            long     maxFileReadBytes   = 5 * 1024 * 1024,
+            int      maxSearchResults   = 200,
+            int      maxDirectoryDepth  = 10,
+            string   apiKey             = "",
+            string[] allowedCommands    = null!)
         {
             var s = new McpServiceSettings();
             s.RepositoryRoot      = repositoryRoot;

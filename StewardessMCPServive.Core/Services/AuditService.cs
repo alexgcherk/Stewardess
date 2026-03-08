@@ -20,7 +20,7 @@ namespace StewardessMCPServive.Services
     /// </summary>
     public sealed class AuditService : IAuditService, IDisposable
     {
-        private readonly string? _logPath;
+        private readonly string _logPath;
         private readonly bool _enabled;
         private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
         private static readonly McpLogger _log = McpLogger.For<AuditService>();
@@ -53,7 +53,7 @@ namespace StewardessMCPServive.Services
 
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
+                Directory.CreateDirectory(Path.GetDirectoryName(_logPath));
             }
             catch (Exception ex)
             {
@@ -81,7 +81,7 @@ namespace StewardessMCPServive.Services
             try
             {
                 // File.AppendAllTextAsync with CancellationToken is .NET 6+ — use Task.Run on .NET 4.7.2.
-                await Task.Run(() => File.AppendAllText(_logPath!, line, Encoding.UTF8), ct).ConfigureAwait(false);
+                await Task.Run(() => File.AppendAllText(_logPath, line, Encoding.UTF8), ct).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -96,10 +96,10 @@ namespace StewardessMCPServive.Services
 
         /// <inheritdoc />
         public Task LogOperationAsync(
-            string requestId, string? sessionId, AuditOperationType operationType,
-            string operationName, string clientIp, string? targetPath,
-            AuditOutcome outcome, string? errorCode, string? description,
-            long elapsedMs, string? changeReason = null, string? backupPath = null,
+            string requestId, string sessionId, AuditOperationType operationType,
+            string operationName, string clientIp, string targetPath,
+            AuditOutcome outcome, string errorCode, string description,
+            long elapsedMs, string changeReason = null, string backupPath = null,
             CancellationToken ct = default)
         {
             var entry = new AuditEntry
@@ -130,7 +130,8 @@ namespace StewardessMCPServive.Services
             if (!_enabled || !File.Exists(_logPath))
                 return new AuditLogQueryResponse { Entries = new List<AuditEntry>() };
 
-            var lines = await Task.Run(() => File.ReadAllLines(_logPath!, Encoding.UTF8), ct).ConfigureAwait(false);
+            // File.ReadAllLinesAsync with CancellationToken is .NET 6+ — use Task.Run on .NET 4.7.2.
+            var lines = await Task.Run(() => File.ReadAllLines(_logPath, Encoding.UTF8), ct).ConfigureAwait(false);
             var entries = new List<AuditEntry>();
 
             foreach (var line in lines)

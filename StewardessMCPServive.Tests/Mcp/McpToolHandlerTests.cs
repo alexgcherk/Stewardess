@@ -52,7 +52,7 @@ namespace StewardessMCPServive.Tests.Mcp
         /// Converts an object to JObject using the same camelCase settings as the production
         /// JSON formatter (CamelCasePropertyNamesContractResolver).
         /// </summary>
-        private static JObject ToJson(object? obj)
+        private static JObject ToJson(object obj)
         {
             var settings = new Newtonsoft.Json.JsonSerializerSettings
             {
@@ -91,7 +91,7 @@ namespace StewardessMCPServive.Tests.Mcp
             Assert.Equal(McpToolHandler.ProtocolVersion, result["protocolVersion"]?.ToString());
             Assert.NotNull(result["serverInfo"]);
             Assert.NotNull(result["capabilities"]);
-            Assert.NotNull(result["capabilities"]?["tools"]);
+            Assert.NotNull(result["capabilities"]["tools"]);
         }
 
         [Fact]
@@ -107,7 +107,6 @@ namespace StewardessMCPServive.Tests.Mcp
             };
 
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
             Assert.Null(response.Error);
         }
 
@@ -178,7 +177,6 @@ namespace StewardessMCPServive.Tests.Mcp
 
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
 
-            Assert.NotNull(response);
             Assert.Null(response.Error);
             var result = ToJson(response.Result);
             var tools  = result["tools"] as JArray;
@@ -193,7 +191,6 @@ namespace StewardessMCPServive.Tests.Mcp
 
             var request = new McpRequest { JsonRpc = "2.0", Id = 3, Method = "tools/list" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
             var result = ToJson(response.Result);
 
             if (allTools.Count > 50)
@@ -203,8 +200,7 @@ namespace StewardessMCPServive.Tests.Mcp
             else
             {
                 // All tools fit on one page — nextCursor must be null/absent.
-                var nextCursor = result["nextCursor"];
-                Assert.True(nextCursor == null || nextCursor.Type == JTokenType.Null);
+                Assert.True(result["nextCursor"] == null || result["nextCursor"].Type == JTokenType.Null);
             }
         }
 
@@ -213,10 +209,8 @@ namespace StewardessMCPServive.Tests.Mcp
         {
             var request = new McpRequest { JsonRpc = "2.0", Id = 4, Method = "tools/list" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
             var result = ToJson(response.Result);
-            var tools  = result["tools"] as JArray;
-            Assert.NotNull(tools);
+            var tools  = (JArray)result["tools"];
 
             foreach (var tool in tools)
             {
@@ -245,7 +239,6 @@ namespace StewardessMCPServive.Tests.Mcp
             };
 
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
             Assert.NotNull(response.Error);
             Assert.Equal(McpErrorCodes.ToolNotFound, response.Error.Code);
         }
@@ -263,7 +256,6 @@ namespace StewardessMCPServive.Tests.Mcp
             };
 
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
             Assert.Null(response.Error);
 
             var result  = ToJson(response.Result);
@@ -285,7 +277,6 @@ namespace StewardessMCPServive.Tests.Mcp
             };
 
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
             Assert.NotNull(response.Error);
             Assert.Equal(McpErrorCodes.InvalidParams, response.Error.Code);
         }
@@ -298,7 +289,6 @@ namespace StewardessMCPServive.Tests.Mcp
             var request = new McpRequest { JsonRpc = "2.0", Id = 8, Method = "ping" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
 
-            Assert.NotNull(response);
             Assert.Null(response.Error);
             var result = ToJson(response.Result);
             Assert.Equal("ok", result["status"]?.ToString());
@@ -311,8 +301,6 @@ namespace StewardessMCPServive.Tests.Mcp
         {
             var request = new McpRequest { JsonRpc = "1.0", Id = 9, Method = "ping" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
-            Assert.NotNull(response.Error);
             Assert.Equal(McpErrorCodes.InvalidRequest, response.Error.Code);
         }
 
@@ -321,8 +309,6 @@ namespace StewardessMCPServive.Tests.Mcp
         {
             var request = new McpRequest { JsonRpc = "2.0", Id = 10, Method = "nonexistent/method" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.NotNull(response);
-            Assert.NotNull(response.Error);
             Assert.Equal(McpErrorCodes.MethodNotFound, response.Error.Code);
         }
 
@@ -330,7 +316,6 @@ namespace StewardessMCPServive.Tests.Mcp
         public async Task Dispatch_NullRequest_ReturnsError()
         {
             var response = await _handler.DispatchAsync(null, CancellationToken.None);
-            Assert.NotNull(response);
             Assert.NotNull(response.Error);
         }
     }

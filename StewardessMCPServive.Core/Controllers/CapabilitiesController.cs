@@ -355,7 +355,7 @@ namespace StewardessMCPServive.Controllers
             // ── Property helpers ──────────────────────────────────────────────────
 
             /// <summary>Optional property.</summary>
-            public (string, bool, McpPropertySchema) P(string name, string type, string description, object? def = null)
+            public (string, bool, McpPropertySchema) P(string name, string type, string description, object def = null)
                 => (name, false, new McpPropertySchema { Type = type, Description = description, Default = def,
                        Items = type == "array" ? new McpPropertySchema { Type = "string" } : null });
 

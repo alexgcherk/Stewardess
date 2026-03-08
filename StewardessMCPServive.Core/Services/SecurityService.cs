@@ -37,7 +37,7 @@ namespace StewardessMCPServive.Services
             var result = _pathValidator.Validate(relativePath, out absolutePath);
             return result.IsValid
                 ? SecurityCheckResult.Allow()
-                : SecurityCheckResult.Deny(result.ErrorCode!, result.ErrorMessage!);
+                : SecurityCheckResult.Deny(result.ErrorCode, result.ErrorMessage);
         }
 
         /// <inheritdoc />
@@ -46,11 +46,11 @@ namespace StewardessMCPServive.Services
             var result = _pathValidator.ValidateRead(relativePath, out absolutePath);
             return result.IsValid
                 ? SecurityCheckResult.Allow()
-                : SecurityCheckResult.Deny(result.ErrorCode!, result.ErrorMessage!);
+                : SecurityCheckResult.Deny(result.ErrorCode, result.ErrorMessage);
         }
 
         /// <inheritdoc />
-        public SecurityCheckResult ValidateWritePath(string relativePath, out string? absolutePath)
+        public SecurityCheckResult ValidateWritePath(string relativePath, out string absolutePath)
         {
             if (_settings.ReadOnlyMode)
             {
@@ -63,20 +63,20 @@ namespace StewardessMCPServive.Services
             var result = _pathValidator.ValidateWrite(relativePath, out absolutePath);
             return result.IsValid
                 ? SecurityCheckResult.Allow()
-                : SecurityCheckResult.Deny(result.ErrorCode!, result.ErrorMessage!);
+                : SecurityCheckResult.Deny(result.ErrorCode, result.ErrorMessage);
         }
 
         // ── Authentication ───────────────────────────────────────────────────────
 
         /// <inheritdoc />
-        public bool ValidateApiKey(string? suppliedKey)
+        public bool ValidateApiKey(string suppliedKey)
         {
             if (!_settings.RequireApiKey) return true;
             // Constant-time comparison — prevents timing side-channel enumeration of the key.
             return ConstantTimeEquals(_settings.ApiKey, suppliedKey);
         }
 
-        private static bool ConstantTimeEquals(string a, string? b)
+        private static bool ConstantTimeEquals(string a, string b)
         {
             if (a == null || b == null) return false;
             int diff = a.Length ^ b.Length;
@@ -118,7 +118,7 @@ namespace StewardessMCPServive.Services
         }
 
         /// <inheritdoc />
-        public bool ValidateApprovalToken(string? token)
+        public bool ValidateApprovalToken(string token)
         {
             if (!_settings.RequireApprovalForDestructive) return true;
             if (string.IsNullOrWhiteSpace(token)) return false;
