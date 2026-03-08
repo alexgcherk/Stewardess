@@ -220,7 +220,8 @@ app.UseSwaggerUI(c =>
 app.MapGet("/openapi.json", (HttpContext ctx) =>
 {
     ctx.Response.Redirect("/swagger/v1/swagger.json", permanent: false);
-}).WithMetadata(new AllowAnonymousAttribute());
+}).WithMetadata(new AllowAnonymousAttribute())
+  .ExcludeFromDescription();
 
 app.MapControllers();
 

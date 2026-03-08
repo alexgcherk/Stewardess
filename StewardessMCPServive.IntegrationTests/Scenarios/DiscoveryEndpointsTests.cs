@@ -207,8 +207,8 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
             Assert.NotNull(info["readOnlyMode"]);
             Assert.NotNull(info["serviceVersion"]);
             Assert.NotNull(info["policy"]);
-            Assert.NotNull(info["policy"]["blockedFolders"]);
-            Assert.NotNull(info["policy"]["blockedExtensions"]);
+            Assert.NotNull(info["policy"]?["blockedFolders"]);
+            Assert.NotNull(info["policy"]?["blockedExtensions"]);
 
             // Verify repository root matches our test repo (FileSystemService uses injected settings)
             Assert.Equal(_tempRepo.Root, info["repositoryRoot"]?.Value<string>());
@@ -229,7 +229,7 @@ namespace StewardessMCPServive.IntegrationTests.Scenarios
             var capJson = JObject.Parse(capBody);
             var toolJson = JObject.Parse(toolBody);
 
-            var capTools = capJson["data"]["tools"] as JArray;
+            var capTools = capJson["data"]?["tools"] as JArray;
             var toolsArray = toolJson["data"] as JArray;
 
             Assert.NotNull(capTools);
