@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -266,10 +267,11 @@ namespace StewardessMCPService.Mcp
 
             Add("search_file_names",
                 category: "search",
-                description: "Finds files whose names match a substring or wildcard pattern.",
+                description: "Finds files whose names match a substring, wildcard, or regex pattern.",
                 schema: Schema(
-                    Prop("pattern",     "string", "Filename pattern (substring or glob).", required: true),
-                    Prop("search_path", "string", "Restrict to subdirectory."),
+                    Prop("pattern",     "string",  "Filename pattern: substring, glob (*, ?), or regex when use_regex=true.", required: true),
+                    Prop("search_path", "string",  "Restrict to subdirectory."),
+                    Prop("use_regex",   "boolean", "Treat pattern as a .NET regular expression (default false).", def: false),
                     Prop("max_results", "integer", "Max results (default 100).", def: 100),
                     Prop("page",        "integer", "Page number (1-based, default 1).", def: 1),
                     Prop("page_size",   "integer", "Results per page (default 50, max 200).", def: 50)),
@@ -279,7 +281,8 @@ namespace StewardessMCPService.Mcp
                     {
                         Pattern    = Str(args, "pattern"),
                         SearchPath = Str(args, "search_path", ""),
-                        MaxResults = Int(args, "max_results", 100)
+                        MaxResults = Int(args, "max_results", 100),
+                        UseRegex   = Bool(args, "use_regex", false),
                     };
                     var result = await _search.SearchFileNamesAsync(req, ct).ConfigureAwait(false);
                     var page = Math.Max(1, Int(args, "page", 1));
@@ -1681,6 +1684,8 @@ namespace StewardessMCPService.Mcp
                 handler: async (args, ct) =>
                 {
                     var relPath      = Str(args, "relative_path", "");
+                    // Normalise "." and "./" so they mean the repo root, same as an empty string.
+                    if (relPath == "." || relPath == "./" || relPath == ".\\") relPath = "";
                     var maxDepth     = Int(args, "max_depth", 4);
                     var inclFiles    = Bool(args, "include_files", true);
                     var inclDirs     = Bool(args, "include_directories", true);
@@ -1930,7 +1935,7 @@ namespace StewardessMCPService.Mcp
                 category: "repo_browser",
                 description: "Locates a file or directory when you know its name or part of its path but not its exact location. " +
                              "Use before repo_browser.read_file when the path is uncertain. " +
-                             "Supports name match, path fragment, prefix, and exact path modes.",
+                             "Supports name match, path fragment, prefix, exact path, and regex modes.",
                 schema: Schema(
                     Prop("query",         "string",  "File name, directory name, or partial path to search for.", required: true),
                     Prop("match_mode",    "string",  "Matching mode: name (default), path_fragment, exact_path, prefix.",
@@ -1938,6 +1943,7 @@ namespace StewardessMCPService.Mcp
                     Prop("target_kind",   "string",  "What to find: file, directory, or any (default).",
                          def: "any",  enums: new[] { "file", "directory", "any" }),
                     Prop("case_sensitive","boolean", "Case-sensitive matching (default false).", def: false),
+                    Prop("use_regex",     "boolean", "Treat query as a .NET regex applied to name or full path depending on match_mode (default false).", def: false),
                     PropWithItems("glob_include", "Include only results whose paths match these glob patterns."),
                     PropWithItems("glob_exclude", "Exclude results whose paths match these glob patterns."),
                     Prop("max_results",   "integer", "Maximum results to return (default 50).", def: 50)),
@@ -1947,6 +1953,7 @@ namespace StewardessMCPService.Mcp
                     var matchMode   = (Str(args, "match_mode", "name") ?? "name").ToLowerInvariant();
                     var targetKind  = (Str(args, "target_kind", "any") ?? "any").ToLowerInvariant();
                     var caseSens    = Bool(args, "case_sensitive", false);
+                    var useRegex    = Bool(args, "use_regex", false);
                     var globInclude = StrList(args, "glob_include");
                     var globExclude = StrList(args, "glob_exclude");
                     var maxResults  = Int(args, "max_results", 50);
@@ -1954,15 +1961,23 @@ namespace StewardessMCPService.Mcp
                     var items       = new List<RepoBrowserPathMatch>();
                     bool trunc      = false;
 
+                    var regexOpts = RegexOptions.Compiled | (caseSens ? RegexOptions.None : RegexOptions.IgnoreCase);
+                    Regex queryRegex = null;
+                    if (useRegex && !string.IsNullOrEmpty(query))
+                        queryRegex = new Regex(query, regexOpts);
+
                     // ── Files ────────────────────────────────────────────────────
                     if (targetKind == "file" || targetKind == "any")
                     {
                         var fileResp = await _search.SearchFileNamesAsync(new SearchFileNamesRequest
                         {
-                            Pattern       = matchMode == "name" ? query : "*",
+                            // When regex is active, fetch all files and filter in the loop below.
+                            // For non-regex name mode, pass query as substring; for path modes pass "*".
+                            Pattern       = useRegex ? "*" : (matchMode == "name" ? query : "*"),
                             MaxResults    = maxResults * 3,
                             IgnoreCase    = !caseSens,
-                            MatchFullPath = matchMode != "name",
+                            MatchFullPath = !useRegex && matchMode != "name",
+                            UseRegex      = false,
                         }, ct).ConfigureAwait(false);
 
                         foreach (var m in fileResp.Matches)
@@ -1972,14 +1987,23 @@ namespace StewardessMCPService.Mcp
                             var norm = rel.Replace('\\', '/');
                             var qn   = query.Replace('\\', '/');
 
-                            string reason = matchMode switch
+                            string reason;
+                            if (useRegex && queryRegex != null)
                             {
-                                "name"          => "file name match",
-                                "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
-                                "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
-                                "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
-                                _               => null,
-                            };
+                                var target = matchMode == "name" ? m.Name : norm;
+                                reason = queryRegex.IsMatch(target ?? "") ? "regex match" : null;
+                            }
+                            else
+                            {
+                                reason = matchMode switch
+                                {
+                                    "name"          => "file name match",
+                                    "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
+                                    "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
+                                    "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
+                                    _               => null,
+                                };
+                            }
                             if (reason == null) continue;
                             if (globInclude.Count > 0 && !globInclude.Any(g => MatchGlob(rel, g))) continue;
                             if (globExclude.Any(g => MatchGlob(rel, g))) continue;
@@ -2013,14 +2037,23 @@ namespace StewardessMCPService.Mcp
                                 var norm = rel.Replace('\\', '/');
                                 var qn   = query.Replace('\\', '/');
 
-                                string reason = matchMode switch
+                                string reason;
+                                if (useRegex && queryRegex != null)
                                 {
-                                    "name"          => node.Name.Contains(query, cmp) ? "directory name match" : null,
-                                    "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
-                                    "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
-                                    "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
-                                    _               => null,
-                                };
+                                    var target = matchMode == "name" ? node.Name : norm;
+                                    reason = queryRegex.IsMatch(target) ? "regex match" : null;
+                                }
+                                else
+                                {
+                                    reason = matchMode switch
+                                    {
+                                        "name"          => node.Name.Contains(query, cmp) ? "directory name match" : null,
+                                        "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
+                                        "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
+                                        "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
+                                        _               => null,
+                                    };
+                                }
 
                                 if (reason != null &&
                                     !(globInclude.Count > 0 && !globInclude.Any(g => MatchGlob(rel, g))) &&
@@ -2053,6 +2086,55 @@ namespace StewardessMCPService.Mcp
                         ResultCount = capped.Count,
                         Truncated   = trunc,
                         Items       = capped,
+                    });
+                });
+
+            // ── repo_browser.search ──────────────────────────────────────────────
+            Add("repo_browser.search",
+                category: "repo_browser",
+                description: "Finds files whose names match a substring, wildcard, or regex pattern (case-insensitive by default). " +
+                             "Use when you know part of a filename but not its location. " +
+                             "For content search use repo_browser.grep. For directory or mode-based matching use repo_browser.find_path.",
+                schema: Schema(
+                    Prop("query",          "string",  "Filename pattern: substring, glob (*, ?), or regex when use_regex=true. E.g. 'Program', '*.csproj', '\\\\.csproj$'.", required: true),
+                    Prop("path_prefix",    "string",  "Restrict search to this subdirectory (repo-relative)."),
+                    Prop("use_regex",      "boolean", "Treat query as a .NET regular expression (default false).", def: false),
+                    Prop("case_sensitive", "boolean", "Case-sensitive matching (default false).", def: false),
+                    Prop("max_results",    "integer", "Maximum results to return (default 50).", def: 50)),
+                handler: async (args, ct) =>
+                {
+                    var query      = Str(args, "query") ?? "";
+                    var pathPrefix = Str(args, "path_prefix", "") ?? "";
+                    var useRegex   = Bool(args, "use_regex", false);
+                    var caseSens   = Bool(args, "case_sensitive", false);
+                    var maxResults = Math.Max(1, Int(args, "max_results", 50));
+
+                    var fileResp = await _search.SearchFileNamesAsync(new SearchFileNamesRequest
+                    {
+                        Pattern    = query,
+                        SearchPath = pathPrefix,
+                        MaxResults = maxResults + 1,
+                        IgnoreCase = !caseSens,
+                        UseRegex   = useRegex,
+                    }, ct).ConfigureAwait(false);
+
+                    bool truncated = fileResp.Matches.Count > maxResults || fileResp.Truncated;
+                    var capped = fileResp.Matches.Take(maxResults).ToList();
+
+                    return ToResult(new RepoBrowserSearchResponse
+                    {
+                        RootPath    = _settings.RepositoryRoot,
+                        Query       = query,
+                        PathPrefix  = pathPrefix,
+                        ResultCount = capped.Count,
+                        Truncated   = truncated,
+                        Items       = capped.Select(m => new RepoBrowserSearchMatch
+                        {
+                            Path      = m.RelativePath ?? "",
+                            Name      = m.Name ?? "",
+                            Kind      = "file",
+                            SizeBytes = m.SizeBytes,
+                        }).ToList(),
                     });
                 });
         }
@@ -2896,6 +2978,19 @@ namespace StewardessMCPService.Mcp
                 {
                     UseWhen      = "Use when you know the file or directory name (or part of its path) but not its exact location in the repository.",
                     DoNotUseWhen = "Do not use when you need to search file contents or already know the exact path.",
+                    TypicalNextTools = new[] { "repo_browser.read_file", "repo_browser.print_tree", "repo_browser.grep" },
+                };
+            });
+
+            Annotate("repo_browser.search", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "repo_browser", "search", "filesystem" };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, query = new { type = "string" }, pathPrefix = new { type = "string" }, resultCount = new { type = "integer" }, truncated = new { type = "boolean" }, items = new { type = "array" } } };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use when you know part of a filename (e.g. \"Program\" to find Program.cs) but not its location. Searches all filenames by substring.",
+                    DoNotUseWhen = "Do not use for content search (use repo_browser.grep) or to find directories (use repo_browser.find_path).",
                     TypicalNextTools = new[] { "repo_browser.read_file", "repo_browser.print_tree", "repo_browser.grep" },
                 };
             });

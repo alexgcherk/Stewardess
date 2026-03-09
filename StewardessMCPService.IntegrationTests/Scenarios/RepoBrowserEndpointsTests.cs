@@ -43,6 +43,14 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             "    }\r\n" +
             "}\r\n";
 
+        private const string SampleProjectPath = "src/Hello.csproj";
+        private const string SampleProjectContent =
+            "<Project Sdk=\"Microsoft.NET.Sdk\">\r\n" +
+            "  <PropertyGroup>\r\n" +
+            "    <TargetFramework>net8.0</TargetFramework>\r\n" +
+            "  </PropertyGroup>\r\n" +
+            "</Project>\r\n";
+
         public RepoBrowserEndpointsTests()
         {
             _tempRepo = new TempTestRepository();
@@ -51,6 +59,7 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             Directory.CreateDirectory(Path.Combine(_tempRepo.Root, "src"));
             Directory.CreateDirectory(Path.Combine(_tempRepo.Root, "docs"));
             File.WriteAllText(Path.Combine(_tempRepo.Root, SampleFilePath), SampleFileContent);
+            File.WriteAllText(Path.Combine(_tempRepo.Root, SampleProjectPath), SampleProjectContent);
             File.WriteAllText(Path.Combine(_tempRepo.Root, "docs", "README.md"), "# Hello\r\nA sample project.");
 
             _server = new McpTestServer(_tempRepo.Root);
@@ -336,11 +345,203 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         }
 
         // ═════════════════════════════════════════════════════════════════════════
+        // GET /api/repo-browser/search
+        // ═════════════════════════════════════════════════════════════════════════
+
+        /// <summary>GET /api/repo-browser/search returns 200 with items for a known filename.</summary>
+        [Fact]
+        public async Task Search_Get_Returns200WithItems()
+        {
+            var response = await _client.GetAsync("/api/repo-browser/search?query=Hello.cs");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+        }
+
+        /// <summary>GET /api/repo-browser/search finds a file by partial name (no extension).</summary>
+        [Fact]
+        public async Task Search_Get_PartialName_FindsFile()
+        {
+            var response = await _client.GetAsync("/api/repo-browser/search?query=Hello");
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            Assert.True(
+                System.Linq.Enumerable.Any(items, i =>
+                    (i["name"]?.Value<string>() ?? "").StartsWith("Hello", StringComparison.OrdinalIgnoreCase)),
+                "Expected at least one file whose name starts with 'Hello'");
+        }
+
+        /// <summary>GET /api/repo-browser/search without query returns 400.</summary>
+        [Fact]
+        public async Task Search_Get_MissingQuery_Returns400()
+        {
+            var response = await _client.GetAsync("/api/repo-browser/search");
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+
+        /// <summary>Search response contains expected top-level fields.</summary>
+        [Fact]
+        public async Task Search_Get_ResponseHasExpectedTopLevelFields()
+        {
+            var response = await _client.GetAsync("/api/repo-browser/search?query=Hello");
+            var data     = await ReadDataAsync(response);
+
+            Assert.NotNull(data["rootPath"]);
+            Assert.Equal("Hello", data["query"]?.Value<string>());
+            Assert.NotNull(data["pathPrefix"]);
+            Assert.NotNull(data["resultCount"]);
+            Assert.NotNull(data["truncated"]);
+        }
+
+        /// <summary>Search result items always have path, name, kind="file", and sizeBytes.</summary>
+        [Fact]
+        public async Task Search_Get_Items_HaveRequiredFields()
+        {
+            var response = await _client.GetAsync("/api/repo-browser/search?query=.cs");
+            var data     = await ReadDataAsync(response);
+            var items    = data["items"] as JArray;
+
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+            {
+                Assert.False(string.IsNullOrEmpty(item["path"]?.Value<string>()), "path must not be empty");
+                Assert.False(string.IsNullOrEmpty(item["name"]?.Value<string>()), "name must not be empty");
+                Assert.Equal("file", item["kind"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
+                Assert.True(item["sizeBytes"]?.Value<long>() >= 0, "sizeBytes must be non-negative");
+            }
+        }
+
+        /// <summary>maxResults=1 limits results to at most one item.</summary>
+        [Fact]
+        public async Task Search_Get_MaxResults1_LimitsItems()
+        {
+            var response = await _client.GetAsync("/api/repo-browser/search?query=.cs&maxResults=1");
+            var data     = await ReadDataAsync(response);
+            var items    = data["items"] as JArray;
+
+            Assert.NotNull(items);
+            Assert.True(items.Count <= 1);
+        }
+
+        // ── regex ─────────────────────────────────────────────────────────────────
+
+        /// <summary>search with useRegex=true and a suffix pattern finds only matching files.</summary>
+        [Fact]
+        public async Task Search_Get_UseRegex_SuffixPattern_FindsCsFiles()
+        {
+            var response = await _client.GetAsync(
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.cs$")}&useRegex=true");
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.EndsWith(".cs", item["name"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>search with useRegex=true and an anchored pattern finds only Hello.cs, not Hello.csproj.</summary>
+        [Fact]
+        public async Task Search_Get_UseRegex_AnchoredPattern_ExcludesNonMatching()
+        {
+            var response = await _client.GetAsync(
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("^Hello\\.cs$")}&useRegex=true");
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Equal("Hello.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>search with useRegex=true finds .csproj files using \\.csproj$ pattern.</summary>
+        [Fact]
+        public async Task Search_Get_UseRegex_CsprojPattern_FindsProjectFile()
+        {
+            var response = await _client.GetAsync(
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.csproj$")}&useRegex=true");
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.EndsWith(".csproj", item["name"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>search without useRegex treats the same pattern as a literal substring (finds nothing).</summary>
+        [Fact]
+        public async Task Search_Get_WithoutRegex_RegexPatternIsLiteral_FindsNothing()
+        {
+            // The literal string "\.cs$" appears in no filename, so 0 results expected
+            var response = await _client.GetAsync(
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.cs$")}&useRegex=false");
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray ?? new JArray();
+            Assert.Empty(items);
+        }
+
+        // ═════════════════════════════════════════════════════════════════════════
+        // POST /api/repo-browser/find  — regex mode
+        // ═════════════════════════════════════════════════════════════════════════
+
+        /// <summary>find_path with useRegex=true finds Hello.cs via an anchored name pattern.</summary>
+        [Fact]
+        public async Task FindPath_Post_UseRegex_AnchoredName_FindsOnlyHelloCs()
+        {
+            var response = await PostJsonAsync("/api/repo-browser/find",
+                new { query = "^Hello\\.cs$", useRegex = true, targetKind = "file" });
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Equal("Hello.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>find_path with useRegex=true and path_fragment mode matches paths by regex.</summary>
+        [Fact]
+        public async Task FindPath_Post_UseRegex_PathFragment_MatchesByPath()
+        {
+            var response = await PostJsonAsync("/api/repo-browser/find",
+                new { query = "src/.*\\.cs$", useRegex = true, matchMode = "path_fragment", targetKind = "file" });
+
+            var data  = await ReadDataAsync(response);
+            var items = data["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+            {
+                var path = (item["path"]?.Value<string>() ?? "").Replace('\\', '/');
+                Assert.Contains("src/", path, StringComparison.OrdinalIgnoreCase);
+                Assert.EndsWith(".cs", path, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // ═════════════════════════════════════════════════════════════════════════
         // Authentication
         // ═════════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// All four repo_browser endpoints return 401 when an API key is required
+        /// All five repo_browser endpoints return 401 when an API key is required
         /// but not provided in the request.
         /// </summary>
         [Theory]
@@ -348,6 +549,7 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         [InlineData("POST", "/api/repo-browser/grep")]
         [InlineData("GET",  "/api/repo-browser/file")]
         [InlineData("POST", "/api/repo-browser/find")]
+        [InlineData("GET",  "/api/repo-browser/search")]
         public async Task AllEndpoints_WithoutApiKey_Return401WhenRequired(string method, string path)
         {
             using var tempRepo   = new TempTestRepository();

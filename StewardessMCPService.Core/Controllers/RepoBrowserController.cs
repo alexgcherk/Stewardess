@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using StewardessMCPService.Configuration;
@@ -12,10 +14,11 @@ namespace StewardessMCPService.Controllers
     /// Repository browser endpoints — a minimal companion toolset for agent-driven
     /// repository navigation.
     ///
-    /// GET  /api/repo-browser/tree  — print_tree
-    /// POST /api/repo-browser/grep  — grep
-    /// GET  /api/repo-browser/file  — read_file
-    /// POST /api/repo-browser/find  — find_path
+    /// GET  /api/repo-browser/tree   — print_tree
+    /// POST /api/repo-browser/grep   — grep
+    /// GET  /api/repo-browser/file   — read_file
+    /// POST /api/repo-browser/find   — find_path
+    /// GET  /api/repo-browser/search — search
     /// </summary>
     [Route("api/repo-browser")]
     public sealed class RepoBrowserController : BaseController
@@ -41,6 +44,10 @@ namespace StewardessMCPService.Controllers
         {
             try
             {
+                // Normalise "." / "./" to root — consistent with empty string.
+                if (relativePath == "." || relativePath == "./" || relativePath == ".\\")
+                    relativePath = "";
+
                 var treeReq = new ListTreeRequest
                 {
                     Path            = relativePath ?? "",
@@ -270,15 +277,22 @@ namespace StewardessMCPService.Controllers
                 bool trunc     = false;
                 var qn         = request.Query.Replace('\\', '/');
 
+                var regexOpts = RegexOptions.Compiled | (request.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
+                Regex queryRegex = null;
+                if (request.UseRegex && !string.IsNullOrEmpty(request.Query))
+                    queryRegex = new Regex(request.Query, regexOpts);
+
                 // ── Files ────────────────────────────────────────────────────────
                 if (targetKind == "file" || targetKind == "any")
                 {
                     var fileResp = SearchService.SearchFileNamesAsync(new SearchFileNamesRequest
                     {
-                        Pattern       = matchMode == "name" ? request.Query : "*",
+                        // When regex is active, fetch all files and filter in the loop below.
+                        Pattern       = request.UseRegex ? "*" : (matchMode == "name" ? request.Query : "*"),
                         MaxResults    = maxResults * 3,
                         IgnoreCase    = !request.CaseSensitive,
-                        MatchFullPath = matchMode != "name",
+                        MatchFullPath = !request.UseRegex && matchMode != "name",
+                        UseRegex      = false,
                     }, CancellationToken.None).GetAwaiter().GetResult();
 
                     foreach (var m in fileResp.Matches)
@@ -287,14 +301,23 @@ namespace StewardessMCPService.Controllers
                         var rel  = m.RelativePath ?? "";
                         var norm = rel.Replace('\\', '/');
 
-                        string reason = matchMode switch
+                        string reason;
+                        if (request.UseRegex && queryRegex != null)
                         {
-                            "name"          => "file name match",
-                            "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
-                            "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
-                            "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
-                            _               => null,
-                        };
+                            var target = matchMode == "name" ? m.Name : norm;
+                            reason = queryRegex.IsMatch(target ?? "") ? "regex match" : null;
+                        }
+                        else
+                        {
+                            reason = matchMode switch
+                            {
+                                "name"          => "file name match",
+                                "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
+                                "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
+                                "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
+                                _               => null,
+                            };
+                        }
                         if (reason == null) continue;
 
                         items.Add(new RepoBrowserPathMatch
@@ -325,14 +348,23 @@ namespace StewardessMCPService.Controllers
                             var rel  = node.RelativePath;
                             var norm = rel.Replace('\\', '/');
 
-                            string reason = matchMode switch
+                            string reason;
+                            if (request.UseRegex && queryRegex != null)
                             {
-                                "name"          => node.Name.Contains(request.Query, cmp) ? "directory name match" : null,
-                                "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
-                                "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
-                                "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
-                                _               => null,
-                            };
+                                var target = matchMode == "name" ? node.Name : norm;
+                                reason = queryRegex.IsMatch(target) ? "regex match" : null;
+                            }
+                            else
+                            {
+                                reason = matchMode switch
+                                {
+                                    "name"          => node.Name.Contains(request.Query, cmp) ? "directory name match" : null,
+                                    "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
+                                    "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
+                                    "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
+                                    _               => null,
+                                };
+                            }
 
                             if (reason != null)
                             {
@@ -363,6 +395,60 @@ namespace StewardessMCPService.Controllers
                     ResultCount = capped.Count,
                     Truncated   = trunc,
                     Items       = capped,
+                });
+            }
+            catch (Exception ex) { return HandleException(ex); }
+        }
+
+        // ── search ───────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Finds files whose names contain the query as a substring.
+        /// Use when you know part of a filename but not its location.
+        /// </summary>
+        [HttpGet, Route("search")]
+        public IActionResult Search(
+            [FromQuery] string query,
+            [FromQuery] string pathPrefix    = "",
+            [FromQuery] bool   useRegex      = false,
+            [FromQuery] bool   caseSensitive = false,
+            [FromQuery] int    maxResults    = 50)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+                return BadRequest(ErrorCodes.MissingParameter, "'query' is required.");
+
+            try
+            {
+                maxResults = Math.Max(1, maxResults);
+
+                var fileResp = SearchService.SearchFileNamesAsync(new SearchFileNamesRequest
+                {
+                    Pattern    = query,
+                    SearchPath = pathPrefix ?? "",
+                    MaxResults = maxResults + 1,
+                    IgnoreCase = !caseSensitive,
+                    UseRegex   = useRegex,
+                }, CancellationToken.None).GetAwaiter().GetResult();
+
+                bool truncated = fileResp.Matches.Count > maxResults || fileResp.Truncated;
+                var capped = fileResp.Matches.Count > maxResults
+                    ? fileResp.Matches.GetRange(0, maxResults)
+                    : fileResp.Matches;
+
+                return Ok(new RepoBrowserSearchResponse
+                {
+                    RootPath    = Settings.RepositoryRoot,
+                    Query       = query,
+                    PathPrefix  = pathPrefix ?? "",
+                    ResultCount = capped.Count,
+                    Truncated   = truncated,
+                    Items       = capped.Select(m => new RepoBrowserSearchMatch
+                    {
+                        Path      = m.RelativePath ?? "",
+                        Name      = m.Name ?? "",
+                        Kind      = "file",
+                        SizeBytes = m.SizeBytes,
+                    }).ToList(),
                 });
             }
             catch (Exception ex) { return HandleException(ex); }
@@ -425,6 +511,9 @@ namespace StewardessMCPService.Controllers
 
         /// <summary>Case-sensitive matching (default false).</summary>
         public bool CaseSensitive { get; set; } = false;
+
+        /// <summary>Treat query as a .NET regular expression (default false).</summary>
+        public bool UseRegex { get; set; } = false;
 
         /// <summary>Maximum results to return (default 50).</summary>
         public int MaxResults { get; set; } = 50;

@@ -1012,6 +1012,53 @@
         }
       }
     },
+    "/api/repo-browser/search": {
+      "get": {
+        "tags": [
+          "RepoBrowser"
+        ],
+        "operationId": "RepoBrowser_Search",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pathPrefix",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "caseSensitive",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "maxResults",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/repository": {
       "get": {
         "tags": [

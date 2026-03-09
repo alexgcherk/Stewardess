@@ -77,6 +77,9 @@ namespace StewardessMCPService.Models
 
         /// <summary>When true, search full relative path instead of name only.</summary>
         public bool MatchFullPath { get; set; } = false;
+
+        /// <summary>When true, treats <see cref="Pattern"/> as a .NET regular expression.</summary>
+        public bool UseRegex { get; set; } = false;
     }
 
     // ── search_by_extension ──────────────────────────────────────────────────────

@@ -134,4 +134,34 @@ namespace StewardessMCPService.Models
         /// <summary>Human-readable description of why this entry matched.</summary>
         public string MatchReason { get; set; }
     }
+
+    /// <summary>Response from a repo_browser.search call.</summary>
+    public sealed class RepoBrowserSearchResponse
+    {
+        /// <summary>Absolute path of the repository root on the server.</summary>
+        public string RootPath { get; set; }
+        /// <summary>The filename substring that was searched for.</summary>
+        public string Query { get; set; }
+        /// <summary>Subdirectory the search was restricted to (empty = whole repo).</summary>
+        public string PathPrefix { get; set; }
+        /// <summary>Total number of results returned.</summary>
+        public int ResultCount { get; set; }
+        /// <summary>True when results were capped at max_results.</summary>
+        public bool Truncated { get; set; }
+        /// <summary>Matched file entries.</summary>
+        public List<RepoBrowserSearchMatch> Items { get; set; } = new List<RepoBrowserSearchMatch>();
+    }
+
+    /// <summary>A single file result from a repo_browser.search call.</summary>
+    public sealed class RepoBrowserSearchMatch
+    {
+        /// <summary>Repository-relative path of the file.</summary>
+        public string Path { get; set; }
+        /// <summary>Filename without path prefix.</summary>
+        public string Name { get; set; }
+        /// <summary>Always "file".</summary>
+        public string Kind { get; set; } = "file";
+        /// <summary>File size in bytes.</summary>
+        public long SizeBytes { get; set; }
+    }
 }

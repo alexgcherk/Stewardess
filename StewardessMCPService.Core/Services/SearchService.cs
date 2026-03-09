@@ -93,7 +93,15 @@ namespace StewardessMCPService.Services
 
             var sw      = Stopwatch.StartNew();
             var pattern = request.Pattern ?? "";
-            bool isWildcard = pattern.Contains('*') || pattern.Contains('?');
+            bool isRegex    = request.UseRegex;
+            bool isWildcard = !isRegex && (pattern.Contains('*') || pattern.Contains('?'));
+
+            Regex compiledRegex = null;
+            if (isRegex && pattern.Length > 0)
+            {
+                var opts = RegexOptions.Compiled | (request.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
+                compiledRegex = new Regex(pattern, opts);
+            }
 
             var matches  = new List<FileNameMatch>();
             bool truncated = false;
@@ -106,9 +114,13 @@ namespace StewardessMCPService.Services
                     ? _pathValidator.ToRelativePath(filePath)
                     : fi.Name;
 
-                bool matched = isWildcard
-                    ? MatchesWildcard(nameTest, pattern, request.IgnoreCase)
-                    : nameTest.IndexOf(pattern, request.IgnoreCase
+                bool matched;
+                if (isRegex)
+                    matched = compiledRegex != null && compiledRegex.IsMatch(nameTest);
+                else if (isWildcard)
+                    matched = MatchesWildcard(nameTest, pattern, request.IgnoreCase);
+                else
+                    matched = nameTest.IndexOf(pattern, request.IgnoreCase
                         ? StringComparison.OrdinalIgnoreCase
                         : StringComparison.Ordinal) >= 0;
 

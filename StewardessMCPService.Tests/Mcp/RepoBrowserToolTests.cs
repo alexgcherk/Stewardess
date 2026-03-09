@@ -33,8 +33,9 @@ namespace StewardessMCPService.Tests.Mcp
         private const string Grep      = "repo_browser.grep";
         private const string ReadFile  = "repo_browser.read_file";
         private const string FindPath  = "repo_browser.find_path";
+        private const string Search    = "repo_browser.search";
 
-        private static readonly string[] AllRepoBrowserTools = { PrintTree, Grep, ReadFile, FindPath };
+        private static readonly string[] AllRepoBrowserTools = { PrintTree, Grep, ReadFile, FindPath, Search };
 
         // ── Fixture ──────────────────────────────────────────────────────────────
 
@@ -281,6 +282,22 @@ namespace StewardessMCPService.Tests.Mcp
             var items = result["items"] as JArray;
             Assert.NotNull(items);
             Assert.NotEmpty(items);
+        }
+
+        /// <summary>print_tree with relative_path="." (current dir) returns the same results as no path.</summary>
+        [Fact]
+        public async Task PrintTree_DotRelativePath_ReturnsSameAsNoPath()
+        {
+            var dotResult  = await InvokeAsync(PrintTree, new { relative_path = "." });
+            var rootResult = await InvokeAsync(PrintTree);
+
+            var dotItems  = dotResult["items"]  as JArray;
+            var rootItems = rootResult["items"] as JArray;
+
+            Assert.NotNull(dotItems);
+            Assert.NotNull(rootItems);
+            Assert.NotEmpty(dotItems);
+            Assert.Equal(rootItems.Count, dotItems.Count);
         }
 
         /// <summary>print_tree returns the repository root in the response.</summary>
@@ -535,6 +552,24 @@ namespace StewardessMCPService.Tests.Mcp
             Assert.EndsWith("Class1.cs", first["path"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>find_path with name mode and a partial query (no extension) finds matching files.</summary>
+        [Fact]
+        public async Task FindPath_NameMode_PartialQuery_FindsMatchingFiles()
+        {
+            // query = "Class1" (no extension) — should find both Class1.cs and Class1Tests.cs
+            var result = await InvokeAsync(FindPath, new { query = "Class1" });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+            {
+                var name = item["name"]?.Value<string>() ?? "";
+                Assert.Contains("Class1", name, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         /// <summary>find_path with target_kind=directory finds directories.</summary>
         [Fact]
         public async Task FindPath_TargetKindDirectory_FindsDirectories()
@@ -608,8 +643,161 @@ namespace StewardessMCPService.Tests.Mcp
         }
 
         // ═════════════════════════════════════════════════════════════════════════
-        // Private helpers
+        // repo_browser.search
         // ═════════════════════════════════════════════════════════════════════════
+
+        /// <summary>search is registered in the tool registry.</summary>
+        [Fact]
+        public void Search_IsRegistered()
+        {
+            var tool = GetTool(Search);
+            Assert.Equal(Search, tool.Name);
+        }
+
+        /// <summary>search schema requires 'query' and has optional fields.</summary>
+        [Fact]
+        public void Search_Schema_HasExpectedProperties()
+        {
+            var tool = GetTool(Search);
+            Assert.Contains("query", tool.InputSchema.Required, StringComparer.OrdinalIgnoreCase);
+
+            var props = tool.InputSchema.Properties;
+            Assert.True(props.ContainsKey("query"),          "'query' property must exist");
+            Assert.True(props.ContainsKey("path_prefix"),    "'path_prefix' property must exist");
+            Assert.True(props.ContainsKey("max_results"),    "'max_results' property must exist");
+            Assert.True(props.ContainsKey("case_sensitive"), "'case_sensitive' property must exist");
+        }
+
+        /// <summary>search finds a file by exact name.</summary>
+        [Fact]
+        public async Task Search_ExactName_FindsFile()
+        {
+            var result = await InvokeAsync(Search, new { query = "Class1.cs" });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            Assert.True(items.Any(i => i["name"]?.Value<string>()
+                .Equals("Class1.cs", StringComparison.OrdinalIgnoreCase) == true),
+                "Expected to find 'Class1.cs'");
+        }
+
+        /// <summary>search with partial name (no extension) finds matching files.</summary>
+        [Fact]
+        public async Task Search_PartialName_FindsMatchingFiles()
+        {
+            var result = await InvokeAsync(Search, new { query = "Class1" });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Contains("Class1", item["name"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>search result items always have 'file' kind.</summary>
+        [Fact]
+        public async Task Search_Items_KindIsAlwaysFile()
+        {
+            var result = await InvokeAsync(Search, new { query = ".cs" });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Equal("file", item["kind"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>search response has required top-level fields.</summary>
+        [Fact]
+        public async Task Search_ResponseHasTopLevelFields()
+        {
+            var result = await InvokeAsync(Search, new { query = "README" });
+
+            Assert.NotNull(result["rootPath"]);
+            Assert.Equal("README", result["query"]?.Value<string>());
+            Assert.NotNull(result["pathPrefix"]);
+            Assert.True(result["resultCount"]?.Value<int>() >= 0);
+            Assert.NotNull(result["truncated"]);
+        }
+
+        /// <summary>search items have path, name, kind, and sizeBytes fields.</summary>
+        [Fact]
+        public async Task Search_Items_HaveRequiredFields()
+        {
+            var result = await InvokeAsync(Search, new { query = ".cs" });
+            var items  = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+            {
+                Assert.False(string.IsNullOrEmpty(item["path"]?.Value<string>()), "path must not be empty");
+                Assert.False(string.IsNullOrEmpty(item["name"]?.Value<string>()), "name must not be empty");
+                Assert.False(string.IsNullOrEmpty(item["kind"]?.Value<string>()), "kind must not be empty");
+                Assert.True(item["sizeBytes"]?.Value<long>() >= 0,                "sizeBytes must be non-negative");
+            }
+        }
+
+        /// <summary>search with max_results=1 returns at most one result.</summary>
+        [Fact]
+        public async Task Search_MaxResults1_ReturnsAtMostOne()
+        {
+            var result = await InvokeAsync(Search, new { query = ".cs", max_results = 1 });
+            var items  = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.True(items.Count <= 1);
+        }
+
+        /// <summary>search with use_regex=true finds files by regex pattern.</summary>
+        [Fact]
+        public async Task Search_UseRegex_FindsMatchingFiles()
+        {
+            // \\.cs$ should match *.cs files (names ending in .cs)
+            var result = await InvokeAsync(Search, new { query = "\\.cs$", use_regex = true });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+            {
+                var name = item["name"]?.Value<string>() ?? "";
+                Assert.EndsWith(".cs", name, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>search with use_regex=true and an anchored pattern finds exact matches.</summary>
+        [Fact]
+        public async Task Search_UseRegex_AnchoredPattern_ExcludesNonMatching()
+        {
+            // ^Class1\\.cs$ should match only "Class1.cs", not "Class1Tests.cs"
+            var result = await InvokeAsync(Search, new { query = "^Class1\\.cs$", use_regex = true });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Equal("Class1.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>find_path with use_regex=true finds files by regex pattern.</summary>
+        [Fact]
+        public async Task FindPath_UseRegex_FindsMatchingFiles()
+        {
+            var result = await InvokeAsync(FindPath, new { query = "^Class1\\.cs$", use_regex = true, target_kind = "file" });
+
+            var items = result["items"] as JArray;
+            Assert.NotNull(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Equal("Class1.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
+        }
 
         private async Task<JObject> InvokeAsync(string toolName, object args = null)
         {
