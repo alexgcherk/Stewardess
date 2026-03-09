@@ -269,9 +269,8 @@ namespace StewardessMCPService.Mcp
                 category: "search",
                 description: "Finds files whose names match a substring, wildcard, or regex pattern.",
                 schema: Schema(
-                    Prop("pattern",     "string",  "Filename pattern: substring, glob (*, ?), or regex when use_regex=true.", required: true),
+                    Prop("pattern",     "string",  "Filename pattern: substring, glob (*, ?), or regex (e.g. '^Foo\\.cs$'). Regex is auto-detected.", required: true),
                     Prop("search_path", "string",  "Restrict to subdirectory."),
-                    Prop("use_regex",   "boolean", "Treat pattern as a .NET regular expression (default false).", def: false),
                     Prop("max_results", "integer", "Max results (default 100).", def: 100),
                     Prop("page",        "integer", "Page number (1-based, default 1).", def: 1),
                     Prop("page_size",   "integer", "Results per page (default 50, max 200).", def: 50)),
@@ -282,7 +281,6 @@ namespace StewardessMCPService.Mcp
                         Pattern    = Str(args, "pattern"),
                         SearchPath = Str(args, "search_path", ""),
                         MaxResults = Int(args, "max_results", 100),
-                        UseRegex   = Bool(args, "use_regex", false),
                     };
                     var result = await _search.SearchFileNamesAsync(req, ct).ConfigureAwait(false);
                     var page = Math.Max(1, Int(args, "page", 1));
@@ -1943,7 +1941,6 @@ namespace StewardessMCPService.Mcp
                     Prop("target_kind",   "string",  "What to find: file, directory, or any (default).",
                          def: "any",  enums: new[] { "file", "directory", "any" }),
                     Prop("case_sensitive","boolean", "Case-sensitive matching (default false).", def: false),
-                    Prop("use_regex",     "boolean", "Treat query as a .NET regex applied to name or full path depending on match_mode (default false).", def: false),
                     PropWithItems("glob_include", "Include only results whose paths match these glob patterns."),
                     PropWithItems("glob_exclude", "Exclude results whose paths match these glob patterns."),
                     Prop("max_results",   "integer", "Maximum results to return (default 50).", def: 50)),
@@ -1953,7 +1950,7 @@ namespace StewardessMCPService.Mcp
                     var matchMode   = (Str(args, "match_mode", "name") ?? "name").ToLowerInvariant();
                     var targetKind  = (Str(args, "target_kind", "any") ?? "any").ToLowerInvariant();
                     var caseSens    = Bool(args, "case_sensitive", false);
-                    var useRegex    = Bool(args, "use_regex", false);
+                    var useRegex    = PatternHelper.IsLikelyRegex(query);
                     var globInclude = StrList(args, "glob_include");
                     var globExclude = StrList(args, "glob_exclude");
                     var maxResults  = Int(args, "max_results", 50);
@@ -1972,12 +1969,12 @@ namespace StewardessMCPService.Mcp
                         var fileResp = await _search.SearchFileNamesAsync(new SearchFileNamesRequest
                         {
                             // When regex is active, fetch all files and filter in the loop below.
+                            // When regex is active, fetch all files (Pattern="*") and filter in the loop.
                             // For non-regex name mode, pass query as substring; for path modes pass "*".
                             Pattern       = useRegex ? "*" : (matchMode == "name" ? query : "*"),
                             MaxResults    = maxResults * 3,
                             IgnoreCase    = !caseSens,
                             MatchFullPath = !useRegex && matchMode != "name",
-                            UseRegex      = false,
                         }, ct).ConfigureAwait(false);
 
                         foreach (var m in fileResp.Matches)
@@ -2096,16 +2093,15 @@ namespace StewardessMCPService.Mcp
                              "Use when you know part of a filename but not its location. " +
                              "For content search use repo_browser.grep. For directory or mode-based matching use repo_browser.find_path.",
                 schema: Schema(
-                    Prop("query",          "string",  "Filename pattern: substring, glob (*, ?), or regex when use_regex=true. E.g. 'Program', '*.csproj', '\\\\.csproj$'.", required: true),
+                    Prop("query",          "string",  "Filename pattern: substring, glob (*, ?), or regex (auto-detected, e.g. '\\.csproj$'). E.g. 'Program', '*.csproj'.", required: true),
                     Prop("path_prefix",    "string",  "Restrict search to this subdirectory (repo-relative)."),
-                    Prop("use_regex",      "boolean", "Treat query as a .NET regular expression (default false).", def: false),
                     Prop("case_sensitive", "boolean", "Case-sensitive matching (default false).", def: false),
                     Prop("max_results",    "integer", "Maximum results to return (default 50).", def: 50)),
                 handler: async (args, ct) =>
                 {
                     var query      = Str(args, "query") ?? "";
                     var pathPrefix = Str(args, "path_prefix", "") ?? "";
-                    var useRegex   = Bool(args, "use_regex", false);
+                    var useRegex   = PatternHelper.IsLikelyRegex(query);
                     var caseSens   = Bool(args, "case_sensitive", false);
                     var maxResults = Math.Max(1, Int(args, "max_results", 50));
 
@@ -2115,7 +2111,6 @@ namespace StewardessMCPService.Mcp
                         SearchPath = pathPrefix,
                         MaxResults = maxResults + 1,
                         IgnoreCase = !caseSens,
-                        UseRegex   = useRegex,
                     }, ct).ConfigureAwait(false);
 
                     bool truncated = fileResp.Matches.Count > maxResults || fileResp.Truncated;

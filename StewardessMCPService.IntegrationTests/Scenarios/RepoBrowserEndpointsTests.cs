@@ -433,14 +433,14 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             Assert.True(items.Count <= 1);
         }
 
-        // ── regex ─────────────────────────────────────────────────────────────────
+        // ── regex (auto-detected) ─────────────────────────────────────────────────
 
-        /// <summary>search with useRegex=true and a suffix pattern finds only matching files.</summary>
+        /// <summary>search auto-detects regex: suffix pattern finds only .cs files.</summary>
         [Fact]
         public async Task Search_Get_UseRegex_SuffixPattern_FindsCsFiles()
         {
             var response = await _client.GetAsync(
-                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.cs$")}&useRegex=true");
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.cs$")}");
 
             var data  = await ReadDataAsync(response);
             var items = data["items"] as JArray;
@@ -451,12 +451,12 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
                 Assert.EndsWith(".cs", item["name"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>search with useRegex=true and an anchored pattern finds only Hello.cs, not Hello.csproj.</summary>
+        /// <summary>search auto-detects anchored regex and finds only Hello.cs, not Hello.csproj.</summary>
         [Fact]
         public async Task Search_Get_UseRegex_AnchoredPattern_ExcludesNonMatching()
         {
             var response = await _client.GetAsync(
-                $"/api/repo-browser/search?query={Uri.EscapeDataString("^Hello\\.cs$")}&useRegex=true");
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("^Hello\\.cs$")}");
 
             var data  = await ReadDataAsync(response);
             var items = data["items"] as JArray;
@@ -467,12 +467,12 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
                 Assert.Equal("Hello.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>search with useRegex=true finds .csproj files using \\.csproj$ pattern.</summary>
+        /// <summary>search auto-detects regex and finds .csproj files using \\.csproj$ pattern.</summary>
         [Fact]
         public async Task Search_Get_UseRegex_CsprojPattern_FindsProjectFile()
         {
             var response = await _client.GetAsync(
-                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.csproj$")}&useRegex=true");
+                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.csproj$")}");
 
             var data  = await ReadDataAsync(response);
             var items = data["items"] as JArray;
@@ -483,29 +483,31 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
                 Assert.EndsWith(".csproj", item["name"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>search without useRegex treats the same pattern as a literal substring (finds nothing).</summary>
+        /// <summary>search with a plain substring (no regex metacharacters) matches by substring, not regex.</summary>
         [Fact]
-        public async Task Search_Get_WithoutRegex_RegexPatternIsLiteral_FindsNothing()
+        public async Task Search_Get_PlainSubstring_AutoDetectedAsLiteral_FindsFiles()
         {
-            // The literal string "\.cs$" appears in no filename, so 0 results expected
-            var response = await _client.GetAsync(
-                $"/api/repo-browser/search?query={Uri.EscapeDataString("\\.cs$")}&useRegex=false");
+            // "Hello" has no regex metacharacters — auto-detection falls back to substring matching
+            var response = await _client.GetAsync("/api/repo-browser/search?query=Hello");
 
             var data  = await ReadDataAsync(response);
             var items = data["items"] as JArray ?? new JArray();
-            Assert.Empty(items);
+            Assert.NotEmpty(items);
+
+            foreach (var item in items)
+                Assert.Contains("Hello", item["name"]?.Value<string>() ?? "", StringComparison.OrdinalIgnoreCase);
         }
 
         // ═════════════════════════════════════════════════════════════════════════
-        // POST /api/repo-browser/find  — regex mode
+        // POST /api/repo-browser/find  — regex (auto-detected)
         // ═════════════════════════════════════════════════════════════════════════
 
-        /// <summary>find_path with useRegex=true finds Hello.cs via an anchored name pattern.</summary>
+        /// <summary>find_path auto-detects regex and finds Hello.cs via an anchored name pattern.</summary>
         [Fact]
         public async Task FindPath_Post_UseRegex_AnchoredName_FindsOnlyHelloCs()
         {
             var response = await PostJsonAsync("/api/repo-browser/find",
-                new { query = "^Hello\\.cs$", useRegex = true, targetKind = "file" });
+                new { query = "^Hello\\.cs$", targetKind = "file" });
 
             var data  = await ReadDataAsync(response);
             var items = data["items"] as JArray;
@@ -516,12 +518,12 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
                 Assert.Equal("Hello.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>find_path with useRegex=true and path_fragment mode matches paths by regex.</summary>
+        /// <summary>find_path auto-detects regex and path_fragment mode matches paths by regex.</summary>
         [Fact]
         public async Task FindPath_Post_UseRegex_PathFragment_MatchesByPath()
         {
             var response = await PostJsonAsync("/api/repo-browser/find",
-                new { query = "src/.*\\.cs$", useRegex = true, matchMode = "path_fragment", targetKind = "file" });
+                new { query = "src/.*\\.cs$", matchMode = "path_fragment", targetKind = "file" });
 
             var data  = await ReadDataAsync(response);
             var items = data["items"] as JArray;

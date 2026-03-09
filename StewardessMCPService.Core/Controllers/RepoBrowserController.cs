@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.AspNetCore.Mvc;
 using StewardessMCPService.Configuration;
+using StewardessMCPService.Infrastructure;
 using StewardessMCPService.Models;
 using StewardessMCPService.Services;
 
@@ -278,8 +279,9 @@ namespace StewardessMCPService.Controllers
                 var qn         = request.Query.Replace('\\', '/');
 
                 var regexOpts = RegexOptions.Compiled | (request.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
+                var useRegex  = PatternHelper.IsLikelyRegex(request.Query);
                 Regex queryRegex = null;
-                if (request.UseRegex && !string.IsNullOrEmpty(request.Query))
+                if (useRegex)
                     queryRegex = new Regex(request.Query, regexOpts);
 
                 // ── Files ────────────────────────────────────────────────────────
@@ -288,11 +290,10 @@ namespace StewardessMCPService.Controllers
                     var fileResp = SearchService.SearchFileNamesAsync(new SearchFileNamesRequest
                     {
                         // When regex is active, fetch all files and filter in the loop below.
-                        Pattern       = request.UseRegex ? "*" : (matchMode == "name" ? request.Query : "*"),
+                        Pattern       = useRegex ? "*" : (matchMode == "name" ? request.Query : "*"),
                         MaxResults    = maxResults * 3,
                         IgnoreCase    = !request.CaseSensitive,
-                        MatchFullPath = !request.UseRegex && matchMode != "name",
-                        UseRegex      = false,
+                        MatchFullPath = !useRegex && matchMode != "name",
                     }, CancellationToken.None).GetAwaiter().GetResult();
 
                     foreach (var m in fileResp.Matches)
@@ -302,7 +303,7 @@ namespace StewardessMCPService.Controllers
                         var norm = rel.Replace('\\', '/');
 
                         string reason;
-                        if (request.UseRegex && queryRegex != null)
+                        if (useRegex && queryRegex != null)
                         {
                             var target = matchMode == "name" ? m.Name : norm;
                             reason = queryRegex.IsMatch(target ?? "") ? "regex match" : null;
@@ -349,7 +350,7 @@ namespace StewardessMCPService.Controllers
                             var norm = rel.Replace('\\', '/');
 
                             string reason;
-                            if (request.UseRegex && queryRegex != null)
+                            if (useRegex && queryRegex != null)
                             {
                                 var target = matchMode == "name" ? node.Name : norm;
                                 reason = queryRegex.IsMatch(target) ? "regex match" : null;
@@ -410,7 +411,6 @@ namespace StewardessMCPService.Controllers
         public IActionResult Search(
             [FromQuery] string query,
             [FromQuery] string pathPrefix    = "",
-            [FromQuery] bool   useRegex      = false,
             [FromQuery] bool   caseSensitive = false,
             [FromQuery] int    maxResults    = 50)
         {
@@ -427,7 +427,6 @@ namespace StewardessMCPService.Controllers
                     SearchPath = pathPrefix ?? "",
                     MaxResults = maxResults + 1,
                     IgnoreCase = !caseSensitive,
-                    UseRegex   = useRegex,
                 }, CancellationToken.None).GetAwaiter().GetResult();
 
                 bool truncated = fileResp.Matches.Count > maxResults || fileResp.Truncated;
@@ -511,9 +510,6 @@ namespace StewardessMCPService.Controllers
 
         /// <summary>Case-sensitive matching (default false).</summary>
         public bool CaseSensitive { get; set; } = false;
-
-        /// <summary>Treat query as a .NET regular expression (default false).</summary>
-        public bool UseRegex { get; set; } = false;
 
         /// <summary>Maximum results to return (default 50).</summary>
         public int MaxResults { get; set; } = 50;

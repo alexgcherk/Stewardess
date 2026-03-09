@@ -93,7 +93,7 @@ namespace StewardessMCPService.Services
 
             var sw      = Stopwatch.StartNew();
             var pattern = request.Pattern ?? "";
-            bool isRegex    = request.UseRegex;
+            bool isRegex    = PatternHelper.IsLikelyRegex(pattern);
             bool isWildcard = !isRegex && (pattern.Contains('*') || pattern.Contains('?'));
 
             Regex compiledRegex = null;

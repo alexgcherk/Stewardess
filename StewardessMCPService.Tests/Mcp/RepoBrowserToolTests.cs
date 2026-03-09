@@ -752,12 +752,12 @@ namespace StewardessMCPService.Tests.Mcp
             Assert.True(items.Count <= 1);
         }
 
-        /// <summary>search with use_regex=true finds files by regex pattern.</summary>
+        /// <summary>search auto-detects regex pattern and finds files by regex match.</summary>
         [Fact]
         public async Task Search_UseRegex_FindsMatchingFiles()
         {
-            // \\.cs$ should match *.cs files (names ending in .cs)
-            var result = await InvokeAsync(Search, new { query = "\\.cs$", use_regex = true });
+            // \\.cs$ has regex metacharacters — auto-detected as regex
+            var result = await InvokeAsync(Search, new { query = "\\.cs$" });
 
             var items = result["items"] as JArray;
             Assert.NotNull(items);
@@ -770,12 +770,12 @@ namespace StewardessMCPService.Tests.Mcp
             }
         }
 
-        /// <summary>search with use_regex=true and an anchored pattern finds exact matches.</summary>
+        /// <summary>search auto-detects anchored regex and excludes non-matching files.</summary>
         [Fact]
         public async Task Search_UseRegex_AnchoredPattern_ExcludesNonMatching()
         {
-            // ^Class1\\.cs$ should match only "Class1.cs", not "Class1Tests.cs"
-            var result = await InvokeAsync(Search, new { query = "^Class1\\.cs$", use_regex = true });
+            // ^Class1\\.cs$ — auto-detected as regex; should match only "Class1.cs"
+            var result = await InvokeAsync(Search, new { query = "^Class1\\.cs$" });
 
             var items = result["items"] as JArray;
             Assert.NotNull(items);
@@ -785,11 +785,11 @@ namespace StewardessMCPService.Tests.Mcp
                 Assert.Equal("Class1.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>find_path with use_regex=true finds files by regex pattern.</summary>
+        /// <summary>find_path auto-detects regex pattern and finds matching files.</summary>
         [Fact]
         public async Task FindPath_UseRegex_FindsMatchingFiles()
         {
-            var result = await InvokeAsync(FindPath, new { query = "^Class1\\.cs$", use_regex = true, target_kind = "file" });
+            var result = await InvokeAsync(FindPath, new { query = "^Class1\\.cs$", target_kind = "file" });
 
             var items = result["items"] as JArray;
             Assert.NotNull(items);
