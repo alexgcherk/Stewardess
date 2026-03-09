@@ -979,7 +979,9 @@ namespace StewardessMCPService.Mcp
                         WorkingDirectory = Str(args, "working_directory", ""),
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
+                    McpProgressContext.ReportProgress(0.0, 1.0, "Starting build…");
                     var result = await _command.RunBuildAsync(req, ct).ConfigureAwait(false);
+                    McpProgressContext.ReportProgress(1.0, 1.0, result.Succeeded ? "Build succeeded." : "Build failed.");
                     return ToResult(result);
                 });
 
@@ -1005,7 +1007,9 @@ namespace StewardessMCPService.Mcp
                         WorkingDirectory = Str(args, "working_directory", ""),
                         TimeoutSeconds   = NullableInt(args, "timeout_seconds")
                     };
+                    McpProgressContext.ReportProgress(0.0, 1.0, "Running tests…");
                     var result = await _command.RunTestsAsync(req, ct).ConfigureAwait(false);
+                    McpProgressContext.ReportProgress(1.0, 1.0, result.Succeeded ? "Tests passed." : "Tests failed.");
                     return ToResult(result);
                 });
 
@@ -1061,7 +1065,9 @@ namespace StewardessMCPService.Mcp
                         ParseMode    = mode,
                         ForceRebuild = Bool(args, "force_rebuild", false),
                     };
+                    McpProgressContext.ReportProgress(0.0, 1.0, "Building code index…");
                     var result = await indexer.BuildAsync(req, ct).ConfigureAwait(false);
+                    McpProgressContext.ReportProgress(1.0, 1.0, "Code index build complete.");
                     return ToResult(result);
                 });
 
@@ -1646,7 +1652,9 @@ namespace StewardessMCPService.Mcp
                         RootPath     = rootPath,
                         ChangedFiles = changedFiles,
                     };
+                    McpProgressContext.ReportProgress(0.0, 1.0, "Updating code index…");
                     var result = await indexer.UpdateAsync(req, ct).ConfigureAwait(false);
+                    McpProgressContext.ReportProgress(1.0, 1.0, "Code index update complete.");
                     if (!string.IsNullOrEmpty(result.Error))
                         return ErrorResult(ClassifyError(result.Error), result.Error);
                     return ToResult(result);

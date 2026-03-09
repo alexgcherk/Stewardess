@@ -184,6 +184,16 @@ namespace StewardessMCPService.Models
 
         /// <summary>Optional human-readable instructions for the LLM about how to use this server.</summary>
         public string? Instructions { get; set; }
+
+        /// <summary>
+        /// Session ID created by the server during this initialize exchange.
+        /// The controller will read this value and return it in the <c>Mcp-Session-Id</c>
+        /// response header per the MCP 2025-03-26 Streamable HTTP transport specification.
+        /// This field is NOT serialized to JSON (it is only used server-side to pass the
+        /// session ID from the handler to the controller).
+        /// </summary>
+        [Newtonsoft.Json.JsonIgnore]
+        public string? SessionId { get; set; }
     }
 
     /// <summary>Server capabilities declared during MCP initialization.</summary>

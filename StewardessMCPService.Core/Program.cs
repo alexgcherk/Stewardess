@@ -137,10 +137,14 @@ builder.Services.AddSingleton<McpToolRegistry>(sp =>
         sp.GetRequiredService<IIndexingEngine>(),
         sp.GetRequiredService<IIndexQueryService>()));
 
+// Register IMcpSessionManager (Streamable HTTP transport, MCP 2025-03-26).
+builder.Services.AddSingleton<IMcpSessionManager, McpSessionManager>();
+
 builder.Services.AddSingleton<McpToolHandler>(sp =>
     new McpToolHandler(
         sp.GetRequiredService<McpToolRegistry>(),
-        sp.GetRequiredService<McpServiceSettings>().ServiceVersion ?? "2.0.0"));
+        sp.GetRequiredService<McpServiceSettings>().ServiceVersion ?? "2.0.0",
+        sp.GetRequiredService<IMcpSessionManager>()));
 
 // ── 4. MVC / Controllers ──────────────────────────────────────────────────────
 builder.Services
@@ -227,6 +231,7 @@ var app = builder.Build();
     ServiceLocator.RegisterSingleton<IProjectDetectionService>(sp.GetRequiredService<IProjectDetectionService>());
     ServiceLocator.RegisterSingleton<McpToolRegistry>(sp.GetRequiredService<McpToolRegistry>());
     ServiceLocator.RegisterSingleton<McpToolHandler>(sp.GetRequiredService<McpToolHandler>());
+    ServiceLocator.RegisterSingleton<IMcpSessionManager>(sp.GetRequiredService<IMcpSessionManager>());
 }
 
 var settings = app.Services.GetRequiredService<McpServiceSettings>();
