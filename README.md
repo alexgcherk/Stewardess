@@ -1,793 +1,658 @@
-# StewardessMCPService
+# Stewardess MCP Service
 
-A production-quality C# .NET Framework 4.7.2 MCP (Model Context Protocol) service that exposes a local source-code repository to an AI agent through a secure Web API and an MCP-compatible JSON-RPC 2.0 tool surface.
+**A local-first MCP server that gives AI agents safe, auditable access to your codebase.**
 
----
+Stewardess lets an AI agent **read, search, understand, edit, build, test, inspect Git history, and semantically analyze** a repository on your machine — without sending your code to the cloud.
 
-## Table of Contents
-
-1. [Architecture Overview](#architecture-overview)
-2. [Project Structure](#project-structure)
-3. [Prerequisites](#prerequisites)
-4. [Quick Start](#quick-start)
-5. [Configuration Reference](#configuration-reference)
-6. [REST API Reference](#rest-api-reference)
-7. [MCP Tool Reference](#mcp-tool-reference)
-8. [Security Guide](#security-guide)
-9. [Example Agent Workflows](#example-agent-workflows)
-10. [Testing](#testing)
-11. [Operational Guidance](#operational-guidance)
-12. [Future Improvements](#future-improvements)
+It is designed for developers who want a **real coding assistant**, not just a chat window that guesses based on pasted snippets.
 
 ---
 
-## Architecture Overview
+## Why Stewardess
 
-```
-AI Agent (OpenAI / custom client)
-         │
-         │  HTTP / JSON
-         ▼
-┌──────────────────────────────────────────────────────┐
-│          StewardessMCPService  (ASP.NET Web API + OWIN)       │
-│                                                       │
-│  ┌────────────────┐   ┌──────────────────────────┐   │
-│  │ MCP Endpoint   │   │  REST Controllers         │   │
-│  │ POST /mcp/v1/  │   │  /api/repository          │   │
-│  │ JSON-RPC 2.0   │   │  /api/files               │   │
-│  └───────┬────────┘   │  /api/search              │   │
-│          │            │  /api/edit                │   │
-│          └──────┬─────│  /api/git                 │   │
-│                 │     │  /api/command             │   │
-│                 │     └────────────┬──────────────┘   │
-│                 │                  │                  │
-│          ┌──────▼──────────────────▼───────────┐      │
-│          │           Service Layer              │      │
-│          │  IFileSystemService                  │      │
-│          │  ISearchService                      │      │
-│          │  IEditService                        │      │
-│          │  IGitService                         │      │
-│          │  ICommandService                     │      │
-│          │  IProjectDetectionService            │      │
-│          └──────────────┬───────────────────────┘      │
-│                         │                              │
-│  ┌──────────────────────▼──────────────────────┐       │
-│  │        Cross-Cutting Concerns               │       │
-│  │  PathValidator  (sandbox + traversal guard) │       │
-│  │  IAuditService  (append-only audit trail)   │       │
-│  │  ApiKeyAuthFilter  (auth enforcement)       │       │
-│  │  RequestIdFilter   (correlation IDs)        │       │
-│  │  GlobalExceptionHandler                     │       │
-│  └─────────────────────────────────────────────┘       │
-│                                                        │
-│  Configuration: McpServiceSettings (Web.config)        │
-└────────────────────────────────────────────────────────┘
-         │
-         ▼
-   File System (sandboxed to RepositoryRoot)
-```
+Most AI coding tools only see what you manually paste into a prompt. Stewardess changes that.
 
-The service has two entry points that expose the same capabilities:
+It acts as a controlled bridge between an AI agent and a repository on your machine. Once connected, the agent can:
 
-- **REST API** — standard HTTP endpoints usable from any HTTP client or OpenAI function-calling tool definition.
-- **MCP endpoint** (`POST /mcp/v1/`) — JSON-RPC 2.0 protocol compatible with MCP clients; supports `tools/list` and `tools/call`.
+- navigate the repository structure
+- search across files and symbols
+- read file contents safely
+- apply precise edits
+- run approved build and test commands
+- inspect Git state and history
+- build a semantic code index for deeper reasoning
+
+You stay in control through:
+
+- repository sandboxing
+- read-only mode
+- command allow-lists
+- approval workflows for destructive actions
+- audit logging
+- backups and rollback
+- configurable size and execution limits
+
+Stewardess is especially well suited for a **fully self-hosted AI coding stack** using:
+
+- **Ollama** for local model inference
+- **Open WebUI** as the chat interface
+- **MCP** as the tool-calling protocol
+
+That means you can run an AI coding assistant with:
+
+- no subscription fees
+- no cloud dependency
+- no code leaving your machine
 
 ---
 
-## Project Structure
+## What This Project Is
 
-```
-StewardessMCPService.sln
-│
-├── StewardessMCPService/                      # Main web application project
-│   ├── App_Start/
-│   │   └── WebApiConfig.cs            # Route registration
-│   ├── Configuration/
-│   │   └── McpServiceSettings.cs      # Strongly-typed settings from Web.config
-│   ├── Controllers/
-│   │   ├── BaseController.cs          # Shared helpers and response builders
-│   │   ├── CapabilitiesController.cs  # GET /api/capabilities
-│   │   ├── CommandController.cs       # POST /api/command/build, /test, /run
-│   │   ├── EditController.cs          # POST /api/edit/*
-│   │   ├── FileController.cs          # GET /api/files/*
-│   │   ├── GitController.cs           # GET/POST /api/git/*
-│   │   ├── HealthController.cs        # GET /api/health
-│   │   ├── McpController.cs           # POST /mcp/v1/  (JSON-RPC 2.0)
-│   │   ├── RepositoryController.cs    # GET /api/repository/*
-│   │   └── SearchController.cs        # POST /api/search/*
-│   ├── Infrastructure/
-│   │   ├── ApiKeyAuthFilter.cs        # X-Api-Key / Bearer token enforcement
-│   │   ├── GlobalExceptionHandler.cs  # Unhandled exception → ApiResponse
-│   │   ├── PathValidator.cs           # Sandbox + traversal prevention
-│   │   ├── RequestIdFilter.cs         # Injects X-Request-Id correlation header
-│   │   └── ServiceLocator.cs          # Simple singleton DI container
-│   ├── Mcp/
-│   │   ├── McpToolHandler.cs          # JSON-RPC 2.0 dispatcher
-│   │   └── McpToolRegistry.cs         # 39 tool definitions + handlers
-│   ├── Models/
-│   │   ├── ApiResponse.cs             # Shared response envelope
-│   │   ├── AuditModels.cs             # Audit log entry types
-│   │   ├── CommandModels.cs           # Build / test / run DTOs
-│   │   ├── EditModels.cs              # Write / patch / diff DTOs
-│   │   ├── FileModels.cs              # Read / metadata DTOs
-│   │   ├── GitModels.cs               # Git status / diff / log DTOs
-│   │   ├── McpModels.cs               # JSON-RPC envelope types
-│   │   ├── RepositoryModels.cs        # Directory listing / tree DTOs
-│   │   └── SearchModels.cs            # Search request / result DTOs
-│   ├── Services/
-│   │   ├── AuditService.cs            # Append-only NDJSON audit logger
-│   │   ├── CommandService.cs          # Build / test / shell execution
-│   │   ├── EditService.cs             # Write / patch / diff operations
-│   │   ├── FileSystemService.cs       # Read / metadata / encoding detection
-│   │   ├── GitService.cs              # Git status / diff / log via CLI
-│   │   ├── ProjectDetectionService.cs # Solution / project / NuGet detection
-│   │   ├── SearchService.cs           # Text / regex / filename search
-│   │   ├── SecurityService.cs         # IP allowlist, approval tokens
-│   │   ├── IAuditService.cs
-│   │   ├── ICommandService.cs
-│   │   ├── IEditService.cs
-│   │   ├── IFileSystemService.cs
-│   │   ├── IGitService.cs
-│   │   ├── IProjectDetectionService.cs
-│   │   ├── ISearchService.cs
-│   │   └── ISecurityService.cs
-│   ├── Properties/
-│   │   └── AssemblyInfo.cs
-│   ├── Startup.cs                     # OWIN startup; DI wiring
-│   └── Web.config                     # All Mcp:* configuration keys
-│
-└── StewardessMCPService.Tests/                # xUnit test project (net472)
-    ├── Helpers/
-    │   └── TempRepository.cs          # Disposable temp-dir fixture
-    └── Services/
-        ├── CommandServiceTests.cs      # 19 tests
-        ├── EditServiceTests.cs         # 37 tests
-        ├── FileSystemServiceTests.cs   # (existing)
-        ├── GitServiceTests.cs          # 14 tests
-        └── SearchServiceTests.cs       # (existing)
-```
+Stewardess is a **local MCP service** for repository access and code intelligence.
+
+It exposes a set of structured tools over **Model Context Protocol (MCP)** so that any MCP-capable AI client can interact with a repository safely and consistently.
+
+In practice, Stewardess gives an AI agent a toolbox for:
+
+- repository exploration
+- text search
+- file reading
+- code-structure discovery
+- file editing
+- Git inspection
+- controlled command execution
+- semantic indexing and dependency analysis
 
 ---
 
-## Prerequisites
+## Who It Is For
 
-| Requirement | Notes |
-|-------------|-------|
-| Windows | The service runs as a local web application |
-| .NET Framework 4.7.2 | Install via Visual Studio or standalone installer |
-| Visual Studio 2019+ or MSBuild 16+ | Required to build |
-| IIS Express (included with VS) | Or full IIS for production deployment |
-| Git CLI | Required for git-related features; must be on `PATH` |
-| `dotnet` CLI or MSBuild | Required for build/test features |
+Stewardess is built for:
+
+- developers who want a local AI coding assistant that can actually see the whole repository
+- teams who want AI-assisted review, refactoring, documentation, or test generation with guardrails
+- self-hosters who want a private alternative to cloud coding agents
+- anyone building AI-agent workflows around code, repositories, or developer tooling
 
 ---
 
-## Quick Start
+## Core Capabilities
 
-### 1. Clone and build
+Stewardess currently provides tools in these areas:
 
-```powershell
-git clone <this-repo>
-cd StewardessMCPService
-nuget restore StewardessMCPService.sln
-msbuild StewardessMCPService.sln /p:Configuration=Release
-```
+### Repository navigation
+Understand the layout of a project without opening every file manually.
 
-Or open `StewardessMCPService.sln` in Visual Studio and press **Build Solution**.
+### Search
+Find text, regex matches, filenames, extensions, symbols, and references.
 
-### 2. Configure the repository root
+### File reading
+Read files safely with size limits and line-range access.
 
-Edit `StewardessMCPService\Web.config`:
+### File editing
+Create, modify, patch, move, rename, or delete files with backup and rollback support.
 
-```xml
-<add key="Mcp:RepositoryRoot" value="C:\repos\your-project" />
-```
+### Git inspection
+Read repository status, diffs, commit history, and individual commit details.
 
-Set this to the absolute path of the local repository you want the AI agent to work with.
+### Command execution
+Run only approved build, test, or custom commands from an explicit allow-list.
 
-### 3. (Optional) Set an API key
-
-```xml
-<add key="Mcp:ApiKey" value="your-secret-key" />
-```
-
-When non-empty, all requests must include either:
-- Header: `X-Api-Key: your-secret-key`
-- Header: `Authorization: Bearer your-secret-key`
-
-### 4. Run the service
-
-**IIS Express (Visual Studio):**
-- Press F5 or Ctrl+F5. The service starts at `http://localhost:<port>/`.
-
-**IIS:**
-- Deploy to an IIS site targeting `net472`.
-- Set the application pool to **No Managed Code** (OWIN manages the pipeline).
-
-### 5. Verify
-
-```powershell
-curl http://localhost:5000/api/health
-```
-
-Expected response:
-```json
-{
-  "success": true,
-  "data": {
-    "status": "Healthy",
-    "version": "2.0.0",
-    "repositoryRoot": "C:\\repos\\your-project",
-    "readOnlyMode": false,
-    "uptimeSeconds": 12
-  }
-}
-```
+### Semantic code indexing
+Build a code index and query symbols, members, occurrences, dependencies, dependents, and file relationships.
 
 ---
 
-## Configuration Reference
+## Tool Model
 
-All settings live under `<appSettings>` in `Web.config` with the prefix `Mcp:`.
+Stewardess exposes tools in two broad classes:
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `Mcp:RepositoryRoot` | string | *(required)* | Absolute path to the repository root. All file operations are sandboxed here. |
-| `Mcp:ReadOnlyMode` | bool | `false` | When `true`, all write/edit/run operations are rejected with HTTP 403. |
-| `Mcp:ApiKey` | string | *(empty)* | API key for authentication. Leave empty to disable auth. |
-| `Mcp:AllowedIps` | CSV | `127.0.0.1,::1` | IP allowlist. Leave empty to allow all IPs. |
-| `Mcp:MaxFileReadBytes` | long | `5242880` | Maximum bytes read for a single file (default 5 MB). |
-| `Mcp:MaxSearchResults` | int | `200` | Maximum matches returned per search call. |
-| `Mcp:MaxDirectoryDepth` | int | `10` | Maximum recursion depth for `list_tree`. |
-| `Mcp:MaxCommandExecutionSeconds` | int | `120` | Timeout for build/test/run operations (seconds). |
-| `Mcp:AllowedCommands` | CSV | `dotnet build,dotnet test,dotnet restore` | Prefix-matched list of allowed shell commands. |
-| `Mcp:BlockedFolders` | CSV | `.git,bin,obj,.vs,packages,node_modules,.mcp` | Folder names excluded from navigation and search. |
-| `Mcp:BlockedExtensions` | CSV | `.exe,.dll,.pdb,.suo,.user` | File extensions blocked from read and write. |
-| `Mcp:AllowedWriteExtensions` | CSV | *(empty = all)* | When non-empty, only these extensions may be written. |
-| `Mcp:ApprovalRequiredForDestructive` | bool | `false` | When `true`, delete and overwrite operations require a one-time approval token. |
-| `Mcp:ApprovalTokenLifetimeSeconds` | int | `120` | How long (seconds) a pre-approval token remains valid. |
-| `Mcp:EnableAuditLog` | bool | `true` | Enable append-only NDJSON audit trail. |
-| `Mcp:AuditLogPath` | string | `<RepositoryRoot>/.mcp/audit.log` | Path for audit log file. |
-| `Mcp:BackupDirectory` | string | `<RepositoryRoot>/.mcp/backups` | Directory for pre-edit file backups. |
-| `Mcp:EnableBackups` | bool | `true` | Create a backup before every destructive edit. |
-| `Mcp:MaxBackupsPerFile` | int | `10` | Maximum backup snapshots kept per file. |
-| `Mcp:MaxFileSizeForWrite` | long | `10485760` | Maximum bytes for a single write (default 10 MB). |
-| `Mcp:MaxDirectoryEntries` | int | `500` | Maximum entries returned for a single directory listing. |
-| `Mcp:ServiceVersion` | string | `2.0.0` | Version string included in health and capabilities responses. |
+### 1. Heuristic / filesystem tools
+These work immediately and do not require semantic indexing.
+
+Examples:
+- repository listing
+- text search
+- file read
+- file write
+- Git queries
+- build/test command execution
+
+### 2. Semantic code-index tools
+These require an index to be built first, but they provide much better precision.
+
+Examples:
+- symbol search
+- symbol lookup
+- type member inspection
+- namespace tree
+- references
+- dependencies
+- dependents
+- file-level dependency analysis
+
+This split is important:
+
+- the basic tools work everywhere
+- the indexed tools are more precise and more useful for advanced agent workflows
 
 ---
 
-## REST API Reference
+## Supported Semantic Languages
 
-All endpoints return an `ApiResponse<T>` envelope:
+The semantic code index currently supports:
 
-```json
-{
-  "success": true,
-  "data": { ... },
-  "error": null,
-  "requestId": "a1b2c3d4",
-  "timestamp": "2024-01-15T12:00:00Z"
-}
-```
+- **C#** — namespaces, classes, interfaces, enums, delegates, methods, properties, fields, events, and reference extraction
+- **Python** — modules, classes, functions, and import extraction
 
-On failure:
-```json
-{
-  "success": false,
-  "data": null,
-  "error": {
-    "code": "FILE_NOT_FOUND",
-    "message": "File not found: src/Foo.cs",
-    "details": null
-  },
-  "requestId": "a1b2c3d4",
-  "timestamp": "2024-01-15T12:00:00Z"
-}
-```
+Other files can still be read, searched, and edited using the non-indexed tools.
 
-### Health & Diagnostics
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/health` | Service health, version, uptime |
-| `GET` | `/api/capabilities` | All available tools and endpoint listing |
-| `GET` | `/api/capabilities/version` | Version info |
 
 ### Repository Navigation
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/repository/info` | Repository root, settings summary |
-| `GET` | `/api/repository/list?path=&includeBlocked=false` | List immediate children of a directory |
-| `GET` | `/api/repository/tree?path=&depth=3` | Recursive directory tree |
-| `GET` | `/api/repository/exists?path=` | Check if file or directory exists |
-| `GET` | `/api/repository/metadata?path=` | File/directory metadata (size, dates, attributes) |
-| `GET` | `/api/repository/projects` | Detect solution and project files |
+These tools let an agent understand the layout of your project without reading every file.
 
-### File Reading
+| Tool | What It Does |
+|------|--------------|
+| `get_repository_info` | Returns the repository name, root path, and basic file counts |
+| `list_directory` | Lists the immediate files and folders inside a given directory |
+| `list_tree` | Returns a recursive folder tree up to a configurable depth |
+| `path_exists` | Checks whether a given file or folder path actually exists |
+| `get_metadata` | Returns size, dates, encoding, and line count for a file or folder |
+| `detect_encoding` | Detects the character encoding of a file (UTF-8, UTF-16, ASCII, etc.) |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/files/read?path=&maxBytes=&returnBase64=false` | Read file content |
-| `GET` | `/api/files/read-range?path=&startLine=&endLine=` | Read specific line range |
-| `POST` | `/api/files/read-multiple` | Read multiple files in one call |
-| `GET` | `/api/files/hash?path=` | SHA-256 hash of file |
-| `GET` | `/api/files/encoding?path=` | Detect encoding and line endings |
+---
 
 ### Search
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/search/text` | Full-text search with optional filters |
-| `POST` | `/api/search/regex` | Regex search across repository |
-| `POST` | `/api/search/filenames` | Find files by name pattern |
-| `POST` | `/api/search/extensions` | Find all files by extension |
-| `POST` | `/api/search/symbol` | Heuristic symbol/class/method name search |
-| `POST` | `/api/search/references` | Heuristic reference/usage search |
+These tools let an agent find things in your code without knowing the exact file.
 
-#### Text search request body
-```json
-{
-  "query": "MyClass",
-  "path": "src",
-  "extensions": [".cs"],
-  "caseSensitive": false,
-  "maxResults": 50,
-  "includeContext": true,
-  "contextLines": 2
-}
+| Tool | What It Does |
+|------|--------------|
+| `search_text` | Finds a literal string across all files; returns file paths, line numbers, and surrounding text |
+| `search_regex` | Same as search_text but uses a regular expression pattern |
+| `search_file_names` | Finds files whose names match a given word or wildcard |
+| `search_by_extension` | Returns all files matching one or more file extensions (e.g., `.cs`, `.py`) |
+| `search_symbol` | Searches for class, method, or interface declarations by name using text heuristics |
+| `find_references` | Finds all textual usages of an identifier across the repository |
+
+---
+
+### File Reading
+
+These tools let an agent read file contents safely, with automatic size limits.
+
+| Tool | What It Does |
+|------|--------------|
+| `read_file` | Reads the full content of a file (automatically truncated if it exceeds the size limit) |
+| `read_file_range` | Reads a specific range of lines from a file, useful for large files |
+| `read_multiple_files` | Reads several files in one call; returns each file's content or a per-file error |
+| `get_file_hash` | Returns a checksum (SHA-256 by default) of a file's contents for integrity checking |
+
+---
+
+### Code Intelligence (Structure Parsing)
+
+These tools extract the logical structure of a code file without reading raw text.
+
+| Tool | What It Does |
+|------|--------------|
+| `get_file_structure` | Returns a structural summary of a code file: namespaces, types, and methods (uses text heuristics, not a full compiler) |
+
+---
+
+### File Editing
+
+These tools allow an agent to create, modify, or delete files. All modifications are backed up by default and can be rolled back.
+
+| Tool | What It Does |
+|------|--------------|
+| `write_file` | Overwrites or creates a file with new content; supports dry-run and backup |
+| `create_file` | Creates a new file; fails if the file already exists (unless overwrite is allowed) |
+| `create_directory` | Creates a directory and any missing parent directories |
+| `rename_path` | Renames a file or folder (keeps it in the same parent directory) |
+| `move_path` | Moves a file or folder to a different location within the repository |
+| `delete_file` | Deletes a file; creates a backup first so it can be restored |
+| `delete_directory` | Deletes a directory; requires explicit confirmation for non-empty directories |
+| `append_file` | Adds content to the end of an existing file |
+| `replace_text` | Replaces all occurrences of a literal string inside a file |
+| `replace_lines` | Replaces a specific range of line numbers with new content |
+| `patch_file` | Applies a unified diff patch to a single file |
+| `apply_diff` | Applies a multi-file unified diff in a single operation |
+| `batch_edit` | Executes multiple different edits atomically — if any fail, all are rolled back |
+| `preview_changes` | Dry-runs a batch of edits and returns a preview diff plus an approval token |
+| `rollback` | Restores a file from a backup created by a previous operation |
+
+---
+
+### Git Operations
+
+These tools give an agent read-only access to the Git history and working-tree state.
+
+| Tool | What It Does |
+|------|--------------|
+| `get_git_status` | Returns the current branch, HEAD commit, and the list of changed/staged/untracked files |
+| `get_git_diff` | Returns the unified diff for all working-tree or staged changes |
+| `get_git_diff_file` | Returns the unified diff for a single file |
+| `get_git_log` | Returns the commit history for the repository or a sub-path |
+| `get_commit` | Returns the full details of a single commit (author, message, changed files, optionally the patch) |
+
+---
+
+### Command Execution
+
+These tools allow an agent to run approved build or test commands. Only commands in the configured allow-list can be executed.
+
+| Tool | What It Does |
+|------|--------------|
+| `run_build` | Runs the configured build command (e.g., `dotnet build`) |
+| `run_tests` | Runs the configured test command (e.g., `dotnet test`) |
+| `run_command` | Runs any custom command from the allowed-commands list |
+
+---
+
+### Code Index (Semantic Analysis)
+
+These tools require you to first build an index of the repository. Once indexed, they provide semantic understanding of symbols, types, dependencies, and references — far more precise than text search.
+
+**Index Management**
+
+| Tool | What It Does |
+|------|--------------|
+| `code_index.build` | Parses all eligible source files in the repository and builds a structural index in memory |
+| `code_index.update` | Re-parses only the files that have changed since the last index build |
+| `code_index.get_index_status` | Reports the current state of the index: ready, building, stale, or empty |
+| `code_index.clear_repository` | Removes all index data for a repository (cannot be undone; re-indexing will be needed) |
+| `code_index.list_repositories` | Lists all repositories that have been indexed |
+| `code_index.get_language_capabilities` | Lists the programming languages supported and what each language adapter can do |
+| `code_index.ping` | Health check for the code index service |
+
+**File and Snapshot Information**
+
+| Tool | What It Does |
+|------|--------------|
+| `code_index.list_files` | Returns a paginated list of indexed files with language and parse status |
+| `code_index.get_file_outline` | Returns the structural outline of a file: namespaces, classes, methods, with line numbers |
+| `code_index.get_snapshot_info` | Returns statistics about the latest index snapshot: file counts, language breakdown, build times |
+
+**Symbol Search and Retrieval**
+
+| Tool | What It Does |
+|------|--------------|
+| `code_index.find_symbols` | Searches the symbol index by name, supporting exact, prefix, or contains matching |
+| `code_index.get_symbol` | Returns full details for a single symbol (kind, qualified name, location, members) |
+| `code_index.get_symbol_occurrences` | Returns every location where a symbol appears across the indexed files |
+| `code_index.get_symbol_children` | Returns the direct child symbols of a parent (e.g., members of a class) |
+| `code_index.get_type_members` | Returns the members of a type grouped by kind: constructors, methods, properties, fields |
+| `code_index.resolve_location` | Resolves a symbol ID to a concrete file path, line number, and column |
+| `code_index.get_namespace_tree` | Returns a tree of all namespaces and modules in the repository |
+
+**Dependencies and References**
+
+| Tool | What It Does |
+|------|--------------|
+| `code_index.get_imports` | Returns the import or using directives at the top of a file |
+| `code_index.get_references` | Returns what a symbol depends on and what depends on it |
+| `code_index.get_file_references` | Returns all reference edges originating from a specific file |
+| `code_index.get_dependencies` | Returns the outbound dependencies of a symbol with high confidence |
+| `code_index.get_dependents` | Returns which other symbols depend on a given symbol |
+| `code_index.get_symbol_relationships` | Returns a combined view of children, references, dependencies, and dependents in one call |
+| `code_index.get_file_dependencies` | Returns a file-level dependency projection showing which files a given file depends on |
+
+---
+
+## Supported Languages for Code Indexing
+
+The semantic code index currently supports:
+
+- **C#** — Full declaration parsing: namespaces, classes, interfaces, enums, delegates, methods, properties, fields, events. Reference extraction at declaration, base-type, and import levels.
+- **Python** — Declaration parsing: modules, classes, functions, import extraction.
+
+Other file types (JavaScript, TypeScript, etc.) can still be read and searched with the text-based tools; they just cannot be semantically indexed.
+
+---
+
+## Setup and Installation
+
+### Prerequisites
+
+- **.NET 8 SDK** — Download from https://dotnet.microsoft.com/download/dotnet/8
+- **Git** — Required if you want to use the Git tools
+- **Windows or Linux** — Both are supported
+
+### Build the Service
+
+From the root of the repository:
+
+```
+dotnet build Stewardess.sln
 ```
 
-### Edit & Write
+### Run the Service
 
-All write operations are blocked when `ReadOnlyMode = true`.  
-`dryRun: true` returns a preview without modifying any files.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/edit/write-file` | Write (overwrite) file |
-| `POST` | `/api/edit/create-file` | Create new file (fails if exists) |
-| `POST` | `/api/edit/append-file` | Append content to file |
-| `POST` | `/api/edit/replace-text` | Replace exact text fragment |
-| `POST` | `/api/edit/replace-lines` | Replace a range of lines |
-| `POST` | `/api/edit/patch-file` | Apply unified diff patch |
-| `POST` | `/api/edit/apply-diff` | Apply unified diff (alias) |
-| `POST` | `/api/edit/batch-edits` | Apply multiple edits atomically |
-| `POST` | `/api/edit/rename-path` | Rename file or directory |
-| `POST` | `/api/edit/move-path` | Move file or directory |
-| `POST` | `/api/edit/delete-file` | Delete a file (with backup) |
-| `POST` | `/api/edit/delete-directory` | Delete directory (recursive optional) |
-| `POST` | `/api/edit/create-directory` | Create directory |
-| `POST` | `/api/edit/rollback` | Roll back to pre-edit backup snapshot |
-
-#### Write file request body
-```json
-{
-  "path": "src/MyClass.cs",
-  "content": "public class MyClass { }",
-  "dryRun": false,
-  "createBackup": true
-}
+```
+cd StewardessMCPServive.Core
+dotnet run
 ```
 
-#### Patch file request body
-```json
-{
-  "path": "src/MyClass.cs",
-  "patch": "--- a/src/MyClass.cs\n+++ b/src/MyClass.cs\n@@ -1,1 +1,1 @@\n-old line\n+new line\n",
-  "dryRun": false
-}
+The service starts on **http://localhost:55703**.
+
+You can verify it is running by opening http://localhost:55703/api/capabilities in a browser — you should see a JSON document listing all 66 tools.
+
+### Run the Tests
+
+```
+dotnet test Stewardess.sln
 ```
 
-### Git
+All 578 tests should pass.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/git/repo` | Check if path is a git repository |
-| `GET` | `/api/git/status?path=` | Git status (porcelain) |
-| `POST` | `/api/git/diff` | Full diff (working tree or staged) |
-| `GET` | `/api/git/diff/file?path=&scope=working` | Diff for a specific file |
-| `POST` | `/api/git/log` | Git log with filters |
+---
 
-### Build & Command
+## Configuration
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/command/allowed` | List allowed commands |
-| `POST` | `/api/command/build` | Run build command |
-| `POST` | `/api/command/test` | Run test command |
-| `POST` | `/api/command/run` | Run any allowed custom command |
+All configuration lives in one file:
 
-#### Build request body
-```json
-{
-  "projectPath": "MyApp/MyApp.csproj",
-  "configuration": "Release",
-  "extraArgs": "/p:TreatWarningsAsErrors=true",
-  "timeoutSeconds": 120
-}
+```
+StewardessMCPServive.Core\appsettings.json
 ```
 
-#### Run command request body
+The only required setting is `RepositoryRoot`. Everything else has a sensible default.
+
+### Minimal Configuration
+
 ```json
 {
-  "command": "dotnet restore",
-  "workingDirectory": "",
-  "timeoutSeconds": 60
-}
-```
-
-### MCP Endpoint (JSON-RPC 2.0)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/mcp/v1/` | JSON-RPC 2.0 dispatch endpoint |
-| `GET` | `/mcp/v1/tools` | Convenience — same as `tools/list` |
-| `GET` | `/mcp/v1/manifest` | Full capabilities manifest |
-
-#### JSON-RPC request format
-```json
-{
-  "jsonrpc": "2.0",
-  "id": "1",
-  "method": "tools/call",
-  "params": {
-    "name": "read_file",
-    "arguments": {
-      "path": "src/Program.cs",
-      "maxBytes": 65536
-    }
+  "Mcp": {
+    "RepositoryRoot": "C:\\Projects\\MyProject"
   }
 }
 ```
 
-#### JSON-RPC response format
+### Full Configuration Reference
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `RepositoryRoot` | text | **required** | Absolute path to the repository the AI agent will work with. All file operations are sandboxed to this folder. |
+| `ReadOnlyMode` | true/false | `false` | When true, all write, edit, delete, and command operations are rejected. Use this when you want the AI to read and analyse only. |
+| `ApiKey` | text | *(empty)* | If set, the service requires this key in every request. Leave empty to disable authentication. |
+| `AllowedIPs` | comma list | *(all)* | Comma-separated list of IP addresses allowed to connect. Leave empty to allow all. |
+| `RequireApprovalForDestructive` | true/false | `false` | When true, destructive operations require a confirmation token from a preview step. |
+| `MaxFileReadBytes` | number | `5242880` (5 MB) | Maximum bytes that can be read from a single file. |
+| `MaxFileSizeForWrite` | number | `10485760` (10 MB) | Maximum bytes that can be written in a single operation. |
+| `MaxSearchResults` | number | `200` | Maximum number of search results returned per query. |
+| `MaxDirectoryDepth` | number | `10` | Maximum folder depth for recursive tree listings. |
+| `MaxCommandExecutionSeconds` | number | `60` | Timeout in seconds for build, test, and command operations. |
+| `MaxDirectoryEntries` | number | `500` | Maximum number of entries returned in a single directory listing. |
+| `BlockedFolders` | comma list | `.git,bin,obj,.vs,packages,node_modules` | Folder names that are always excluded from all operations. |
+| `AllowedExtensions` | comma list | *(all)* | If set, only files with these extensions can be read or written. |
+| `BlockedExtensions` | comma list | `.exe,.dll,.zip,...` | File extensions that are always refused. |
+| `AllowedCommands` | comma list | `dotnet build,dotnet test,...` | Command prefixes the AI is allowed to execute. See the Commands section below. |
+| `EnableAuditLog` | true/false | `true` | When true, every modifying operation is logged to the audit log. |
+| `AuditLogPath` | text | *(default location)* | Path to the audit log file. |
+| `EnableBackups` | true/false | `true` | When true, a backup is made of each file before it is modified. |
+| `BackupDirectory` | text | *(default location)* | Directory where backup files are stored. |
+| `MaxBackupsPerFile` | number | `10` | Maximum number of backup versions kept per file. |
+| `LogLevel` | text | `Info` | Log verbosity: `Trace`, `Debug`, `Info`, `Warn`, or `Error`. |
+| `ServiceVersion` | text | `2.0.0` | Version string returned in health and capabilities responses. |
+
+### Configuration via Environment Variables
+
+Any setting can be overridden with an environment variable. Replace the section separator with a double underscore and prefix with `MCP__`.
+
+Examples:
+```
+MCP__REPOSITORYROOT=C:\Projects\MyProject
+MCP__APIKEY=my-secret-key
+MCP__READONLYMODE=true
+MCP__ALLOWEDCOMMANDS=dotnet build,dotnet test
+```
+
+---
+
+## Authentication
+
+By default, authentication is disabled. To enable it, set an API key in `appsettings.json`:
+
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": "1",
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "{ \"path\": \"src/Program.cs\", \"content\": \"...\" }"
-      }
-    ]
+  "Mcp": {
+    "ApiKey": "choose-a-strong-secret-here"
+  }
+}
+```
+
+Once set, every request to the service must include the key in one of two ways:
+
+- As a header: `X-API-Key: choose-a-strong-secret-here`
+- As a bearer token: `Authorization: Bearer choose-a-strong-secret-here`
+
+The following endpoints are always accessible without authentication:
+
+- `GET /api/capabilities` — Tool manifest and schema
+- `GET /api/tools` — Tool list
+- `GET /api/health` — Health check
+
+---
+
+## Configuring Allowed Commands
+
+The `run_build`, `run_tests`, and `run_command` tools only execute commands that match entries in the `AllowedCommands` list. Matching is done by case-insensitive prefix — so `"dotnet"` would allow `dotnet build`, `dotnet test`, `dotnet restore`, and so on.
+
+Default allowed commands:
+- `dotnet build`
+- `dotnet test`
+- `dotnet restore`
+- `msbuild`
+- `git status`
+- `git diff`
+- `git log`
+- `git show`
+- `git stash`
+
+To customise, edit the `AllowedCommands` value in `appsettings.json` as a comma-separated list:
+
+```json
+{
+  "Mcp": {
+    "AllowedCommands": "dotnet build,dotnet test,dotnet restore,npm install,npm test"
   }
 }
 ```
 
 ---
 
-## MCP Tool Reference
+## Connecting an AI Agent
 
-All 39 tools are available via `POST /mcp/v1/` and `GET /mcp/v1/tools`.
+Once the service is running, you connect your AI agent to it by telling the agent where the service is and (if authentication is enabled) what key to use.
 
-### Repository (6 tools)
+> **Important:** An API key is required for full and reliable tool operation. Without one, requests from some clients may be rejected or behave unexpectedly depending on network configuration. Always set `ApiKey` in `appsettings.json` before connecting any AI client.
 
-| Tool | Description | Key Parameters |
-|------|-------------|----------------|
-| `get_repository_info` | Returns root path, settings, git status | — |
-| `list_directory` | List directory contents | `path`, `includeBlocked` |
-| `list_tree` | Recursive directory tree | `path`, `depth` (max 10) |
-| `file_exists` | Check if file exists | `path` |
-| `directory_exists` | Check if directory exists | `path` |
-| `get_metadata` | File/directory metadata | `path` |
+### Service Endpoints
 
-### Search (6 tools)
+| Endpoint | Purpose |
+|----------|---------|
+| `http://localhost:55703/mcp/v1/` | Main MCP endpoint — the AI sends tool calls here |
+| `http://localhost:55703/api/capabilities` | Machine-readable list of all tools with full schema |
+| `http://localhost:55703/api/tools` | Simplified tool list |
+| `http://localhost:55703/api/health` | Service health check |
+| `http://localhost:55703/swagger` | Interactive API documentation (browser) |
+| `http://localhost:55703/swagger/v1/swagger.json` | OpenAPI 3.0 specification (JSON) |
 
-| Tool | Description | Key Parameters |
-|------|-------------|----------------|
-| `search_text` | Full-text search | `query`, `path`, `extensions`, `caseSensitive`, `maxResults` |
-| `search_regex` | Regex search | `pattern`, `path`, `extensions`, `maxResults` |
-| `search_file_names` | Find files by name pattern | `pattern`, `path` |
-| `search_by_extension` | Find all files of given extension | `extension`, `path` |
-| `search_symbol` | Heuristic symbol/type name search | `symbolName`, `path` |
-| `find_references` | Heuristic identifier usage search | `identifierName`, `path` |
+### How Tool Calls Work
 
-### Files (5 tools)
-
-| Tool | Description | Key Parameters |
-|------|-------------|----------------|
-| `read_file` | Read file content | `path`, `maxBytes`, `returnBase64` |
-| `read_file_range` | Read line range | `path`, `startLine`, `endLine` |
-| `read_multiple_files` | Read multiple files | `paths` (array) |
-| `get_file_hash` | SHA-256 hash | `path` |
-| `detect_encoding` | Detect encoding and line endings | `path` |
-
-### Edit (14 tools)
-
-| Tool | Description | Key Parameters |
-|------|-------------|----------------|
-| `write_file` | Write (overwrite) file | `path`, `content`, `dryRun` |
-| `create_file` | Create new file | `path`, `content`, `dryRun` |
-| `append_file` | Append to file | `path`, `content`, `dryRun` |
-| `replace_text` | Replace text fragment | `path`, `oldText`, `newText`, `dryRun` |
-| `replace_lines` | Replace line range | `path`, `startLine`, `endLine`, `newContent`, `dryRun` |
-| `patch_file` | Apply unified diff | `path`, `patch`, `dryRun` |
-| `apply_unified_diff` | Apply unified diff (alias) | `path`, `patch`, `dryRun` |
-| `batch_edits` | Multiple edits atomically | `edits` (array), `dryRun` |
-| `rename_path` | Rename file/directory | `path`, `newName`, `dryRun` |
-| `move_path` | Move file/directory | `path`, `destination`, `dryRun` |
-| `delete_file` | Delete file | `path`, `dryRun` |
-| `delete_directory` | Delete directory | `path`, `recursive`, `dryRun` |
-| `create_directory` | Create directory | `path` |
-| `rollback_change` | Rollback to backup | `rollbackToken` |
-
-### Git (4 tools)
-
-| Tool | Description | Key Parameters |
-|------|-------------|----------------|
-| `get_git_status` | Git status | `path` |
-| `get_git_diff` | Full diff | `scope` (working/staged/head), `unified` |
-| `get_git_diff_for_file` | Diff for single file | `path`, `scope` |
-| `get_git_log` | Git log | `path`, `maxEntries`, `since`, `until`, `author` |
-
-### Command (3 tools)
-
-| Tool | Description | Key Parameters |
-|------|-------------|----------------|
-| `run_build` | Run build | `projectPath`, `configuration`, `extraArgs`, `timeoutSeconds` |
-| `run_tests` | Run tests | `projectPath`, `filter`, `extraArgs`, `timeoutSeconds` |
-| `run_custom_command` | Run allowed command | `command`, `workingDirectory`, `timeoutSeconds` |
+The AI sends a JSON-RPC 2.0 request to `/mcp/v1/` specifying the tool name and its arguments. The service executes the tool and returns a JSON result. From the agent's perspective this is just a function call.
 
 ---
 
-## Security Guide
+## Using with Ollama and Open WebUI
 
-### Threat model
+Stewardess works out of the box with a self-hosted Ollama + Open WebUI stack. This gives you a fully local AI coding assistant: no cloud, no data leaving your machine.
 
-| Threat | Mitigation |
-|--------|-----------|
-| Path traversal | `PathValidator` rejects any resolved path outside `RepositoryRoot` |
-| Unauthenticated access | `ApiKeyAuthFilter` enforces `X-Api-Key` / Bearer token when configured |
-| Arbitrary shell execution | `AllowedCommands` prefix allowlist; `shell = false` (no `cmd.exe`) |
-| Large file / DoS | `MaxFileReadBytes`, `MaxSearchResults`, `MaxCommandExecutionSeconds` limits |
-| Write to system files | `ReadOnlyMode`; sandbox enforced on every write path |
-| Dangerous extension write | `BlockedExtensions` denylist; optional `AllowedWriteExtensions` allowlist |
-| Audit evasion | `AuditService` appends before and after every mutation |
-| Accidental data loss | Automatic backup before every destructive edit; rollback token returned |
+**What each part does:**
 
-### Recommended production settings
+- **Ollama** — runs the large language model (LLM) locally on your machine
+- **Open WebUI** — provides the chat interface and handles routing tool calls from the model to external tool servers
+- **Stewardess** — receives those tool calls and executes them against your repository
 
-```xml
-<!-- Web.config for production/shared use -->
-<add key="Mcp:ApiKey"                          value="YOUR-STRONG-SECRET" />
-<add key="Mcp:AllowedIps"                      value="127.0.0.1,::1" />
-<add key="Mcp:ReadOnlyMode"                    value="false" />
-<add key="Mcp:ApprovalRequiredForDestructive"  value="true" />
-<add key="Mcp:EnableAuditLog"                  value="true" />
-<add key="Mcp:EnableBackups"                   value="true" />
-<add key="Mcp:AllowedCommands"                 value="dotnet build,dotnet test,dotnet restore,git status,git log,git diff,git show" />
-<add key="Mcp:BlockedExtensions"               value=".exe,.dll,.pdb,.suo,.user,.pfx,.key,.p12,.cer" />
+Any Ollama model that supports tool calling will work. Models known to handle tool calls reliably include `llama3.1`, `qwen2.5-coder`, `mistral-nemo`, and `deepseek-coder-v2`.
+
+### Before You Start
+
+Make sure:
+1. Ollama is installed and running (`ollama serve`)
+2. You have pulled a tool-capable model, e.g. `ollama pull llama3.1`
+3. Open WebUI is running (typically on `http://localhost:3000`)
+4. Stewardess is running on `http://localhost:55703`
+5. Stewardess has an `ApiKey` configured in `appsettings.json` — this is required for Open WebUI to authenticate correctly
+
+### Recommended Stewardess Configuration for Open WebUI
+
+```json
+{
+  "Mcp": {
+    "RepositoryRoot": "C:\\Projects\\MyProject",
+    "ApiKey": "choose-a-strong-secret-here"
+  }
+}
 ```
 
-### ⚠️ Important warnings
+### Adding Stewardess as a Tool Server in Open WebUI
 
-- **Do not expose this service publicly** without a VPN, reverse proxy with TLS, and strong API key authentication.
-- The `run_custom_command` / `run_build` / `run_tests` tools execute real processes. Keep `AllowedCommands` as narrow as possible.
-- The audit log (`audit.log`) records every mutating operation. Back it up periodically.
-- `ReadOnlyMode = true` is the safest configuration for read-and-analyze workflows.
+Open WebUI discovers available tools from the Stewardess OpenAPI specification and routes the model's tool calls to the service automatically. Follow these steps:
+
+**Step 1 — Open the Admin Panel**
+
+Log in to Open WebUI and click your profile picture in the top-right corner, then select **Admin Panel**.
+
+**Step 2 — Go to Tools**
+
+In the Admin Panel, click **Settings** in the left sidebar, then select **Tools**.
+
+**Step 3 — Add a new Tool Server**
+
+Click the **+** (Add) button to create a new tool server entry.
+
+**Step 4 — Fill in the connection details**
+
+| Field | Value |
+|-------|-------|
+| Name | `Stewardess MCP Service` (or any label you prefer) |
+| URL | `http://localhost:55703/swagger/v1/swagger.json` |
+| Authentication | Bearer Token |
+| Token / API Key | The value you set in `Mcp.ApiKey` in `appsettings.json` |
+
+> If Stewardess is running on a different machine, replace `localhost` with that machine's IP address or hostname.
+
+**Step 5 — Save and verify**
+
+Click **Save**. Open WebUI will fetch the OpenAPI spec from Stewardess and import all available tools. You should see them listed in the Tools section.
+
+**Step 6 — Enable tools in a chat**
+
+Open a new chat and select your Ollama model. Click the **Tools** icon (the spanner/wrench icon near the message input) and make sure Stewardess tools are toggled on. The model can now call any of the 66 Stewardess tools during the conversation.
+
+### Talking to Your Code
+
+Once connected, you can have conversations like:
+
+- "What files are in the `src` folder?"
+- "Find all usages of the `UserService` class"
+- "Read the file `Program.cs` and explain what it does"
+- "Build the project and show me any errors"
+- "Build a code index of the repository and then find all classes that depend on `ILogger`"
+
+The model will call the appropriate Stewardess tools automatically and include the results in its response.
+
+### Troubleshooting Open WebUI Integration
+
+| Problem | Likely Cause | Fix |
+|---------|-------------|-----|
+| Tools not appearing after saving | Wrong URL or Stewardess not running | Confirm `http://localhost:55703/api/health` returns a response |
+| 401 Unauthorized errors | API key not set or wrong | Check `Mcp.ApiKey` in `appsettings.json` matches the token in Open WebUI |
+| Model ignores tools | Model does not support tool calling | Switch to a tool-capable model such as `llama3.1` or `qwen2.5-coder` |
+| Tool calls time out | Command execution taking too long | Increase `MaxCommandExecutionSeconds` in configuration |
+| File access denied | Path is outside `RepositoryRoot` | Check the path the agent is using and ensure `RepositoryRoot` is set correctly |
 
 ---
 
-## Example Agent Workflows
+## Safety Features
 
-### Workflow 1: Find, inspect, patch, build
+Stewardess is designed to be safe to run while you work:
 
-An AI agent fixes a bug in a C# class.
-
-```json
-// Step 1 — Find the class
-{ "method": "tools/call", "params": { "name": "search_symbol", "arguments": { "symbolName": "OrderProcessor" } } }
-
-// Step 2 — Read the file
-{ "method": "tools/call", "params": { "name": "read_file", "arguments": { "path": "src/Orders/OrderProcessor.cs" } } }
-
-// Step 3 — Preview the patch
-{ "method": "tools/call", "params": { "name": "patch_file", "arguments": {
-  "path": "src/Orders/OrderProcessor.cs",
-  "patch": "--- a/src/Orders/OrderProcessor.cs\n+++ b/src/Orders/OrderProcessor.cs\n@@ -42,7 +42,7 @@\n-        if (order == null) throw new Exception(\"null\");\n+        if (order == null) throw new ArgumentNullException(nameof(order));\n",
-  "dryRun": true
-}}}
-
-// Step 4 — Apply the patch
-{ "method": "tools/call", "params": { "name": "patch_file", "arguments": {
-  "path": "src/Orders/OrderProcessor.cs",
-  "patch": "...",
-  "dryRun": false
-}}}
-
-// Step 5 — Run build to verify
-{ "method": "tools/call", "params": { "name": "run_build", "arguments": { "configuration": "Debug" } } }
-
-// Step 6 — Check diff
-{ "method": "tools/call", "params": { "name": "get_git_diff", "arguments": { "scope": "working" } } }
-```
-
-### Workflow 2: Multi-file refactor with test run
-
-An AI agent renames a method across all files.
-
-```json
-// Step 1 — Find all usages
-{ "method": "tools/call", "params": { "name": "find_references", "arguments": { "identifierName": "ProcessOrder", "extensions": [".cs"] } } }
-
-// Step 2 — Replace in each file (dry-run first)
-{ "method": "tools/call", "params": { "name": "replace_text", "arguments": {
-  "path": "src/Orders/OrderProcessor.cs",
-  "oldText": "ProcessOrder",
-  "newText": "ExecuteOrder",
-  "dryRun": true
-}}}
-
-// Step 3 — Apply to all affected files
-{ "method": "tools/call", "params": { "name": "batch_edits", "arguments": {
-  "edits": [
-    { "path": "src/Orders/OrderProcessor.cs", "operation": "replace_text", "oldText": "ProcessOrder", "newText": "ExecuteOrder" },
-    { "path": "src/Orders/OrderService.cs",   "operation": "replace_text", "oldText": "ProcessOrder", "newText": "ExecuteOrder" },
-    { "path": "tests/OrderProcessorTests.cs", "operation": "replace_text", "oldText": "ProcessOrder", "newText": "ExecuteOrder" }
-  ],
-  "dryRun": false
-}}}
-
-// Step 4 — Run tests
-{ "method": "tools/call", "params": { "name": "run_tests", "arguments": { "projectPath": "tests/MyApp.Tests.csproj" } } }
-
-// Step 5 — Rollback if tests fail (use rollbackToken from batch_edits response)
-{ "method": "tools/call", "params": { "name": "rollback_change", "arguments": { "rollbackToken": "backup_20240115_120000_OrderProcessor.cs" } } }
-```
-
-### Workflow 3: Architecture inspection
-
-An AI agent analyses the project structure and suggests improvements.
-
-```json
-// Step 1 — Get full tree
-{ "method": "tools/call", "params": { "name": "list_tree", "arguments": { "depth": 4 } } }
-
-// Step 2 — Detect solution and project files
-{ "method": "tools/call", "params": { "name": "get_repository_info", "arguments": {} } }
-
-// Step 3 — Read key config files
-{ "method": "tools/call", "params": { "name": "read_multiple_files", "arguments": { "paths": ["App.config", "appsettings.json", "Web.config"] } } }
-
-// Step 4 — Find all interfaces
-{ "method": "tools/call", "params": { "name": "search_regex", "arguments": { "pattern": "^\\s*public interface I\\w+", "extensions": [".cs"] } } }
-
-// Step 5 — Search for known anti-patterns
-{ "method": "tools/call", "params": { "name": "search_text", "arguments": { "query": "catch (Exception)", "extensions": [".cs"] } } }
-```
-
-### Workflow 4: Safe batch refactor with preview
-
-An AI agent updates a namespace across the project.
-
-```json
-// Step 1 — Find all files that use the old namespace
-{ "method": "tools/call", "params": { "name": "search_text", "arguments": { "query": "namespace OldCompany.Orders", "extensions": [".cs"] } } }
-
-// Step 2 — Preview changes in first file
-{ "method": "tools/call", "params": { "name": "replace_text", "arguments": {
-  "path": "src/Orders/OrderProcessor.cs",
-  "oldText": "namespace OldCompany.Orders",
-  "newText": "namespace NewCompany.Orders",
-  "dryRun": true
-}}}
-
-// Step 3 — Apply all changes
-{ "method": "tools/call", "params": { "name": "batch_edits", "arguments": {
-  "edits": [ ... all files ... ],
-  "dryRun": false
-}}}
-
-// Step 4 — Build to verify
-{ "method": "tools/call", "params": { "name": "run_build", "arguments": {} } }
-```
-
-### Workflow 5: Rollback after failed modification
-
-```json
-// Step 1 — Apply a risky change (note the rollbackToken in response)
-{ "method": "tools/call", "params": { "name": "write_file", "arguments": {
-  "path": "src/Config/AppSettings.cs",
-  "content": "...",
-  "createBackup": true
-}}}
-// Response includes: "rollbackToken": "20240115_120500_AppSettings.cs"
-
-// Step 2 — Build fails
-{ "method": "tools/call", "params": { "name": "run_build", "arguments": {} } }
-// Response: "ErrorCount": 5
-
-// Step 3 — Rollback
-{ "method": "tools/call", "params": { "name": "rollback_change", "arguments": {
-  "rollbackToken": "20240115_120500_AppSettings.cs"
-}}}
-```
+- **Sandboxing** — All file operations are restricted to the `RepositoryRoot` folder. The agent cannot access files outside it.
+- **Backups** — Before modifying any file, the service saves a backup copy. The backup location can be configured.
+- **Rollback** — Any write operation returns a rollback token. The agent (or you) can use it to restore the previous version.
+- **Read-only mode** — Set `ReadOnlyMode: true` to make the service entirely read-only. No writes, no commands.
+- **Approval workflow** — Enable `RequireApprovalForDestructive` to require a preview step before any destructive action proceeds.
+- **Audit log** — Every modifying operation is logged with a timestamp, the tool name, the arguments, and the outcome.
+- **Command allow-list** — Command execution is limited to a specific list of approved command prefixes.
+- **IP filtering** — Optionally restrict connections to specific IP addresses.
 
 ---
 
-## Testing
+## Read-Only Mode Example
 
-### Run all tests
-
-```powershell
-# Build first
-msbuild StewardessMCPService.sln /p:Configuration=Debug
-
-# Run tests
-& "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" `
-    "StewardessMCPService.Tests\bin\Debug\StewardessMCPService.Tests.dll" `
-    /TestAdapterPath:"packages\xunit.runner.visualstudio.2.5.3\build\net462" `
-    /Framework:net472
-```
-
-Expected output: **143 tests, 143 passed**.
-
-### Test coverage
-
-| Test class | Tests | Coverage area |
-|-----------|-------|---------------|
-| `FileSystemServiceTests` | ~30 | File read, metadata, encoding, paging |
-| `SearchServiceTests` | ~20 | Text/regex/filename/extension search |
-| `EditServiceTests` | 37 | All write/patch/diff/rollback paths |
-| `GitServiceTests` | 14 | Git status/diff/log parsing |
-| `CommandServiceTests` | 19 | Allowlist, parse summaries, process execution |
-
----
-
-## Operational Guidance
-
-### Audit log
-
-When `Mcp:EnableAuditLog = true`, every mutating operation is appended to the audit log as a single NDJSON line:
+If you want an AI agent to analyse your code but never change anything, use this configuration:
 
 ```json
-{"timestamp":"2024-01-15T12:00:00Z","requestId":"a1b2c3d4","operationType":"WriteFile","path":"src/Program.cs","actor":"127.0.0.1","outcome":"Success","details":"Bytes written: 512"}
+{
+  "Mcp": {
+    "RepositoryRoot": "C:\\Projects\\MyProject",
+    "ReadOnlyMode": true,
+    "ApiKey": "analysis-only-key"
+  }
+}
 ```
 
-The audit log is at `<RepositoryRoot>/.mcp/audit.log` by default.
-
-### Backup snapshots
-
-Before every destructive write, the original file is copied to:
-```
-<BackupDirectory>/<relative-path>/<yyyyMMdd_HHmmss>_<filename>
-```
-
-The response includes a `rollbackToken` that can be passed to `rollback_change` / `POST /api/edit/rollback`.
-
-### Connecting an OpenAI function-calling agent
-
-1. Call `GET /mcp/v1/manifest` to get the full capabilities manifest.
-2. Convert the JSON Schema tool definitions from `GET /mcp/v1/tools` into OpenAI function definitions.
-3. For each tool call the model makes, POST to `POST /mcp/v1/` with the JSON-RPC 2.0 envelope.
-4. Return the `result.content[0].text` value back to the model as the tool result.
-
-Alternatively, use the REST endpoints directly — every MCP tool maps 1:1 to a REST endpoint.
-
-### Connecting via a standard MCP client
-
-The service exposes a JSON-RPC 2.0 endpoint at `POST /mcp/v1/` that implements:
-- `ping` — health check
-- `tools/list` — enumerate all available tools with JSON Schema
-- `tools/call` — invoke a tool by name with structured arguments
-
-Any MCP-compatible client (Claude Desktop, Continue.dev, etc.) can connect by pointing at `http://localhost:<port>/mcp/v1/`.
+In this mode, the agent can use all navigation, search, reading, git, and code index tools but any attempt to write, edit, delete, or run commands will be rejected.
 
 ---
 
-## Future Improvements
+## Deploying to a Server
 
-1. **WebSocket / SSE transport** — Add a streaming MCP transport so agents receive incremental output from long-running build/test commands.
-2. **In-memory search index** — Build a Roslyn-based or lightweight inverted index at startup for faster symbol and reference lookups.
-3. **Semantic search** — Integrate a local embedding model (e.g., via ONNX Runtime) for semantic code search beyond text matching.
-4. **Multi-repo support** — Allow multiple named repository roots, each with independent policy settings.
-5. **Git write operations** — Expose `git add`, `git commit`, `git checkout -b` through the allowlist mechanism.
-6. **Rate limiting** — Add per-IP token-bucket middleware for public deployments.
-7. **OpenAPI / Swagger UI** — Wire up Swashbuckle for a browser-accessible API explorer.
-8. **Cancellation over HTTP** — Surface `CancellationToken` cancellation to the client via DELETE on the request ID.
-9. **Configuration hot-reload** — Watch `Web.config` for changes without requiring a restart.
-10. **Signed audit log** — Add HMAC signatures to audit log entries to detect tampering.
+The service is a standard ASP.NET Core application and can be deployed anywhere .NET 8 runs.
+
+**Publish a self-contained executable:**
+
+```
+cd StewardessMCPServive.Core
+dotnet publish -c Release -r win-x64 --self-contained
+```
+
+Replace `win-x64` with `linux-x64` for Linux.
+
+**Run as a Windows service or Linux systemd unit:**
+
+Point the process at `StewardessMCPServive.Core.exe` (Windows) or the published binary (Linux) and supply the `RepositoryRoot` and `ApiKey` via environment variables rather than the config file, to avoid committing secrets.
+
+**For remote access:**
+
+If the service runs on a remote machine (not localhost), update the URLs in any agent configuration to use the remote host name or IP. Set `ApiKey` to a strong random value to secure the endpoint.
+
+---
+
+## Project Structure (Quick Reference)
+
+| Folder | What It Contains |
+|--------|-----------------|
+| `StewardessMCPServive.Core` | The runnable service: controllers, tool registry, startup, configuration |
+| `StewardessMCPServive.CodeIndexing` | The semantic code indexing engine (language-agnostic core) |
+| `StewardessMCPServive.Parsers.CSharp` | C# language adapter for the indexing engine |
+| `StewardessMCPServive.Tests` | Unit tests |
+| `StewardessMCPServive.IntegrationTests` | End-to-end integration tests |
+| `StewardessMCPServive.CodeIndexing.Tests` | Unit tests for the indexing engine |
+
+---
+
+## Quick-Start Checklist
+
+1. Install .NET 8 SDK
+2. Clone or download this repository
+3. Edit `StewardessMCPServive.Core\appsettings.json` and set `RepositoryRoot` to the folder you want the AI to work with
+4. Set `ApiKey` to a strong secret value — this is required for Open WebUI and other clients to authenticate correctly
+5. Run `dotnet run` from inside `StewardessMCPServive.Core`
+6. Confirm the service is running by visiting `http://localhost:55703/api/health`
+7. If using Open WebUI, follow the steps in the **Using with Ollama and Open WebUI** section above to register Stewardess as a tool server
+8. If using another MCP client, point it at `http://localhost:55703/mcp/v1/` with `Authorization: Bearer <your-api-key>`
+9. If you want semantic code analysis, ask the agent to call `code_index.build` with the repository root path
