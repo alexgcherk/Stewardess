@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Cherkasov
+// SPDX-License-Identifier: Apache-2.0
 using StewardessMCPService.CodeIndexing.Eligibility;
 using StewardessMCPService.CodeIndexing.LanguageDetection;
 using StewardessMCPService.CodeIndexing.Model.Diagnostics;

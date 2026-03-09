@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Cherkasov
+// SPDX-License-Identifier: Apache-2.0
 using System.Runtime.CompilerServices;
 
 [assembly: InternalsVisibleTo("StewardessMCPService.Tests")]

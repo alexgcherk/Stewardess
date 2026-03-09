@@ -8,6 +8,9 @@
     <AssemblyName>StewardessMCPService.Parsers.CSharp</AssemblyName>
     <RootNamespace>StewardessMCPService.Parsers.CSharp</RootNamespace>
     <LangVersion>latest</LangVersion>
+    <Authors>Alex Cherkasov</Authors>
+    <Copyright>Copyright 2026 Alex Cherkasov</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

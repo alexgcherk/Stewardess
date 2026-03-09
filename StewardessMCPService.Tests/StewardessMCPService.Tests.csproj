@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>StewardessMCPService.Tests</RootNamespace>
+    <Authors>Alex Cherkasov</Authors>
+    <Copyright>Copyright 2026 Alex Cherkasov</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

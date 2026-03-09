@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Cherkasov
+// SPDX-License-Identifier: Apache-2.0
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;

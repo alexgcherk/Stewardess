@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Cherkasov
+// SPDX-License-Identifier: Apache-2.0
 namespace StewardessMCPService.CodeIndexing.Query;
 
 /// <summary>Machine-classifiable MCP error codes for AI agent consumption.</summary>

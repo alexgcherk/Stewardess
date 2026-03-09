@@ -656,3 +656,13 @@ If the service runs on a remote machine (not localhost), update the URLs in any 
 7. If using Open WebUI, follow the steps in the **Using with Ollama and Open WebUI** section above to register Stewardess as a tool server
 8. If using another MCP client, point it at `http://localhost:55703/mcp/v1/` with `Authorization: Bearer <your-api-key>`
 9. If you want semantic code analysis, ask the agent to call `code_index.build` with the repository root path
+
+---
+
+## License
+
+Copyright 2026 Alex Cherkasov
+
+Licensed under the [Apache License, Version 2.0](LICENSE) (the "License"). You may not use this software except in compliance with the License.
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an **"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND**, either express or implied. See the [LICENSE](LICENSE) file for the specific language governing permissions and limitations.

@@ -1,3 +1,5 @@
+// Copyright 2026 Alex Cherkasov
+// SPDX-License-Identifier: Apache-2.0
 using System.Collections.Concurrent;
 using StewardessMCPService.CodeIndexing.Model.Snapshots;
 using StewardessMCPService.CodeIndexing.Snapshots;

@@ -8,6 +8,9 @@
     <RootNamespace>StewardessMCPService.CodeIndexing.Tests</RootNamespace>
     <LangVersion>latest</LangVersion>
     <IsPackable>false</IsPackable>
+    <Authors>Alex Cherkasov</Authors>
+    <Copyright>Copyright 2026 Alex Cherkasov</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
