@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AssemblyName>StewardessMCPService.Parsers.CSharp</AssemblyName>
+    <RootNamespace>StewardessMCPService.Parsers.CSharp</RootNamespace>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StewardessMCPService.CodeIndexing\StewardessMCPService.CodeIndexing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Roslyn C# syntax tree parser - CompilerSyntax extraction mode -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
+  </ItemGroup>
+
+</Project>

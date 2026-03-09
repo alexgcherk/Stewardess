@@ -1436,7 +1436,7 @@
             "type": "boolean"
           },
           "createBackup": {
-            "description": "When true (default), a backup copy is created before overwriting.\r\nThe backup path is returned in {StewardessMCPServive.Models.EditResult.BackupPath}.",
+            "description": "When true (default), a backup copy is created before overwriting.\r\nThe backup path is returned in {StewardessMCPService.Models.EditResult.BackupPath}.",
             "type": "boolean"
           },
           "changeReason": {
@@ -1791,7 +1791,7 @@
         "type": "object",
         "properties": {
           "rollbackToken": {
-            "description": "Token returned by a prior edit operation's {StewardessMCPServive.Models.EditResult.RollbackToken}.",
+            "description": "Token returned by a prior edit operation's {StewardessMCPService.Models.EditResult.RollbackToken}.",
             "type": "string"
           }
         }

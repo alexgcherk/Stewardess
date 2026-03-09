@@ -1,5 +1,5 @@
 """
-Converts the StewardessMCPServive Swagger 2.0 spec to an OpenAPI 3.0 JSON
+Converts the StewardessMCPService Swagger 2.0 spec to an OpenAPI 3.0 JSON
 suitable for import into Open WebUI as an OpenAPI Server tool.
 
 Usage:

@@ -1,4 +1,4 @@
-# StewardessMCPServive
+# StewardessMCPService
 
 A production-quality C# .NET Framework 4.7.2 MCP (Model Context Protocol) service that exposes a local source-code repository to an AI agent through a secure Web API and an MCP-compatible JSON-RPC 2.0 tool surface.
 
@@ -29,7 +29,7 @@ AI Agent (OpenAI / custom client)
          │  HTTP / JSON
          ▼
 ┌──────────────────────────────────────────────────────┐
-│          StewardessMCPServive  (ASP.NET Web API + OWIN)       │
+│          StewardessMCPService  (ASP.NET Web API + OWIN)       │
 │                                                       │
 │  ┌────────────────┐   ┌──────────────────────────┐   │
 │  │ MCP Endpoint   │   │  REST Controllers         │   │
@@ -77,9 +77,9 @@ The service has two entry points that expose the same capabilities:
 ## Project Structure
 
 ```
-StewardessMCPServive.sln
+StewardessMCPService.sln
 │
-├── StewardessMCPServive/                      # Main web application project
+├── StewardessMCPService/                      # Main web application project
 │   ├── App_Start/
 │   │   └── WebApiConfig.cs            # Route registration
 │   ├── Configuration/
@@ -136,7 +136,7 @@ StewardessMCPServive.sln
 │   ├── Startup.cs                     # OWIN startup; DI wiring
 │   └── Web.config                     # All Mcp:* configuration keys
 │
-└── StewardessMCPServive.Tests/                # xUnit test project (net472)
+└── StewardessMCPService.Tests/                # xUnit test project (net472)
     ├── Helpers/
     │   └── TempRepository.cs          # Disposable temp-dir fixture
     └── Services/
@@ -168,16 +168,16 @@ StewardessMCPServive.sln
 
 ```powershell
 git clone <this-repo>
-cd StewardessMCPServive
-nuget restore StewardessMCPServive.sln
-msbuild StewardessMCPServive.sln /p:Configuration=Release
+cd StewardessMCPService
+nuget restore StewardessMCPService.sln
+msbuild StewardessMCPService.sln /p:Configuration=Release
 ```
 
-Or open `StewardessMCPServive.sln` in Visual Studio and press **Build Solution**.
+Or open `StewardessMCPService.sln` in Visual Studio and press **Build Solution**.
 
 ### 2. Configure the repository root
 
-Edit `StewardessMCPServive\Web.config`:
+Edit `StewardessMCPService\Web.config`:
 
 ```xml
 <add key="Mcp:RepositoryRoot" value="C:\repos\your-project" />
@@ -715,11 +715,11 @@ An AI agent updates a namespace across the project.
 
 ```powershell
 # Build first
-msbuild StewardessMCPServive.sln /p:Configuration=Debug
+msbuild StewardessMCPService.sln /p:Configuration=Debug
 
 # Run tests
 & "C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" `
-    "StewardessMCPServive.Tests\bin\Debug\StewardessMCPServive.Tests.dll" `
+    "StewardessMCPService.Tests\bin\Debug\StewardessMCPService.Tests.dll" `
     /TestAdapterPath:"packages\xunit.runner.visualstudio.2.5.3\build\net462" `
     /Framework:net472
 ```

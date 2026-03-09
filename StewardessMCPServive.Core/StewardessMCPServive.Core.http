@@ -1,6 +1,0 @@
-@StewardessMCPServive.Core_HostAddress = http://localhost:5014
-
-GET {{StewardessMCPServive.Core_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

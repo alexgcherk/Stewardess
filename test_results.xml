@@ -1,10 +1,10 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <assemblies timestamp="03/06/2026 18:03:03">
-  <assembly name="C:\Repos\Stewardess1\StewardessMCPServive.IntegrationTests\bin\Debug\StewardessMCPServive.IntegrationTests.DLL" environment="64-bit .NET 4.0.30319.42000 [collection-per-class, parallel (20 threads)]" test-framework="xUnit.net 2.5.3.0" run-date="2026-03-06" run-time="18:02:57" config-file="C:\Repos\Stewardess1\StewardessMCPServive.IntegrationTests\bin\Debug\StewardessMCPServive.IntegrationTests.dll.config" total="2" passed="2" failed="0" skipped="0" time="5.637" errors="0">
+  <assembly name="C:\Repos\Stewardess1\StewardessMCPService.IntegrationTests\bin\Debug\StewardessMCPService.IntegrationTests.DLL" environment="64-bit .NET 4.0.30319.42000 [collection-per-class, parallel (20 threads)]" test-framework="xUnit.net 2.5.3.0" run-date="2026-03-06" run-time="18:02:57" config-file="C:\Repos\Stewardess1\StewardessMCPService.IntegrationTests\bin\Debug\StewardessMCPService.IntegrationTests.dll.config" total="2" passed="2" failed="0" skipped="0" time="5.637" errors="0">
     <errors />
-    <collection total="2" passed="2" failed="0" skipped="0" name="Test collection for StewardessMCPServive.IntegrationTests.Scenarios.HelloWorldScenarioTests" time="2.485">
-      <test name="StewardessMCPServive.IntegrationTests.Scenarios.HelloWorldScenarioTests.HealthCheck_ReturnsHealthyStatus" type="StewardessMCPServive.IntegrationTests.Scenarios.HelloWorldScenarioTests" method="HealthCheck_ReturnsHealthyStatus" time="0.7503622" result="Pass" />
-      <test name="StewardessMCPServive.IntegrationTests.Scenarios.HelloWorldScenarioTests.CreateHelloWorldProject_BuildAndRun_OutputsHelloWorld" type="StewardessMCPServive.IntegrationTests.Scenarios.HelloWorldScenarioTests" method="CreateHelloWorldProject_BuildAndRun_OutputsHelloWorld" time="1.7341407" result="Pass" />
+    <collection total="2" passed="2" failed="0" skipped="0" name="Test collection for StewardessMCPService.IntegrationTests.Scenarios.HelloWorldScenarioTests" time="2.485">
+      <test name="StewardessMCPService.IntegrationTests.Scenarios.HelloWorldScenarioTests.HealthCheck_ReturnsHealthyStatus" type="StewardessMCPService.IntegrationTests.Scenarios.HelloWorldScenarioTests" method="HealthCheck_ReturnsHealthyStatus" time="0.7503622" result="Pass" />
+      <test name="StewardessMCPService.IntegrationTests.Scenarios.HelloWorldScenarioTests.CreateHelloWorldProject_BuildAndRun_OutputsHelloWorld" type="StewardessMCPService.IntegrationTests.Scenarios.HelloWorldScenarioTests" method="CreateHelloWorldProject_BuildAndRun_OutputsHelloWorld" time="1.7341407" result="Pass" />
     </collection>
   </assembly>
 </assemblies>

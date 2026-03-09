@@ -1,0 +1,6 @@
+@StewardessMCPService.Core_HostAddress = http://localhost:5014
+
+GET {{StewardessMCPService.Core_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
