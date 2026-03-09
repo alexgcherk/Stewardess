@@ -376,6 +376,260 @@ index 333..444 100644
         Assert.DoesNotContain("\" --output", result);
     }
 
+    // ── GetDiffAsync / GetDiffForFileAsync – non-git repo ────────────────────
+
+    [Fact]
+    public async Task GetDiffAsync_NonGitRepo_ReturnsScopePreservedAndEmptyFiles()
+    {
+        var request = new GitDiffRequest { Scope = "staged" };
+        var response = await _svc.GetDiffAsync(request, CancellationToken.None);
+
+        Assert.Equal("staged", response.Scope);
+        Assert.Empty(response.Files);
+    }
+
+    [Fact]
+    public async Task GetDiffAsync_NullRequest_DefaultsGracefully()
+    {
+        // Passing null request — should not throw (defensive null handling)
+        var response = await _svc.GetDiffAsync(null!, CancellationToken.None);
+        Assert.NotNull(response);
+        Assert.Empty(response.Files);
+    }
+
+    [Fact]
+    public async Task GetDiffForFileAsync_NonGitRepo_ReturnsEmpty()
+    {
+        var response = await _svc.GetDiffForFileAsync("src/File.cs", "unstaged", CancellationToken.None);
+
+        Assert.Empty(response.Files);
+    }
+
+    // ── GetLogAsync – non-git repo ────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetLogAsync_NonGitRepo_ReturnsEmptyCommitList()
+    {
+        var response = await _svc.GetLogAsync(new GitLogRequest(), CancellationToken.None);
+
+        Assert.Empty(response.Commits);
+    }
+
+    [Fact]
+    public async Task GetLogAsync_NullRequest_DoesNotThrow()
+    {
+        var response = await _svc.GetLogAsync(null!, CancellationToken.None);
+        Assert.NotNull(response);
+    }
+
+    // ── ListBranchesAsync – non-git repo ─────────────────────────────────────
+
+    [Fact]
+    public async Task ListBranchesAsync_NonGitRepo_ReturnsEmptyList()
+    {
+        var branches = await _svc.ListBranchesAsync(CancellationToken.None);
+
+        Assert.Empty(branches);
+    }
+
+    // ── Argument validation on mutating methods ──────────────────────────────
+
+    [Fact]
+    public async Task CreateBranchAsync_EmptyName_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _svc.CreateBranchAsync("", "main", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CreateBranchAsync_WhitespaceSourceBranch_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _svc.CreateBranchAsync("feature/x", "   ", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DiffBetweenCommitsAsync_EmptyBaseSha_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _svc.DiffBetweenCommitsAsync("", "abc123", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task DiffBetweenCommitsAsync_EmptyTargetSha_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _svc.DiffBetweenCommitsAsync("abc123", "", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CreateCommitAsync_EmptyMessage_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _svc.CreateCommitAsync("", "Dev", "dev@x.com", null!, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task MergeBranchAsync_EmptySourceBranch_ThrowsArgumentException()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _svc.MergeBranchAsync("", "main", "recursive", CancellationToken.None));
+    }
+
+    // ── Parsing: ParsePorcelainStatus – additional cases ─────────────────────
+
+    [Fact]
+    public void ParsePorcelainStatus_DeletedStagedFile_ParsedCorrectly()
+    {
+        // 'D ' = deleted and staged for commit
+        var output = "D  src/Removed.cs\n";
+        var entries = GitService.ParsePorcelainStatus(output);
+
+        Assert.Single(entries);
+        Assert.Equal("D", entries[0].IndexStatus);
+        Assert.True(entries[0].IsStaged);
+        Assert.False(entries[0].IsUntracked);
+    }
+
+    [Fact]
+    public void ParsePorcelainStatus_StagedNewFile_ParsedCorrectly()
+    {
+        // 'A ' = new file added to index
+        var output = "A  src/NewFile.cs\n";
+        var entries = GitService.ParsePorcelainStatus(output);
+
+        Assert.Single(entries);
+        Assert.Equal("A", entries[0].IndexStatus);
+        Assert.True(entries[0].IsStaged);
+        Assert.False(entries[0].IsUntracked);
+    }
+
+    [Fact]
+    public void ParsePorcelainStatus_WorktreeDeletedFile_IsUnstaged()
+    {
+        // ' D' = deleted in working tree, not staged
+        var output = " D src/Gone.cs\n";
+        var entries = GitService.ParsePorcelainStatus(output);
+
+        Assert.Single(entries);
+        Assert.True(entries[0].IsUnstaged);
+        Assert.False(entries[0].IsStaged);
+    }
+
+    [Fact]
+    public void ParsePorcelainStatus_WhitespaceOnlyInput_ReturnsEmpty()
+    {
+        var entries = GitService.ParsePorcelainStatus("   \n  \n");
+        Assert.Empty(entries);
+    }
+
+    // ── Parsing: ParseDiffOutput – additional cases ──────────────────────────
+
+    [Fact]
+    public void ParseDiffOutput_DeletedFile_ChangeTypeIsDeleted()
+    {
+        const string diff = @"diff --git a/old.cs b/old.cs
+deleted file mode 100644
+index 1234567..0000000
+--- a/old.cs
++++ /dev/null
+@@ -1,2 +0,0 @@
+-line1
+-line2
+";
+        var response = GitService.ParseDiffOutput(diff, "unstaged");
+
+        Assert.Single(response.Files);
+        Assert.Equal("deleted", response.Files[0].ChangeType);
+        Assert.Equal(2, response.TotalLinesRemoved);
+        Assert.Equal(0, response.TotalLinesAdded);
+    }
+
+    [Fact]
+    public void ParseDiffOutput_RenamedFile_ChangeTypeIsRenamed()
+    {
+        const string diff = @"diff --git a/old-name.cs b/new-name.cs
+similarity index 100%
+rename from old-name.cs
+rename to new-name.cs
+";
+        var response = GitService.ParseDiffOutput(diff, "staged");
+
+        Assert.Single(response.Files);
+        Assert.Equal("renamed", response.Files[0].ChangeType);
+    }
+
+    [Fact]
+    public void ParseDiffOutput_ScopeIsPreservedInResponse()
+    {
+        var response = GitService.ParseDiffOutput("", "staged");
+        Assert.Equal("staged", response.Scope);
+    }
+
+    // ── Parsing: ParseLogOutput – additional cases ───────────────────────────
+
+    [Fact]
+    public void ParseLogOutput_MultipleCommits_ParsesAll()
+    {
+        var sep = "\x1F";
+        var line1 = string.Join(sep, "aaa1", "aaa1", "Alice", "a@x", "2024-01-01T00:00:00+00:00",
+            "Alice", "2024-01-01T00:00:00+00:00", "First commit", "", "");
+        var line2 = string.Join(sep, "bbb2", "bbb2", "Bob", "b@x", "2024-01-02T00:00:00+00:00",
+            "Bob", "2024-01-02T00:00:00+00:00", "Second commit", "", "");
+
+        var response = GitService.ParseLogOutput(line1 + "\n" + line2 + "\n", 20);
+
+        Assert.Equal(2, response.Commits.Count);
+        Assert.Equal("First commit", response.Commits[0].Subject);
+        Assert.Equal("Second commit", response.Commits[1].Subject);
+    }
+
+    [Fact]
+    public void ParseLogOutput_CommitWithBody_BodyCaptured()
+    {
+        var sep = "\x1F";
+        var line = string.Join(sep, "abc1", "abc1", "Dev", "d@x", "2024-06-01T00:00:00+00:00",
+            "Dev", "2024-06-01T00:00:00+00:00", "Fix issue", "Detailed explanation here", "");
+
+        var response = GitService.ParseLogOutput(line + "\n", 20);
+
+        Assert.Single(response.Commits);
+        Assert.Equal("Detailed explanation here", response.Commits[0].Body);
+    }
+
+    [Fact]
+    public void ParseLogOutput_RespectsMaxCount()
+    {
+        var sep = "\x1F";
+        var lines = Enumerable.Range(1, 10)
+            .Select(i => string.Join(sep, $"sha{i}", $"sha{i}", "Dev", "d@x",
+                "2024-01-01T00:00:00+00:00", "Dev", "2024-01-01T00:00:00+00:00",
+                $"Commit {i}", "", ""))
+            .ToList();
+
+        var response = GitService.ParseLogOutput(string.Join("\n", lines) + "\n", maxCount: 3);
+
+        Assert.Equal(3, response.Commits.Count);
+    }
+
+    // ── Parsing: ParseShowOutput – additional cases ──────────────────────────
+
+    [Fact]
+    public void ParseShowOutput_NoChangedFiles_EmptyFileList()
+    {
+        var sep = "\x1F";
+        // Only the header line, no blank line + file list
+        var line = string.Join(sep, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "aaaa111",
+            "Dev", "dev@x", "2024-01-01T00:00:00+00:00",
+            "Dev", "dev@x", "2024-01-01T00:00:00+00:00",
+            "Empty commit", "", "");
+
+        var result = GitService.ParseShowOutput(line + "\n");
+
+        Assert.False(result.NotFound);
+        Assert.Empty(result.ChangedFiles);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static GitService Build(string root)
