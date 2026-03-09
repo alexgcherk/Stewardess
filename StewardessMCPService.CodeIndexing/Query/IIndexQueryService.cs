@@ -1,3 +1,4 @@
+using StewardessMCPService.CodeIndexing.Model.References;
 using StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 namespace StewardessMCPService.CodeIndexing.Query;

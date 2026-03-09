@@ -199,7 +199,7 @@ builder.Services.AddSwaggerGen(c =>
         return string.IsNullOrEmpty(controller) ? null : $"{controller}_{action}";
     });
 
-    var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name, ".xml");
+    var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name ?? "StewardessMCPService.Core", ".xml");
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
         c.IncludeXmlComments(xmlPath);

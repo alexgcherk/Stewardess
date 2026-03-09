@@ -27,7 +27,7 @@ namespace StewardessMCPService.Tests.Services
             var svc = BuildService(apiKey: "");
             Assert.True(svc.ValidateApiKey("anything"));
             Assert.True(svc.ValidateApiKey(""));
-            Assert.True(svc.ValidateApiKey(null));
+            Assert.True(svc.ValidateApiKey(null!));
         }
 
         [Fact]
@@ -43,7 +43,7 @@ namespace StewardessMCPService.Tests.Services
             var svc = BuildService(apiKey: "secret-key-123");
             Assert.False(svc.ValidateApiKey("wrong-key"));
             Assert.False(svc.ValidateApiKey(""));
-            Assert.False(svc.ValidateApiKey(null));
+            Assert.False(svc.ValidateApiKey(null!));
         }
 
         [Fact]
@@ -125,7 +125,7 @@ namespace StewardessMCPService.Tests.Services
         {
             var svc = BuildService();
             // When approval is not required, even null passes.
-            Assert.True(svc.ValidateApprovalToken(null));
+            Assert.True(svc.ValidateApprovalToken(null!));
         }
 
         [Fact]
@@ -149,7 +149,7 @@ namespace StewardessMCPService.Tests.Services
         {
             // Null must never throw and must return false when a key is configured.
             var svc = BuildService(apiKey: "real-key");
-            Assert.False(svc.ValidateApiKey(null));
+            Assert.False(svc.ValidateApiKey(null!));
         }
 
         [Fact]
@@ -189,15 +189,15 @@ namespace StewardessMCPService.Tests.Services
         // ── Helpers ──────────────────────────────────────────────────────────────
 
         private SecurityService BuildService(
-            string   apiKey     = "",
-            bool     readOnly   = false,
-            string[] allowedIps = null)
+            string    apiKey     = "",
+            bool      readOnly   = false,
+            string[]? allowedIps = null)
         {
             var settings = McpServiceSettings.CreateForTesting(
                 repositoryRoot    : _repo.Root,
                 readOnly          : readOnly,
                 apiKey            : apiKey,
-                allowedIps        : allowedIps,
+                allowedIps        : allowedIps!,
                 blockedFolders    : new[] { ".git", "bin", "obj" },
                 blockedExtensions : new[] { ".exe", ".dll" });
 

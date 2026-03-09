@@ -16,10 +16,10 @@ namespace StewardessMCPService.IntegrationTests.Helpers
     public sealed class McpRestClient
     {
         private readonly HttpClient _http;
-        private readonly string _apiKey;
+        private readonly string? _apiKey;
 
         /// <summary>Creates a client backed by the given <see cref="HttpClient"/>.</summary>
-        public McpRestClient(HttpClient httpClient, string apiKey = null)
+        public McpRestClient(HttpClient httpClient, string? apiKey = null)
         {
             _http = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _apiKey = apiKey;
@@ -39,7 +39,7 @@ namespace StewardessMCPService.IntegrationTests.Helpers
         /// that take no required parameters.
         /// </param>
         public async Task<(JObject Data, bool IsError)> CallToolAsync(
-            string toolName, object arguments = null)
+            string toolName, object? arguments = null)
         {
             var requestBody = new JObject
             {

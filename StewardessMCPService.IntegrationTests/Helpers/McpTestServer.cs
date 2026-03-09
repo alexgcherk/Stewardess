@@ -16,7 +16,7 @@ namespace StewardessMCPService.IntegrationTests.Helpers
     public sealed class McpTestServer : IDisposable
     {
         private readonly WebApplicationFactory<Program> _factory;
-        private readonly TempTestRepository             _repo;
+        private readonly TempTestRepository?            _repo;
         private readonly McpServiceSettings             _settings;
         private          bool                           _disposed;
 
@@ -44,10 +44,10 @@ namespace StewardessMCPService.IntegrationTests.Helpers
         /// When <paramref name="repositoryRoot"/> is null a fresh temp directory is used.
         /// Internal so xUnit only sees the single public parameterless constructor.
         /// </summary>
-        internal McpTestServer(string repositoryRoot, bool requireApiKey = false)
+        internal McpTestServer(string? repositoryRoot, bool requireApiKey = false)
         {
             _repo = repositoryRoot == null ? new TempTestRepository() : null;
-            var repoRoot = repositoryRoot ?? _repo.Root;
+            var repoRoot = repositoryRoot ?? _repo!.Root;
             var apiKey   = requireApiKey ? "test-api-key-12345" : null;
 
             var inMemoryConfig = new Dictionary<string, string?>

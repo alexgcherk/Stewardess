@@ -239,7 +239,7 @@ namespace StewardessMCPService.Controllers
                     resp.Encoding  = r.Encoding;
                     resp.SizeBytes = r.SizeBytes;
                     resp.Truncated = r.Truncated;
-                    resp.Content   = includeLineNumbers ? AddLineNumbers(r.Content) : r.Content;
+                    resp.Content   = includeLineNumbers ? AddLineNumbers(r.Content!) : r.Content!;
                 }
 
                 return Ok(resp);
@@ -280,7 +280,7 @@ namespace StewardessMCPService.Controllers
 
                 var regexOpts = RegexOptions.Compiled | (request.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase);
                 var useRegex  = PatternHelper.IsLikelyRegex(request.Query);
-                Regex queryRegex = null;
+                Regex? queryRegex = null;
                 if (useRegex)
                     queryRegex = new Regex(request.Query, regexOpts);
 
@@ -302,7 +302,7 @@ namespace StewardessMCPService.Controllers
                         var rel  = m.RelativePath ?? "";
                         var norm = rel.Replace('\\', '/');
 
-                        string reason;
+                        string? reason;
                         if (useRegex && queryRegex != null)
                         {
                             var target = matchMode == "name" ? m.Name : norm;
@@ -349,7 +349,7 @@ namespace StewardessMCPService.Controllers
                             var rel  = node.RelativePath;
                             var norm = rel.Replace('\\', '/');
 
-                            string reason;
+                            string? reason;
                             if (useRegex && queryRegex != null)
                             {
                                 var target = matchMode == "name" ? node.Name : norm;
@@ -475,13 +475,13 @@ namespace StewardessMCPService.Controllers
     public sealed class RepoBrowserGrepRequest
     {
         /// <summary>Text or pattern to search for.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
 
         /// <summary>Search mode: literal (default), regex, word, symbol_hint.</summary>
         public string Mode { get; set; } = "literal";
 
         /// <summary>Restrict search to this subdirectory relative path.</summary>
-        public string PathPrefix { get; set; }
+        public string PathPrefix { get; set; } = null!;
 
         /// <summary>Case-sensitive search (default false).</summary>
         public bool CaseSensitive { get; set; } = false;
@@ -500,7 +500,7 @@ namespace StewardessMCPService.Controllers
     public sealed class RepoBrowserFindPathRequest
     {
         /// <summary>File name, directory name, or partial path to search for.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
 
         /// <summary>Matching mode: name (default), path_fragment, exact_path, prefix.</summary>
         public string MatchMode { get; set; } = "name";

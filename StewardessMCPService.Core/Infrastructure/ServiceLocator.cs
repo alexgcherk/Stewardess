@@ -47,7 +47,7 @@ namespace StewardessMCPService.Infrastructure
         public static void RegisterFactory<TInterface>(Func<TInterface> factory)
         {
             if (factory == null) throw new ArgumentNullException(nameof(factory));
-            _factories[typeof(TInterface)] = () => factory();
+            _factories[typeof(TInterface)] = () => factory()!;
         }
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace StewardessMCPService.Infrastructure
         /// </summary>
         public static bool TryResolve<T>(out T service)
         {
-            service = default;
+            service = default!;
             if (!_factories.TryGetValue(typeof(T), out var factory)) return false;
             service = (T)factory();
             return true;
@@ -121,7 +121,7 @@ namespace StewardessMCPService.Infrastructure
         {
             var names = new List<string>();
             foreach (var key in _factories.Keys)
-                names.Add(key.FullName);
+                names.Add(key.FullName!);
             return names;
         }
     }

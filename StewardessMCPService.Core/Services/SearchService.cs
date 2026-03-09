@@ -34,10 +34,10 @@ namespace StewardessMCPService.Services
         /// <inheritdoc />
         public Task<SearchResponse> SearchTextAsync(SearchTextRequest request, CancellationToken ct = default)
         {
-            ValidateRequest(request?.Query, nameof(request.Query));
+            ValidateRequest(request?.Query, "Query");
 
             // Escape the literal query to use as a regex pattern.
-            var pattern = Regex.Escape(request.Query);
+            var pattern = Regex.Escape(request!.Query);
             if (request.WholeWord)
                 pattern = @"\b" + pattern + @"\b";
 
@@ -59,10 +59,10 @@ namespace StewardessMCPService.Services
         /// <inheritdoc />
         public Task<SearchResponse> SearchRegexAsync(SearchRegexRequest request, CancellationToken ct = default)
         {
-            ValidateRequest(request?.Pattern, nameof(request.Pattern));
+            ValidateRequest(request?.Pattern, "Pattern");
 
             var options = RegexOptions.Compiled;
-            if (request.IgnoreCase) options |= RegexOptions.IgnoreCase;
+            if (request!.IgnoreCase) options |= RegexOptions.IgnoreCase;
             if (request.Multiline)  options |= RegexOptions.Multiline;
 
             Regex regex;
@@ -89,23 +89,23 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!Directory.Exists(searchRoot))
-                throw new DirectoryNotFoundException($"Search path not found: {request.SearchPath}");
+                throw new DirectoryNotFoundException($"Search path not found: {request?.SearchPath}");
 
             var sw      = Stopwatch.StartNew();
-            var pattern = request.Pattern ?? "";
+            var pattern = request?.Pattern ?? "";
             bool isRegex    = PatternHelper.IsLikelyRegex(pattern);
             bool isWildcard = !isRegex && (pattern.Contains('*') || pattern.Contains('?'));
 
-            Regex compiledRegex = null;
+            Regex? compiledRegex = null;
             if (isRegex && pattern.Length > 0)
             {
-                var opts = RegexOptions.Compiled | (request.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
+                var opts = RegexOptions.Compiled | (request!.IgnoreCase ? RegexOptions.IgnoreCase : RegexOptions.None);
                 compiledRegex = new Regex(pattern, opts);
             }
 
             var matches  = new List<FileNameMatch>();
             bool truncated = false;
-            int maxResults = Math.Min(request.MaxResults, _settings.MaxSearchResults);
+            int maxResults = Math.Min(request!.MaxResults, _settings.MaxSearchResults);
 
             foreach (var filePath in EnumerateFiles(searchRoot, "*.*", ct))
             {
@@ -163,7 +163,7 @@ namespace StewardessMCPService.Services
             var sw      = Stopwatch.StartNew();
             var matches = new List<FileNameMatch>();
             bool truncated = false;
-            int maxResults = Math.Min(request.MaxResults, _settings.MaxSearchResults);
+            int maxResults = Math.Min(request!.MaxResults, _settings.MaxSearchResults);
 
             foreach (var filePath in EnumerateFiles(searchRoot, "*.*", ct))
             {
@@ -196,10 +196,10 @@ namespace StewardessMCPService.Services
         /// <inheritdoc />
         public Task<SearchResponse> SearchSymbolAsync(SearchSymbolRequest request, CancellationToken ct = default)
         {
-            ValidateRequest(request?.SymbolName, nameof(request.SymbolName));
+            ValidateRequest(request?.SymbolName, "SymbolName");
 
             // Build a heuristic pattern for common code constructs.
-            var escapedName = Regex.Escape(request.SymbolName);
+            var escapedName = Regex.Escape(request!.SymbolName);
             string kind     = (request.SymbolKind ?? "").ToLowerInvariant();
 
             string patternStr;
@@ -225,9 +225,9 @@ namespace StewardessMCPService.Services
         /// <inheritdoc />
         public Task<SearchResponse> FindReferencesAsync(FindReferencesRequest request, CancellationToken ct = default)
         {
-            ValidateRequest(request?.IdentifierName, nameof(request.IdentifierName));
+            ValidateRequest(request?.IdentifierName, "IdentifierName");
 
-            var escapedName = Regex.Escape(request.IdentifierName);
+            var escapedName = Regex.Escape(request!.IdentifierName);
             var pattern     = $@"\b{escapedName}\b";
             var options     = RegexOptions.Compiled | RegexOptions.Multiline;
             if (request.IgnoreCase) options |= RegexOptions.IgnoreCase;
@@ -397,7 +397,7 @@ namespace StewardessMCPService.Services
             return result;
         }
 
-        private static void ValidateRequest(string value, string paramName)
+        private static void ValidateRequest(string? value, string paramName)
         {
             if (string.IsNullOrWhiteSpace(value))
                 throw new ArgumentException($"'{paramName}' must not be null or empty.", paramName);

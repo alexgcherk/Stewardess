@@ -30,13 +30,13 @@ namespace StewardessMCPService.Models
         /// Request identifier.  May be a number or a string per the JSON-RPC spec.
         /// Stored as object; serialized as-is in the response.
         /// </summary>
-        public object Id { get; set; }
+        public object? Id { get; set; }
 
         /// <summary>Method name: "tools/list", "tools/call", "ping", etc.</summary>
-        public string Method { get; set; }
+        public string Method { get; set; } = null!;
 
         /// <summary>Method parameters; structure depends on Method.</summary>
-        public object Params { get; set; }
+        public object? Params { get; set; }
     }
 
     /// <summary>Outbound JSON-RPC 2.0 response.</summary>
@@ -46,20 +46,20 @@ namespace StewardessMCPService.Models
         public string JsonRpc { get; set; } = "2.0";
 
         /// <summary>Echoed from the request Id.</summary>
-        public object Id { get; set; }
+        public object? Id { get; set; }
 
         /// <summary>Populated on success; null on error.</summary>
-        public object Result { get; set; }
+        public object? Result { get; set; }
 
         /// <summary>Populated on error; null on success.</summary>
-        public McpError Error { get; set; }
+        public McpError? Error { get; set; }
 
         /// <summary>Creates a successful MCP response.</summary>
         public static McpResponse Ok(object id, object result) =>
             new McpResponse { Id = id, Result = result };
 
         /// <summary>Creates an error MCP response with the given JSON-RPC error code and message.</summary>
-        public static McpResponse Err(object id, int code, string message, object data = null) =>
+        public static McpResponse Err(object? id, int code, string message, object? data = null) =>
             new McpResponse { Id = id, Error = new McpError { Code = code, Message = message, Data = data } };
     }
 
@@ -70,10 +70,10 @@ namespace StewardessMCPService.Models
         public int Code { get; set; }
 
         /// <summary>Human-readable error description.</summary>
-        public string Message { get; set; }
+        public string Message { get; set; } = null!;
 
         /// <summary>Optional additional data (e.g. validation details).</summary>
-        public object Data { get; set; }
+        public object? Data { get; set; }
     }
 
     /// <summary>Standard JSON-RPC 2.0 error codes.</summary>
@@ -121,7 +121,7 @@ namespace StewardessMCPService.Models
         /// Opaque cursor for the next page of tools; null when there are no more pages.
         /// Clients pass this back as <c>params.cursor</c> in the next tools/list call.
         /// </summary>
-        public string NextCursor { get; set; }
+        public string? NextCursor { get; set; }
     }
 
     // ── initialize ───────────────────────────────────────────────────────────────
@@ -133,23 +133,23 @@ namespace StewardessMCPService.Models
     public sealed class McpInitializeParams
     {
         /// <summary>Protocol version the client supports, e.g. "2024-11-05".</summary>
-        public string ProtocolVersion { get; set; }
+        public string ProtocolVersion { get; set; } = null!;
 
         /// <summary>Capabilities the client declares (roots, sampling, etc.).</summary>
-        public McpClientCapabilities Capabilities { get; set; }
+        public McpClientCapabilities Capabilities { get; set; } = null!;
 
         /// <summary>Identifying information about the connecting MCP client.</summary>
-        public McpClientInfo ClientInfo { get; set; }
+        public McpClientInfo ClientInfo { get; set; } = null!;
     }
 
     /// <summary>Capabilities declared by the MCP client during initialization.</summary>
     public sealed class McpClientCapabilities
     {
         /// <summary>True when the client supports roots list changes.</summary>
-        public McpRootsCapability Roots { get; set; }
+        public McpRootsCapability? Roots { get; set; }
 
         /// <summary>True when the client supports sampling.</summary>
-        public object Sampling { get; set; }
+        public object? Sampling { get; set; }
     }
 
     /// <summary>Indicates whether the client supports roots list-changed notifications.</summary>
@@ -163,35 +163,35 @@ namespace StewardessMCPService.Models
     public sealed class McpClientInfo
     {
         /// <summary>Client application name.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>Client application version string.</summary>
-        public string Version { get; set; }
+        public string Version { get; set; } = null!;
     }
 
     /// <summary>Server response to <c>initialize</c>.</summary>
     public sealed class McpInitializeResult
     {
         /// <summary>Protocol version this server supports.  Must match or be compatible with the client's request.</summary>
-        public string ProtocolVersion { get; set; }
+        public string ProtocolVersion { get; set; } = null!;
 
         /// <summary>Server capabilities declared during initialization.</summary>
-        public McpInitializeServerCapabilities Capabilities { get; set; }
+        public McpInitializeServerCapabilities Capabilities { get; set; } = null!;
 
         /// <summary>Identifying information about this MCP server.</summary>
-        public McpServerInfo ServerInfo { get; set; }
+        public McpServerInfo ServerInfo { get; set; } = null!;
 
         /// <summary>Optional human-readable instructions for the LLM about how to use this server.</summary>
-        public string Instructions { get; set; }
+        public string? Instructions { get; set; }
     }
 
     /// <summary>Server capabilities declared during MCP initialization.</summary>
     public sealed class McpInitializeServerCapabilities
     {
         /// <summary>Declared when the server supports tools.</summary>
-        public McpToolsCapability Tools { get; set; }
+        public McpToolsCapability? Tools { get; set; }
 
         /// <summary>Declared when the server supports logging level control.</summary>
-        public object Logging { get; set; }
+        public object? Logging { get; set; }
     }
 
     /// <summary>Declares that this server exposes a <c>tools</c> capability.</summary>
@@ -205,9 +205,9 @@ namespace StewardessMCPService.Models
     public sealed class McpServerInfo
     {
         /// <summary>Server application name.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>Server application version string.</summary>
-        public string Version { get; set; }
+        public string Version { get; set; } = null!;
     }
 
     // ── Tool definition (schema) ─────────────────────────────────────────────────
@@ -219,16 +219,16 @@ namespace StewardessMCPService.Models
     public sealed class McpToolDefinition
     {
         /// <summary>Unique snake_case tool name, e.g. "read_file".</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>Human-readable description shown in agent UI.</summary>
-        public string Description { get; set; }
+        public string Description { get; set; } = null!;
 
         /// <summary>JSON Schema object describing the tool's input parameters.</summary>
-        public McpInputSchema InputSchema { get; set; }
+        public McpInputSchema InputSchema { get; set; } = null!;
 
         /// <summary>Tool category for grouping in the manifest.</summary>
-        public string Category { get; set; }
+        public string? Category { get; set; }
 
         /// <summary>True when this tool performs a write/destructive operation.</summary>
         public bool IsDestructive { get; set; }
@@ -237,7 +237,7 @@ namespace StewardessMCPService.Models
         public bool IsDisabled { get; set; }
 
         /// <summary>Reason the tool is disabled; null when enabled.</summary>
-        public string DisabledReason { get; set; }
+        public string? DisabledReason { get; set; }
 
         /// <summary>Whether this tool supports dry_run execution without side effects.</summary>
         public bool SupportsDryRun { get; set; }
@@ -261,19 +261,19 @@ namespace StewardessMCPService.Models
         public string[] Tags { get; set; } = Array.Empty<string>();
 
         /// <summary>Agent-oriented usage guidance for this tool.</summary>
-        public McpUsageGuidance UsageGuidance { get; set; }
+        public McpUsageGuidance? UsageGuidance { get; set; }
 
         /// <summary>JSON Schema describing the output structure of this tool.</summary>
-        public object OutputSchema { get; set; }
+        public object? OutputSchema { get; set; }
     }
 
     /// <summary>Agent-oriented guidance for when and how to use an MCP tool.</summary>
     public sealed class McpUsageGuidance
     {
         /// <summary>Conditions under which this tool is the right choice.</summary>
-        public string UseWhen { get; set; }
+        public string? UseWhen { get; set; }
         /// <summary>Conditions under which this tool should NOT be used.</summary>
-        public string DoNotUseWhen { get; set; }
+        public string? DoNotUseWhen { get; set; }
         /// <summary>Tools that are commonly invoked after this one in an agent workflow.</summary>
         public string[] TypicalNextTools { get; set; } = Array.Empty<string>();
     }
@@ -306,21 +306,21 @@ namespace StewardessMCPService.Models
     public sealed class McpPropertySchema
     {
         /// <summary>JSON Schema type (e.g. "string", "integer", "boolean", "array", "object").</summary>
-        public string Type { get; set; }
+        public string Type { get; set; } = null!;
         /// <summary>Human-readable description of what this parameter does.</summary>
-        public string Description { get; set; }
+        public string Description { get; set; } = null!;
 
         /// <summary>Default value serialized as a string.</summary>
-        public object Default { get; set; }
+        public object? Default { get; set; }
 
         /// <summary>For enum-type properties.</summary>
-        public List<string> Enum { get; set; }
+        public List<string>? Enum { get; set; }
 
         /// <summary>
         /// For array-type properties. May be a <see cref="McpPropertySchema"/> for simple element
         /// types or an anonymous object for complex object element schemas.
         /// </summary>
-        public object Items { get; set; }
+        public object? Items { get; set; }
 
         /// <summary>Minimum value for numeric parameters.</summary>
         public int? Minimum { get; set; }
@@ -334,7 +334,7 @@ namespace StewardessMCPService.Models
     public sealed class McpToolCallParams
     {
         /// <summary>Name of the tool to invoke.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>Tool arguments as a key-value dictionary.</summary>
         public Dictionary<string, object> Arguments { get; set; } = new Dictionary<string, object>();
@@ -357,13 +357,13 @@ namespace StewardessMCPService.Models
         public string Type { get; set; } = "text";
 
         /// <summary>Text content; populated when Type is "text".</summary>
-        public string Text { get; set; }
+        public string? Text { get; set; }
 
         /// <summary>Base64-encoded image data; populated when Type is "image".</summary>
-        public string Data { get; set; }
+        public string? Data { get; set; }
 
         /// <summary>MIME type; used when Type is "image".</summary>
-        public string MimeType { get; set; }
+        public string? MimeType { get; set; }
 
         /// <summary>Creates a text content item from a plain string.</summary>
         public static McpContent FromText(string text) =>
@@ -388,7 +388,7 @@ namespace StewardessMCPService.Models
         /// <summary>Display name of this service.</summary>
         public string ServiceName { get; set; } = "StewardessMCPService";
         /// <summary>Version of this service.</summary>
-        public string ServiceVersion { get; set; }
+        public string ServiceVersion { get; set; } = null!;
         /// <summary>UTC time when this manifest was generated.</summary>
         public DateTimeOffset GeneratedAt { get; set; }
 
@@ -400,23 +400,23 @@ namespace StewardessMCPService.Models
         public string ManifestFormat { get; set; } = "stewardess-service-manifest/v1";
 
         /// <summary>Service-level approval and safety policies.</summary>
-        public McpPolicies Policies { get; set; }
+        public McpPolicies Policies { get; set; } = null!;
 
         /// <summary>High-level capability flags for this server.</summary>
-        public McpServerCapabilities Capabilities { get; set; }
+        public McpServerCapabilities Capabilities { get; set; } = null!;
         /// <summary>Full list of available tool definitions.</summary>
         public List<McpToolDefinition> Tools { get; set; } = new List<McpToolDefinition>();
         /// <summary>Configured resource limits and allowed-command list.</summary>
-        public McpServerConstraints Constraints { get; set; }
+        public McpServerConstraints Constraints { get; set; } = null!;
         /// <summary>Repository-specific context for the connected AI agent.</summary>
-        public McpRepositoryContext RepositoryContext { get; set; }
+        public McpRepositoryContext RepositoryContext { get; set; } = null!;
 
         /// <summary>
         /// Common error schema used by all tools when an error occurs.
         /// All tools return { "error": { "Code": string, "Message": string, "Context": object? } }
         /// on failure. The Code field contains a machine-readable error code.
         /// </summary>
-        public object CommonErrorSchema { get; set; }
+        public object? CommonErrorSchema { get; set; }
     }
 
     /// <summary>High-level feature flags declared in the capability manifest.</summary>
@@ -454,24 +454,24 @@ namespace StewardessMCPService.Models
         /// <summary>Maximum wall-clock seconds allowed for a single command execution.</summary>
         public int MaxCommandExecutionSeconds { get; set; }
         /// <summary>Shell commands allowed by the configuration whitelist.</summary>
-        public IReadOnlyList<string> AllowedCommands { get; set; }
+        public IReadOnlyList<string> AllowedCommands { get; set; } = null!;
         /// <summary>Folder names that are excluded from all operations.</summary>
-        public IReadOnlyCollection<string> BlockedFolders { get; set; }
+        public IReadOnlyCollection<string> BlockedFolders { get; set; } = null!;
         /// <summary>File extensions that are excluded from all operations.</summary>
-        public IReadOnlyCollection<string> BlockedExtensions { get; set; }
+        public IReadOnlyCollection<string> BlockedExtensions { get; set; } = null!;
     }
 
     /// <summary>Repository-specific context provided to the connected AI agent.</summary>
     public sealed class McpRepositoryContext
     {
         /// <summary>Friendly name of the repository (derived from the root folder name).</summary>
-        public string RepositoryName { get; set; }
+        public string RepositoryName { get; set; } = null!;
         /// <summary>Absolute path of the configured repository root.</summary>
-        public string RepositoryRoot { get; set; }
+        public string RepositoryRoot { get; set; } = null!;
         /// <summary>True when the root is a valid git repository.</summary>
         public bool IsGitRepository { get; set; }
         /// <summary>Currently checked-out branch name; null when not a git repository.</summary>
-        public string CurrentBranch { get; set; }
+        public string? CurrentBranch { get; set; }
     }
 
     // ── Ping ─────────────────────────────────────────────────────────────────────
@@ -484,6 +484,6 @@ namespace StewardessMCPService.Models
         /// <summary>UTC time at which the ping was processed.</summary>
         public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
         /// <summary>Running version of this service.</summary>
-        public string ServiceVersion { get; set; }
+        public string ServiceVersion { get; set; } = null!;
     }
 }

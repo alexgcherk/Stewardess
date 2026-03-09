@@ -314,10 +314,11 @@ namespace StewardessMCPService.Tests.Mcp
         public async Task PrintTree_ItemsHaveRequiredFields()
         {
             var result = await InvokeAsync(PrintTree);
-            var items  = (JArray)result["items"];
-            Assert.NotEmpty(items);
+            var items  = (JArray?)result["items"];
+            Assert.NotNull(items);
+            Assert.NotEmpty(items!);
 
-            foreach (var item in items)
+            foreach (var item in items!)
             {
                 Assert.NotNull(item["path"]);
                 Assert.NotNull(item["name"]);
@@ -678,8 +679,8 @@ namespace StewardessMCPService.Tests.Mcp
             Assert.NotNull(items);
             Assert.NotEmpty(items);
 
-            Assert.True(items.Any(i => i["name"]?.Value<string>()
-                .Equals("Class1.cs", StringComparison.OrdinalIgnoreCase) == true),
+            Assert.True(items!.Any(i => i["name"]?.Value<string>()
+                ?.Equals("Class1.cs", StringComparison.OrdinalIgnoreCase) == true),
                 "Expected to find 'Class1.cs'");
         }
 
@@ -799,11 +800,12 @@ namespace StewardessMCPService.Tests.Mcp
                 Assert.Equal("Class1.cs", item["name"]?.Value<string>(), StringComparer.OrdinalIgnoreCase);
         }
 
-        private async Task<JObject> InvokeAsync(string toolName, object args = null)
+        private async Task<JObject> InvokeAsync(string toolName, object? args = null)
         {
             var dictArgs = args == null
                 ? new Dictionary<string, object>()
-                : JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(args));
+                : JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(args))
+                  ?? new Dictionary<string, object>();
 
             var result = await _registry.InvokeAsync(toolName, dictArgs, CancellationToken.None);
 

@@ -38,18 +38,18 @@ namespace StewardessMCPService.Controllers
         {
             if (body == null)
             {
-                var errResp = McpResponse.Err(null, McpErrorCodes.ParseError, "Request body is missing or not valid JSON.");
+                var errResp = McpResponse.Err(null!, McpErrorCodes.ParseError, "Request body is missing or not valid JSON.");
                 return JsonResponse(errResp);
             }
 
             McpRequest request;
             try
             {
-                request = body.ToObject<McpRequest>();
+                request = body.ToObject<McpRequest>()!;
             }
             catch (Exception ex)
             {
-                var errResp = McpResponse.Err(null, McpErrorCodes.ParseError, $"Failed to parse request: {ex.Message}");
+                var errResp = McpResponse.Err(null!, McpErrorCodes.ParseError, $"Failed to parse request: {ex.Message}");
                 return JsonResponse(errResp);
             }
 
@@ -91,7 +91,7 @@ namespace StewardessMCPService.Controllers
 
             // Best-effort git context — failures are swallowed.
             bool  isGit  = false;
-            string branch = null;
+            string? branch = null;
             try
             {
                 isGit  = await GitService.IsGitRepositoryAsync(ct).ConfigureAwait(false);
@@ -140,7 +140,7 @@ namespace StewardessMCPService.Controllers
                     // Do not expose the full server-side absolute path; return only the leaf name.
                     RepositoryRoot  = System.IO.Path.GetFileName(Settings.RepositoryRoot.TrimEnd('\\', '/')),
                     IsGitRepository = isGit,
-                    CurrentBranch   = branch
+                    CurrentBranch   = branch!
                 },
 
                 Tools = new System.Collections.Generic.List<McpToolDefinition>(tools)

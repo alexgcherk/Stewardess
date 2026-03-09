@@ -107,9 +107,10 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         {
             var response = await _client.GetAsync("/api/repo-browser/tree");
             var data     = await ReadDataAsync(response);
-            var items    = (JArray)data["items"];
+            var items    = (JArray?)data["items"];
+            Assert.NotNull(items);
 
-            foreach (var item in items)
+            foreach (var item in items!)
             {
                 Assert.NotNull(item["path"]);
                 Assert.NotNull(item["name"]);

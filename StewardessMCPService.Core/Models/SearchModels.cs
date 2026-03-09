@@ -13,7 +13,7 @@ namespace StewardessMCPService.Models
         public string SearchPath { get; set; } = "";
 
         /// <summary>Restrict to these file extensions (e.g. ".cs", ".json").  Empty = all.</summary>
-        public List<string> Extensions { get; set; }
+        public List<string>? Extensions { get; set; }
 
         /// <summary>Maximum number of results to return.  Capped at server limit.</summary>
         public int MaxResults { get; set; } = 100;
@@ -34,7 +34,7 @@ namespace StewardessMCPService.Models
     public sealed class SearchTextRequest : SearchRequestBase
     {
         /// <summary>Literal text to search for.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
 
         /// <summary>Case-insensitive search (default true).</summary>
         public bool IgnoreCase { get; set; } = true;
@@ -49,7 +49,7 @@ namespace StewardessMCPService.Models
     public sealed class SearchRegexRequest : SearchRequestBase
     {
         /// <summary>.NET regular expression pattern.</summary>
-        public string Pattern { get; set; }
+        public string Pattern { get; set; } = null!;
 
         /// <summary>Case-insensitive (default true).</summary>
         public bool IgnoreCase { get; set; } = true;
@@ -64,7 +64,7 @@ namespace StewardessMCPService.Models
     public sealed class SearchFileNamesRequest
     {
         /// <summary>Name substring or wildcard pattern (*, ?) to match against file names.</summary>
-        public string Pattern { get; set; }
+        public string Pattern { get; set; } = null!;
 
         /// <summary>Sub-directory to search in; empty = repository root.</summary>
         public string SearchPath { get; set; } = "";
@@ -103,7 +103,7 @@ namespace StewardessMCPService.Models
     public sealed class SearchSymbolRequest : SearchRequestBase
     {
         /// <summary>Symbol name or partial name to search for.</summary>
-        public string SymbolName { get; set; }
+        public string SymbolName { get; set; } = null!;
 
         /// <summary>Symbol kind filter: "class", "interface", "method", "property", "field", "" (all).</summary>
         public string SymbolKind { get; set; } = "";
@@ -118,7 +118,7 @@ namespace StewardessMCPService.Models
     public sealed class FindReferencesRequest : SearchRequestBase
     {
         /// <summary>Identifier name whose usages (textual references) should be found.</summary>
-        public string IdentifierName { get; set; }
+        public string IdentifierName { get; set; } = null!;
 
         /// <summary>When true, performs a case-insensitive comparison.</summary>
         public bool IgnoreCase { get; set; } = false;
@@ -144,7 +144,7 @@ namespace StewardessMCPService.Models
         public bool Truncated { get; set; }
 
         /// <summary>The effective query used after normalisation.</summary>
-        public string EffectiveQuery { get; set; }
+        public string EffectiveQuery { get; set; } = null!;
 
         /// <summary>Search duration in milliseconds.</summary>
         public long ElapsedMs { get; set; }
@@ -166,9 +166,9 @@ namespace StewardessMCPService.Models
     public sealed class FileSearchResult
     {
         /// <summary>Repository-relative path of the file.</summary>
-        public string RelativePath { get; set; }
+        public string RelativePath { get; set; } = null!;
         /// <summary>File name without path.</summary>
-        public string FileName { get; set; }
+        public string FileName { get; set; } = null!;
         /// <summary>Number of individual matches within this file.</summary>
         public int MatchCount { get; set; }
         /// <summary>Per-line match details.</summary>
@@ -185,10 +185,10 @@ namespace StewardessMCPService.Models
         public int Column { get; set; }
 
         /// <summary>The matching text fragment.</summary>
-        public string MatchText { get; set; }
+        public string MatchText { get; set; } = null!;
 
         /// <summary>Full content of the matching line.</summary>
-        public string LineText { get; set; }
+        public string LineText { get; set; } = null!;
 
         /// <summary>Context lines before the match.</summary>
         public List<string> ContextBefore { get; set; } = new List<string>();
@@ -225,11 +225,11 @@ namespace StewardessMCPService.Models
     public sealed class FileNameMatch
     {
         /// <summary>Repository-relative path of the matched file.</summary>
-        public string RelativePath { get; set; }
+        public string RelativePath { get; set; } = null!;
         /// <summary>File name without path.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>File extension including the leading dot.</summary>
-        public string Extension { get; set; }
+        public string? Extension { get; set; }
         /// <summary>File size in bytes.</summary>
         public long SizeBytes { get; set; }
     }

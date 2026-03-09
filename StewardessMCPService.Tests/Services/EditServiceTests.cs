@@ -600,10 +600,10 @@ namespace StewardessMCPService.Tests.Services
             var r = await _svc.WriteFileAsync(new WriteFileRequest
             { Path = "once.cs", Content = "v2", Options = new EditOptions { CreateBackup = true } });
 
-            await _svc.RollbackAsync(new RollbackRequest { RollbackToken = r.RollbackToken });
+            await _svc.RollbackAsync(new RollbackRequest { RollbackToken = r.RollbackToken! });
             // Token is now consumed — second use must fail.
             await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-                _svc.RollbackAsync(new RollbackRequest { RollbackToken = r.RollbackToken }));
+                _svc.RollbackAsync(new RollbackRequest { RollbackToken = r.RollbackToken! }));
         }
 
         // ── PreviewChanges ───────────────────────────────────────────────────────

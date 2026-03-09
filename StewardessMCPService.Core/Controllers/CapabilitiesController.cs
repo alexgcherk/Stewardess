@@ -394,14 +394,14 @@ namespace StewardessMCPService.Controllers
             // ── Property helpers ──────────────────────────────────────────────────
 
             /// <summary>Optional property.</summary>
-            public (string, bool, McpPropertySchema) P(string name, string type, string description, object def = null)
-                => (name, false, new McpPropertySchema { Type = type, Description = description, Default = def,
-                       Items = type == "array" ? new McpPropertySchema { Type = "string" } : null });
+            public (string, bool, McpPropertySchema) P(string name, string type, string description, object? def = null)
+                => (name, false, new McpPropertySchema { Type = type, Description = description, Default = def!,
+                       Items = type == "array" ? new McpPropertySchema { Type = "string" } : null! });
 
             /// <summary>Required property.</summary>
             public (string, bool, McpPropertySchema) PR(string name, string type, string description)
                 => (name, true, new McpPropertySchema { Type = type, Description = description,
-                       Items = type == "array" ? new McpPropertySchema { Type = "string" } : null });
+                       Items = type == "array" ? new McpPropertySchema { Type = "string" } : null! });
 
             // ── Tool construction ─────────────────────────────────────────────────
 
@@ -423,7 +423,7 @@ namespace StewardessMCPService.Controllers
                     Description    = description,
                     IsDestructive  = destructive,
                     IsDisabled     = !enabled,
-                    DisabledReason = !enabled ? "Disabled in read-only mode or by configuration." : null,
+                    DisabledReason = !enabled ? "Disabled in read-only mode or by configuration." : null!,
                     InputSchema    = schema
                 };
             }

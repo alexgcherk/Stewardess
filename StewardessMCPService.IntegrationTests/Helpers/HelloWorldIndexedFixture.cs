@@ -93,7 +93,7 @@ namespace StewardessMCPService.IntegrationTests.Helpers
         /// Snapshot ID returned by the <c>code_index.build</c> call during
         /// fixture initialisation.  Null only if the build unexpectedly fails.
         /// </summary>
-        public string SnapshotId { get; }
+        public string? SnapshotId { get; }
 
         /// <summary>
         /// Relative path of the sample C# file written into the repo.

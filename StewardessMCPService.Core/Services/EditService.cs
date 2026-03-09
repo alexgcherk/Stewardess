@@ -42,8 +42,8 @@ namespace StewardessMCPService.Services
 
         private sealed class RollbackEntry
         {
-            public string          TargetRelativePath { get; set; }
-            public string          BackupAbsolutePath { get; set; }
+            public string          TargetRelativePath { get; set; } = null!;
+            public string          BackupAbsolutePath { get; set; } = null!;
             public DateTimeOffset  CreatedAt          { get; set; }
         }
 
@@ -201,7 +201,7 @@ namespace StewardessMCPService.Services
                 throw new FileNotFoundException($"Source path not found: {relSource}");
 
             var destAbs = ResolveWritePath(
-                _pathValidator.ToRelativePath(Path.Combine(Path.GetDirectoryName(sourceAbs), request.NewName)));
+                _pathValidator.ToRelativePath(Path.Combine(Path.GetDirectoryName(sourceAbs)!, request.NewName)));
             var relDest = _pathValidator.ToRelativePath(destAbs);
 
             if (opts.DryRun)
@@ -778,7 +778,7 @@ namespace StewardessMCPService.Services
             {
                 RelativePath = r.RelativePath,
                 Operation    = r.Operation,
-                UnifiedDiff  = r.Diff,
+                UnifiedDiff  = r.Diff!,
                 LinesAdded   = CountDiffLines(r.Diff, '+'),
                 LinesRemoved = CountDiffLines(r.Diff, '-')
             }).ToList();
@@ -804,9 +804,9 @@ namespace StewardessMCPService.Services
                 throw new InvalidOperationException("Service is configured in read-only mode.");
         }
 
-        private void CheckApprovalIfRequired(string token)
+        private void CheckApprovalIfRequired(string? token)
         {
-            if (_settings.RequireApprovalForDestructive && !_securityService.ValidateApprovalToken(token))
+            if (_settings.RequireApprovalForDestructive && !_securityService.ValidateApprovalToken(token!))
                 throw new UnauthorizedAccessException(
                     "An approval token is required for this destructive operation.");
         }
@@ -1175,7 +1175,7 @@ namespace StewardessMCPService.Services
         ///   "+++ path/to/file.cs"               (unified diff without b/ prefix)
         /// Returns null if no path can be extracted.
         /// </summary>
-        private static string TryExtractPathFromPatch(string patchText)
+        private static string? TryExtractPathFromPatch(string patchText)
         {
             if (string.IsNullOrWhiteSpace(patchText)) return null;
 
@@ -1238,7 +1238,7 @@ namespace StewardessMCPService.Services
 
         private async Task<EditResult> DispatchBatchItem(
             BatchEditItem item, bool dryRun,
-            string changeReason, string sessionId, CancellationToken ct)
+            string? changeReason, string? sessionId, CancellationToken ct)
         {
             if (item == null)                               throw new ArgumentNullException(nameof(item));
             if (string.IsNullOrWhiteSpace(item.Path))       throw new ArgumentException("Batch item Path is required.");
@@ -1252,14 +1252,14 @@ namespace StewardessMCPService.Services
                     return await WriteFileAsync(new WriteFileRequest
                     {
                         Path = item.Path, Content = item.Content ?? string.Empty,
-                        Encoding = item.Encoding, Options = opts
+                        Encoding = item.Encoding!, Options = opts
                     }, ct);
 
                 case "create_file":
                     return await CreateFileAsync(new CreateFileRequest
                     {
                         Path = item.Path, Content = item.Content ?? string.Empty,
-                        Encoding = item.Encoding, Options = opts
+                        Encoding = item.Encoding!, Options = opts
                     }, ct);
 
                 case "delete_file":
@@ -1273,7 +1273,7 @@ namespace StewardessMCPService.Services
                 case "replace_text":
                     return await ReplaceTextAsync(new ReplaceTextRequest
                     {
-                        Path = item.Path, OldText = item.OldText, NewText = item.NewText ?? string.Empty,
+                        Path = item.Path, OldText = item.OldText!, NewText = item.NewText ?? string.Empty,
                         IgnoreCase = item.IgnoreCase, Options = opts
                     }, ct);
 
@@ -1286,7 +1286,7 @@ namespace StewardessMCPService.Services
 
                 case "patch_file":
                     return await PatchFileAsync(new PatchFileRequest
-                    { Path = item.Path, Patch = item.Patch, Options = opts }, ct);
+                    { Path = item.Path, Patch = item.Patch!, Options = opts }, ct);
 
                 default:
                     throw new ArgumentException($"Unknown batch operation: '{item.Operation}'.");
@@ -1323,7 +1323,7 @@ namespace StewardessMCPService.Services
             return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
         }
 
-        private static string NormalizeLineEndings(string content, string style, string existingContent)
+        private static string NormalizeLineEndings(string content, string style, string? existingContent)
         {
             if (string.IsNullOrEmpty(style)
                 || style.Equals("auto", StringComparison.OrdinalIgnoreCase))
@@ -1376,10 +1376,10 @@ namespace StewardessMCPService.Services
             return sb.ToString();
         }
 
-        private static string Truncate(string s, int max) =>
+        private static string? Truncate(string? s, int max) =>
             s != null && s.Length > max ? s.Substring(0, max) + "…" : s;
 
-        private static int CountDiffLines(string diff, char op)
+        private static int CountDiffLines(string? diff, char op)
         {
             if (string.IsNullOrEmpty(diff)) return 0;
             return diff.Split('\n')
@@ -1405,7 +1405,7 @@ namespace StewardessMCPService.Services
         // ═══════════════════════════════════════════════════════════════════════
 
         private Task Audit(EditOptions opts, string opName, string relPath,
-                           AuditOutcome outcome, string backupPath,
+                           AuditOutcome outcome, string? backupPath,
                            long elapsedMs, CancellationToken ct) =>
             _auditService.LogOperationAsync(
                 requestId     : Guid.NewGuid().ToString("N"),
@@ -1446,7 +1446,7 @@ namespace StewardessMCPService.Services
         // ═══════════════════════════════════════════════════════════════════════
 
         private static EditResult DryRunResult(
-            string relPath, string op, string diff, int affected) =>
+            string relPath, string op, string? diff, int affected) =>
             new EditResult
             {
                 Success       = true,
@@ -1458,8 +1458,8 @@ namespace StewardessMCPService.Services
             };
 
         private static EditResult SuccessResult(
-            string relPath, string op, string diff, int affected,
-            string backupPath, string rollbackToken) =>
+            string relPath, string op, string? diff, int affected,
+            string? backupPath, string? rollbackToken) =>
             new EditResult
             {
                 Success       = true,

@@ -18,19 +18,19 @@ namespace StewardessMCPService.Controllers
         // ── Service resolution ───────────────────────────────────────────────────
 
         private McpServiceSettings Settings =>
-            HttpContext.RequestServices.GetService(typeof(McpServiceSettings)) as McpServiceSettings;
+            (HttpContext.RequestServices.GetService(typeof(McpServiceSettings)) as McpServiceSettings)!;
 
         private IFileSystemService FileService =>
-            HttpContext.RequestServices.GetService(typeof(IFileSystemService)) as IFileSystemService;
+            (HttpContext.RequestServices.GetService(typeof(IFileSystemService)) as IFileSystemService)!;
 
         private IEditService EditService =>
-            HttpContext.RequestServices.GetService(typeof(IEditService)) as IEditService;
+            (HttpContext.RequestServices.GetService(typeof(IEditService)) as IEditService)!;
 
         private IGitService GitService =>
-            HttpContext.RequestServices.GetService(typeof(IGitService)) as IGitService;
+            (HttpContext.RequestServices.GetService(typeof(IGitService)) as IGitService)!;
 
         private ISearchService SearchService =>
-            HttpContext.RequestServices.GetService(typeof(ISearchService)) as ISearchService;
+            (HttpContext.RequestServices.GetService(typeof(ISearchService)) as ISearchService)!;
 
         // ── Exception handler ────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ namespace StewardessMCPService.Controllers
             {
                 Id          = name,
                 Name        = name,
-                Description = null,
+                Description = null!,
                 Private     = false,
                 Owner       = new ApiUser { Id = "local", Username = Environment.UserName, Email = "" },
                 CreatedAt   = dirInfo.Exists ? (DateTimeOffset?)new DateTimeOffset(dirInfo.CreationTimeUtc) : null,
@@ -169,7 +169,7 @@ namespace StewardessMCPService.Controllers
                 var files = result.Matches.Select(m => new ApiFile
                 {
                     Path         = m.RelativePath,
-                    Content      = null,
+                    Content      = null!,
                     Encoding     = "utf-8",
                     LastModified = null
                 }).ToList();
@@ -207,7 +207,7 @@ namespace StewardessMCPService.Controllers
                 return Ok(new ApiFile
                 {
                     Path         = filePath,
-                    Content      = result.Content,
+                    Content      = result.Content!,
                     Encoding     = result.Encoding ?? "utf-8",
                     LastModified = lastModified
                 });
@@ -314,8 +314,8 @@ namespace StewardessMCPService.Controllers
 
                 var commit = await GitService.CreateCommitAsync(
                     request.Message,
-                    request.Author?.Username,
-                    request.Author?.Email,
+                    request.Author?.Username!,
+                    request.Author?.Email!,
                     files,
                     ct).ConfigureAwait(false);
 

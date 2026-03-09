@@ -12,7 +12,7 @@ namespace StewardessMCPService.Infrastructure
     ///
     /// All file access MUST go through this class.  The implementation:
     ///   1. Rejects null/empty paths.
-    ///   2. Strips and normalises the path with <see cref="Path.GetFullPath"/>.
+    ///   2. Strips and normalises the path with <see cref="Path.GetFullPath(string)"/>.
     ///   3. Ensures the normalised absolute path starts with RepositoryRoot.
     ///   4. Checks the path against blocked-folder and blocked-extension lists.
     ///
@@ -60,7 +60,7 @@ namespace StewardessMCPService.Infrastructure
         /// On failure, an empty string.
         /// </param>
         /// <returns>A <see cref="ValidationResult"/> describing the outcome.</returns>
-        public ValidationResult Validate(string relativePath, out string absolutePath)
+        public ValidationResult Validate(string? relativePath, out string absolutePath)
         {
             absolutePath = string.Empty;
 
@@ -107,7 +107,7 @@ namespace StewardessMCPService.Infrastructure
         /// verifies that no path segment is in the blocked-folders list and that
         /// the file extension is not blocked.
         /// </summary>
-        public ValidationResult ValidateRead(string relativePath, out string absolutePath)
+        public ValidationResult ValidateRead(string? relativePath, out string absolutePath)
         {
             var baseResult = Validate(relativePath, out absolutePath);
             if (!baseResult.IsValid) return baseResult;
@@ -120,7 +120,7 @@ namespace StewardessMCPService.Infrastructure
         /// blocked-extension enforcement that is slightly stricter (no overwriting
         /// compiled artifacts).
         /// </summary>
-        public ValidationResult ValidateWrite(string relativePath, out string absolutePath)
+        public ValidationResult ValidateWrite(string? relativePath, out string absolutePath)
         {
             var baseResult = Validate(relativePath, out absolutePath);
             if (!baseResult.IsValid) return baseResult;
@@ -254,9 +254,9 @@ namespace StewardessMCPService.Infrastructure
         /// <summary>True when the path passed all validation checks.</summary>
         public bool IsValid { get; private set; }
         /// <summary>Machine-readable error code when validation failed; null on success.</summary>
-        public string ErrorCode { get; private set; }
+        public string ErrorCode { get; private set; } = null!;
         /// <summary>Human-readable error message when validation failed; null on success.</summary>
-        public string ErrorMessage { get; private set; }
+        public string ErrorMessage { get; private set; } = null!;
 
         private ValidationResult() { }
 

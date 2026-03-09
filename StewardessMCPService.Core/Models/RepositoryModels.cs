@@ -11,25 +11,25 @@ namespace StewardessMCPService.Models
     public sealed class RepositoryInfoResponse
     {
         /// <summary>Absolute path of the repository root on the server.</summary>
-        public string RepositoryRoot { get; set; }
+        public string RepositoryRoot { get; set; } = null!;
 
         /// <summary>Name of the root directory (last path segment).</summary>
-        public string RepositoryName { get; set; }
+        public string RepositoryName { get; set; } = null!;
 
         /// <summary>True when the service is in read-only mode.</summary>
         public bool ReadOnlyMode { get; set; }
 
         /// <summary>Service version string.</summary>
-        public string ServiceVersion { get; set; }
+        public string ServiceVersion { get; set; } = null!;
 
         /// <summary>UTC timestamp of the server clock (allows agent clock sync).</summary>
         public DateTimeOffset ServerTime { get; set; }
 
         /// <summary>Active security policy summary.</summary>
-        public RepositoryPolicyInfo Policy { get; set; }
+        public RepositoryPolicyInfo Policy { get; set; } = null!;
 
         /// <summary>Git information if the repository is a Git repo.</summary>
-        public GitRepoSummary GitInfo { get; set; }
+        public GitRepoSummary? GitInfo { get; set; }
     }
 
     /// <summary>Summary of the active security / filtering policy.</summary>
@@ -44,11 +44,11 @@ namespace StewardessMCPService.Models
         /// <summary>True when destructive operations require an approval token.</summary>
         public bool ApprovalRequiredForDestructive { get; set; }
         /// <summary>Folder names that are blocked from access.</summary>
-        public IReadOnlyList<string> BlockedFolders { get; set; }
+        public IReadOnlyList<string> BlockedFolders { get; set; } = null!;
         /// <summary>File extensions that are blocked from access.</summary>
-        public IReadOnlyList<string> BlockedExtensions { get; set; }
+        public IReadOnlyList<string> BlockedExtensions { get; set; } = null!;
         /// <summary>When non-empty, only these file extensions are accessible.</summary>
-        public IReadOnlyList<string> AllowedExtensions { get; set; }
+        public IReadOnlyList<string> AllowedExtensions { get; set; } = null!;
         /// <summary>Maximum number of bytes that can be read from a single file.</summary>
         public long MaxFileReadBytes { get; set; }
         /// <summary>Maximum number of search results returned per query.</summary>
@@ -63,11 +63,11 @@ namespace StewardessMCPService.Models
         /// <summary>True when the repository root is a valid git repository.</summary>
         public bool IsGitRepository { get; set; }
         /// <summary>Name of the currently checked-out branch.</summary>
-        public string CurrentBranch { get; set; }
+        public string? CurrentBranch { get; set; }
         /// <summary>Full SHA of the HEAD commit.</summary>
-        public string HeadCommitSha { get; set; }
+        public string? HeadCommitSha { get; set; }
         /// <summary>Subject line of the HEAD commit message.</summary>
-        public string HeadCommitMessage { get; set; }
+        public string? HeadCommitMessage { get; set; }
         /// <summary>True when staged or unstaged changes are present.</summary>
         public bool HasUncommittedChanges { get; set; }
     }
@@ -84,7 +84,7 @@ namespace StewardessMCPService.Models
         public bool IncludeBlocked { get; set; } = false;
 
         /// <summary>Filter entries by name pattern using simple wildcard (* and ?).</summary>
-        public string NamePattern { get; set; }
+        public string? NamePattern { get; set; }
 
         /// <summary>
         /// Sort order for entries: "name" (default, alphabetical) or "size" (largest files first).
@@ -96,10 +96,10 @@ namespace StewardessMCPService.Models
     public sealed class ListDirectoryResponse
     {
         /// <summary>Relative path of the listed directory.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
 
         /// <summary>Absolute path (server-side; informational).</summary>
-        public string AbsolutePath { get; set; }
+        public string AbsolutePath { get; set; } = null!;
 
         /// <summary>Directory entries (files and subdirectories).</summary>
         public List<DirectoryEntry> Entries { get; set; } = new List<DirectoryEntry>();
@@ -115,19 +115,19 @@ namespace StewardessMCPService.Models
     public sealed class DirectoryEntry
     {
         /// <summary>Entry name (file or directory name only, not a full path).</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>Path relative to the repository root.</summary>
-        public string RelativePath { get; set; }
+        public string RelativePath { get; set; } = null!;
 
         /// <summary>"file" or "directory".</summary>
-        public string Type { get; set; }
+        public string Type { get; set; } = null!;
 
         /// <summary>File size in bytes; null for directories.</summary>
         public long? SizeBytes { get; set; }
 
         /// <summary>File extension including the leading dot; null for directories.</summary>
-        public string Extension { get; set; }
+        public string? Extension { get; set; }
 
         /// <summary>UTC last-write time.</summary>
         public DateTimeOffset LastModified { get; set; }
@@ -154,16 +154,16 @@ namespace StewardessMCPService.Models
         public bool DirectoriesOnly { get; set; } = false;
 
         /// <summary>Restrict files to these extensions (empty = all).</summary>
-        public List<string> ExtensionFilter { get; set; }
+        public List<string>? ExtensionFilter { get; set; }
     }
 
     /// <summary>Result of a recursive tree listing.</summary>
     public sealed class ListTreeResponse
     {
         /// <summary>Repository-relative path of the tree root.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
         /// <summary>Root node of the tree.</summary>
-        public TreeNode Root { get; set; }
+        public TreeNode Root { get; set; } = null!;
         /// <summary>Total number of files in the tree.</summary>
         public int TotalFiles { get; set; }
         /// <summary>Total number of directories in the tree.</summary>
@@ -176,22 +176,22 @@ namespace StewardessMCPService.Models
     public sealed class TreeNode
     {
         /// <summary>Entry name (file or directory name without path).</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>Path relative to repository root.</summary>
-        public string RelativePath { get; set; }
+        public string RelativePath { get; set; } = null!;
         /// <summary>"file" or "directory".</summary>
-        public string Type { get; set; }
+        public string Type { get; set; } = null!;
         /// <summary>File size in bytes; null for directories.</summary>
         public long? SizeBytes { get; set; }
         /// <summary>File extension including the leading dot; null for directories.</summary>
-        public string Extension { get; set; }
+        public string? Extension { get; set; }
         /// <summary>UTC last-write time.</summary>
         public DateTimeOffset LastModified { get; set; }
         /// <summary>True when this entry is in the blocked-folders list.</summary>
         public bool IsBlocked { get; set; }
 
         /// <summary>Child nodes; null for files or unexpanded/blocked directories.</summary>
-        public List<TreeNode> Children { get; set; }
+        public List<TreeNode>? Children { get; set; }
     }
 
     // ── file_exists / directory_exists ──────────────────────────────────────────
@@ -200,18 +200,18 @@ namespace StewardessMCPService.Models
     public sealed class PathExistsRequest
     {
         /// <summary>Path to check, relative to repository root.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
     }
 
     /// <summary>Response indicating whether a given path exists and its type.</summary>
     public sealed class PathExistsResponse
     {
         /// <summary>The path that was checked, relative to repository root.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
         /// <summary>True when the path exists on disk.</summary>
         public bool Exists { get; set; }
         /// <summary>"file", "directory", or "none".</summary>
-        public string Type { get; set; }  // "file" | "directory" | "none"
+        public string Type { get; set; } = null!;  // "file" | "directory" | "none"
     }
 
     // ── get_file_metadata ────────────────────────────────────────────────────────
@@ -220,22 +220,22 @@ namespace StewardessMCPService.Models
     public sealed class FileMetadataRequest
     {
         /// <summary>Path relative to repository root.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
     }
 
     /// <summary>Detailed metadata for a single file or directory.</summary>
     public sealed class FileMetadataResponse
     {
         /// <summary>Repository-relative path.</summary>
-        public string RelativePath { get; set; }
+        public string RelativePath { get; set; } = null!;
         /// <summary>Absolute path on disk (server-side; informational).</summary>
-        public string AbsolutePath { get; set; }
+        public string AbsolutePath { get; set; } = null!;
         /// <summary>Entry name without path.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>File extension including the leading dot.</summary>
-        public string Extension { get; set; }
+        public string? Extension { get; set; }
         /// <summary>"file" or "directory".</summary>
-        public string Type { get; set; }
+        public string Type { get; set; } = null!;
         /// <summary>Size in bytes (0 for directories).</summary>
         public long SizeBytes { get; set; }
         /// <summary>UTC creation timestamp.</summary>
@@ -247,9 +247,9 @@ namespace StewardessMCPService.Models
         /// <summary>True when the file has the read-only attribute set.</summary>
         public bool IsReadOnly { get; set; }
         /// <summary>Detected file encoding (e.g. "utf-8"); null for directories.</summary>
-        public string Encoding { get; set; }
+        public string? Encoding { get; set; }
         /// <summary>Detected line ending style ("LF", "CRLF", "CR", "Mixed"); null for directories.</summary>
-        public string LineEnding { get; set; }
+        public string? LineEnding { get; set; }
         /// <summary>Number of lines; null for binary files and directories.</summary>
         public int? LineCount { get; set; }
     }

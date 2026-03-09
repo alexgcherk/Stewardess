@@ -24,7 +24,7 @@ namespace StewardessMCPService.Tests.Helpers
         public string CreateFile(string relativePath, string content = "")
         {
             var abs = Abs(relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(abs));
+            Directory.CreateDirectory(Path.GetDirectoryName(abs)!);
             File.WriteAllText(abs, content ?? "");
             return abs;
         }

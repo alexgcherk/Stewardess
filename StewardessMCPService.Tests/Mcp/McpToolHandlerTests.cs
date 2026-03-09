@@ -52,7 +52,7 @@ namespace StewardessMCPService.Tests.Mcp
         /// Converts an object to JObject using the same camelCase settings as the production
         /// JSON formatter (CamelCasePropertyNamesContractResolver).
         /// </summary>
-        private static JObject ToJson(object obj)
+        private static JObject ToJson(object? obj)
         {
             var settings = new Newtonsoft.Json.JsonSerializerSettings
             {
@@ -91,7 +91,7 @@ namespace StewardessMCPService.Tests.Mcp
             Assert.Equal(McpToolHandler.ProtocolVersion, result["protocolVersion"]?.ToString());
             Assert.NotNull(result["serverInfo"]);
             Assert.NotNull(result["capabilities"]);
-            Assert.NotNull(result["capabilities"]["tools"]);
+            Assert.NotNull(result["capabilities"]?["tools"]);
         }
 
         [Fact]
@@ -119,7 +119,7 @@ namespace StewardessMCPService.Tests.Mcp
             var request = new McpRequest
             {
                 JsonRpc = "2.0",
-                Id      = null,
+                Id      = null!,
                 Method  = "initialized"
             };
 
@@ -137,7 +137,7 @@ namespace StewardessMCPService.Tests.Mcp
             var request = new McpRequest
             {
                 JsonRpc = "2.0",
-                Id      = null,
+                Id      = null!,
                 Method  = method
             };
 
@@ -200,7 +200,7 @@ namespace StewardessMCPService.Tests.Mcp
             else
             {
                 // All tools fit on one page — nextCursor must be null/absent.
-                Assert.True(result["nextCursor"] == null || result["nextCursor"].Type == JTokenType.Null);
+                Assert.True(result["nextCursor"] == null || result["nextCursor"]?.Type == JTokenType.Null);
             }
         }
 
@@ -210,9 +210,10 @@ namespace StewardessMCPService.Tests.Mcp
             var request = new McpRequest { JsonRpc = "2.0", Id = 4, Method = "tools/list" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
             var result = ToJson(response.Result);
-            var tools  = (JArray)result["tools"];
+            var tools  = (JArray?)result["tools"];
+            Assert.NotNull(tools);
 
-            foreach (var tool in tools)
+            foreach (var tool in tools!)
             {
                 var name        = tool["name"]?.ToString();
                 var description = tool["description"]?.ToString();
@@ -301,7 +302,7 @@ namespace StewardessMCPService.Tests.Mcp
         {
             var request = new McpRequest { JsonRpc = "1.0", Id = 9, Method = "ping" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.Equal(McpErrorCodes.InvalidRequest, response.Error.Code);
+            Assert.Equal(McpErrorCodes.InvalidRequest, response.Error!.Code);
         }
 
         [Fact]
@@ -309,13 +310,13 @@ namespace StewardessMCPService.Tests.Mcp
         {
             var request = new McpRequest { JsonRpc = "2.0", Id = 10, Method = "nonexistent/method" };
             var response = await _handler.DispatchAsync(request, CancellationToken.None);
-            Assert.Equal(McpErrorCodes.MethodNotFound, response.Error.Code);
+            Assert.Equal(McpErrorCodes.MethodNotFound, response.Error!.Code);
         }
 
         [Fact]
         public async Task Dispatch_NullRequest_ReturnsError()
         {
-            var response = await _handler.DispatchAsync(null, CancellationToken.None);
+            var response = await _handler.DispatchAsync(null!, CancellationToken.None);
             Assert.NotNull(response.Error);
         }
     }

@@ -10,25 +10,40 @@ namespace StewardessMCPService.CodeIndexing.Query;
 /// <summary>Request parameters for <see cref="IIndexQueryService.ListFilesAsync"/>.</summary>
 public sealed class ListFilesRequest
 {
+    /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+    /// <summary>Optional repository root path used to identify the snapshot.</summary>
     public string? RootPath { get; init; }
+    /// <summary>Restricts results to files with one of these language IDs.</summary>
     public IReadOnlyList<string>? LanguageFilter { get; init; }
+    /// <summary>Restricts results to files with one of these eligibility statuses.</summary>
     public IReadOnlyList<EligibilityStatus>? EligibilityFilter { get; init; }
+    /// <summary>Restricts results to files with one of these parse statuses.</summary>
     public IReadOnlyList<ParseStatus>? ParseStatusFilter { get; init; }
+    /// <summary>Restricts results to files whose path starts with this prefix.</summary>
     public string? PathPrefix { get; init; }
+    /// <summary>Whether to include a diagnostic count summary per file.</summary>
     public bool IncludeDiagnosticsSummary { get; init; }
+    /// <summary>One-based page number.</summary>
     public int Page { get; init; } = 1;
+    /// <summary>Page size (default 50).</summary>
     public int PageSize { get; init; } = 50;
 }
 
 /// <summary>Request parameters for <see cref="IIndexQueryService.GetFileOutlineAsync"/>.</summary>
 public sealed class GetFileOutlineRequest
 {
+    /// <summary>Relative file path whose outline should be returned.</summary>
     public required string FilePath { get; init; }
+    /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+    /// <summary>Maximum tree depth to traverse. Null means unlimited.</summary>
     public int? MaxDepth { get; init; }
+    /// <summary>Whether to include non-semantic (structural) nodes in the outline.</summary>
     public bool IncludeNonSemanticNodes { get; init; } = true;
+    /// <summary>Whether to include source span information on each node.</summary>
     public bool IncludeSourceSpans { get; init; } = true;
+    /// <summary>Whether to include extraction confidence scores on each node.</summary>
     public bool IncludeConfidence { get; init; }
 }
 
@@ -37,48 +52,76 @@ public sealed class GetFileOutlineRequest
 /// <summary>A single item in a list-files response.</summary>
 public sealed class FileListItem
 {
+    /// <summary>Unique file identifier within the snapshot.</summary>
     public required string FileId { get; init; }
+    /// <summary>Relative file path.</summary>
     public required string Path { get; init; }
+    /// <summary>Language identifier for this file.</summary>
     public required string LanguageId { get; init; }
+    /// <summary>Hash of the file content at index time.</summary>
     public required string ContentHash { get; init; }
+    /// <summary>Eligibility status assigned to this file.</summary>
     public EligibilityStatus EligibilityStatus { get; init; }
+    /// <summary>Parse status for this file.</summary>
     public ParseStatus ParseStatus { get; init; }
+    /// <summary>Number of top-level structural nodes in this file.</summary>
     public int TopLevelNodeCount { get; init; }
+    /// <summary>Number of diagnostics recorded for this file.</summary>
     public int DiagnosticCount { get; init; }
 }
 
 /// <summary>Paginated list of files from a snapshot.</summary>
 public sealed class ListFilesResponse
 {
+    /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+    /// <summary>File entries for this page.</summary>
     public IReadOnlyList<FileListItem> Items { get; init; } = [];
+    /// <summary>Current page (one-based).</summary>
     public int Page { get; init; }
+    /// <summary>Page size used.</summary>
     public int PageSize { get; init; }
+    /// <summary>Total matching files across all pages.</summary>
     public int TotalItems { get; init; }
+    /// <summary>Whether additional pages are available.</summary>
     public bool HasMore { get; init; }
 }
 
 /// <summary>A structural node suitable for outline display.</summary>
 public sealed class OutlineNode
 {
+    /// <summary>Unique node identifier within the snapshot.</summary>
     public required string NodeId { get; init; }
+    /// <summary>Structural kind of this node.</summary>
     public NodeKind Kind { get; init; }
+    /// <summary>Language-specific sub-kind string, if available.</summary>
     public string? Subkind { get; init; }
+    /// <summary>Simple unqualified name of this node.</summary>
     public required string Name { get; init; }
+    /// <summary>Human-readable display name (e.g., including parameter list).</summary>
     public string DisplayName { get; init; } = string.Empty;
+    /// <summary>Source span of this node, included when requested.</summary>
     public SourceSpan? SourceSpan { get; init; }
+    /// <summary>Extraction confidence score in [0.0, 1.0], included when requested.</summary>
     public double? Confidence { get; init; }
+    /// <summary>Direct child nodes.</summary>
     public IReadOnlyList<OutlineNode> Children { get; init; } = [];
 }
 
 /// <summary>File structural outline response.</summary>
 public sealed class FileOutlineResponse
 {
+    /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+    /// <summary>Unique file identifier within the snapshot.</summary>
     public required string FileId { get; init; }
+    /// <summary>Relative file path.</summary>
     public required string Path { get; init; }
+    /// <summary>Language identifier for this file.</summary>
     public required string LanguageId { get; init; }
+    /// <summary>Parse status for this file.</summary>
     public ParseStatus ParseStatus { get; init; }
+    /// <summary>Top-level structural nodes of the file outline.</summary>
     public IReadOnlyList<OutlineNode> RootNodes { get; init; } = [];
 }
 

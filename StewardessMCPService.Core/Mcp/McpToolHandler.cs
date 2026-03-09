@@ -49,7 +49,7 @@ namespace StewardessMCPService.Mcp
         public async Task<McpResponse> DispatchAsync(McpRequest request, CancellationToken ct = default)
         {
             if (request == null)
-                return McpResponse.Err(null, McpErrorCodes.InvalidRequest, "Request body is null.");
+                return McpResponse.Err(null!, McpErrorCodes.InvalidRequest, "Request body is null.");
 
             if (request.JsonRpc != "2.0")
                 return McpResponse.Err(request.Id, McpErrorCodes.InvalidRequest,
@@ -66,7 +66,7 @@ namespace StewardessMCPService.Mcp
                 request.Method.Equals("initialized", StringComparison.OrdinalIgnoreCase)))
             {
                 _log.Debug($"MCP notification received (no response sent): {request.Method}");
-                return null;
+                return null!;
             }
 
             var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -94,22 +94,22 @@ namespace StewardessMCPService.Mcp
                         break;
 
                     default:
-                        response = McpResponse.Err(request.Id, McpErrorCodes.MethodNotFound,
+                        response = McpResponse.Err(request.Id!, McpErrorCodes.MethodNotFound,
                             $"Unknown method: {request.Method}");
                         break;
                 }
 
-                _log.LogToolCall(request.Method, null, response.Error == null, sw.ElapsedMilliseconds);
+                _log.LogToolCall(request.Method, null!, response.Error == null, sw.ElapsedMilliseconds);
                 return response;
             }
             catch (OperationCanceledException)
             {
-                return McpResponse.Err(request.Id, McpErrorCodes.TimeoutExceeded, "The operation was cancelled.");
+                return McpResponse.Err(request.Id!, McpErrorCodes.TimeoutExceeded, "The operation was cancelled.");
             }
             catch (Exception ex)
             {
                 _log.Error($"Unhandled exception in McpToolHandler.DispatchAsync for method '{request.Method}'", ex);
-                return McpResponse.Err(request.Id, McpErrorCodes.InternalError, "Internal server error.");
+                return McpResponse.Err(request.Id!, McpErrorCodes.InternalError, "Internal server error.");
             }
         }
 
@@ -133,17 +133,17 @@ namespace StewardessMCPService.Mcp
                 Capabilities = new McpInitializeServerCapabilities
                 {
                     Tools   = new McpToolsCapability { ListChanged = false },
-                    Logging = null   // not yet implemented
+                    Logging = null!   // not yet implemented
                 },
                 Instructions = "This is a local source-code repository MCP service. " +
                                "Use tools/list to discover all available tools for reading, " +
                                "searching, editing, and validating code in the repository."
             };
-            return McpResponse.Ok(request.Id, result);
+            return McpResponse.Ok(request.Id!, result);
         }
 
         private static McpResponse HandlePing(McpRequest request) =>
-            McpResponse.Ok(request.Id, new McpPingResult
+            McpResponse.Ok(request.Id!, new McpPingResult
             {
                 Status         = "ok",
                 Timestamp      = DateTimeOffset.UtcNow,
@@ -156,10 +156,10 @@ namespace StewardessMCPService.Mcp
 
             // MCP spec supports cursor-based pagination for tools/list.
             // Extract optional cursor from params (may be null for first page).
-            string cursor = null;
+            string? cursor = null;
             try
             {
-                var p = DeserializeParams<System.Collections.Generic.Dictionary<string, object>>(request.Params);
+                var p = DeserializeParams<System.Collections.Generic.Dictionary<string, object>>(request.Params!);
                 if (p != null && p.TryGetValue("cursor", out var c) && c != null)
                     cursor = c.ToString();
             }
@@ -173,12 +173,12 @@ namespace StewardessMCPService.Mcp
             const int PageSize = 50;
             var page = tools.Skip(offset).Take(PageSize).ToList();
             int nextOffset = offset + page.Count;
-            string nextCursor = nextOffset < tools.Count ? nextOffset.ToString() : null;
+            string? nextCursor = nextOffset < tools.Count ? nextOffset.ToString() : null;
 
-            return McpResponse.Ok(request.Id, new McpListToolsResult
+            return McpResponse.Ok(request.Id!, new McpListToolsResult
             {
                 Tools      = page,
-                NextCursor = nextCursor
+                NextCursor = nextCursor!
             });
         }
 
@@ -188,7 +188,7 @@ namespace StewardessMCPService.Mcp
             McpToolCallParams callParams;
             try
             {
-                callParams = DeserializeParams<McpToolCallParams>(request.Params);
+                callParams = DeserializeParams<McpToolCallParams>(request.Params!);
             }
             catch (Exception ex)
             {
@@ -214,7 +214,7 @@ namespace StewardessMCPService.Mcp
                     callParams.Arguments ?? new Dictionary<string, object>(),
                     ct).ConfigureAwait(false);
 
-                return McpResponse.Ok(request.Id, result);
+                return McpResponse.Ok(request.Id!, result);
             }
             catch (KeyNotFoundException)
             {
@@ -250,11 +250,11 @@ namespace StewardessMCPService.Mcp
         /// </summary>
         private static T DeserializeParams<T>(object raw)
         {
-            if (raw == null) return default;
+            if (raw == null) return default!;
             if (raw is T typed) return typed;
-            if (raw is JObject jobj) return jobj.ToObject<T>();
+            if (raw is JObject jobj) return jobj.ToObject<T>()!;
             var json = JsonConvert.SerializeObject(raw);
-            return JsonConvert.DeserializeObject<T>(json);
+            return JsonConvert.DeserializeObject<T>(json)!;
         }
     }
 }

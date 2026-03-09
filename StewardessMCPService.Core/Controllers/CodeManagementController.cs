@@ -19,7 +19,7 @@ namespace StewardessMCPService.Controllers
         private readonly IEditService _edit;
         private readonly IGitService _git;
         private readonly ICommandService _cmd;
-        private readonly IndexQuery.IIndexQueryService _indexQuery;
+        private readonly IndexQuery.IIndexQueryService? _indexQuery;
 
         public CodeManagementController(
             IFileSystemService fs,
@@ -119,7 +119,7 @@ namespace StewardessMCPService.Controllers
                     Results = matches.Select(m => new CmFileSearchResult
                     {
                         Path = m.RelativePath,
-                        Language = null,
+                        Language = null!,
                         Size = m.SizeBytes > 0 ? (long?)m.SizeBytes : null,
                         Score = null
                     }).ToList()
@@ -218,10 +218,10 @@ namespace StewardessMCPService.Controllers
                     return Ok(new CmReadFileResponse
                     {
                         Path = fileResult.RelativePath,
-                        Etag = ComputeMd5(fileResult.Content),
+                        Etag = ComputeMd5(fileResult.Content!),
                         Encoding = fileResult.Encoding,
                         Newline = MapLineEnding(fileResult.LineEnding),
-                        Content = fileResult.Content,
+                        Content = fileResult.Content!,
                         LineCount = fileResult.LineCount
                     });
                 }
@@ -251,10 +251,10 @@ namespace StewardessMCPService.Controllers
                         files.Add(new CmReadFileResponse
                         {
                             Path = fileResult.RelativePath,
-                            Etag = ComputeMd5(fileResult.Content),
+                            Etag = ComputeMd5(fileResult.Content!),
                             Encoding = fileResult.Encoding,
                             Newline = MapLineEnding(fileResult.LineEnding),
-                            Content = fileResult.Content,
+                            Content = fileResult.Content!,
                             LineCount = fileResult.LineCount
                         });
                     }
@@ -379,7 +379,7 @@ namespace StewardessMCPService.Controllers
                             "unifiedDiff" => await _edit.PatchFileAsync(new PatchFileRequest
                             {
                                 Path = edit.Path,
-                                Patch = edit.UnifiedDiff,
+                                Patch = edit.UnifiedDiff!,
                                 Options = new EditOptions
                                 {
                                     DryRun = req.DryRun,
@@ -390,8 +390,8 @@ namespace StewardessMCPService.Controllers
                             "searchReplace" => await _edit.ReplaceTextAsync(new ReplaceTextRequest
                             {
                                 Path = edit.Path,
-                                OldText = edit.Search,
-                                NewText = edit.Replace,
+                                OldText = edit.Search!,
+                                NewText = edit.Replace!,
                                 IgnoreCase = false,
                                 MaxReplacements = edit.ReplaceAll ? 0 : 1,
                                 Options = new EditOptions
@@ -406,7 +406,7 @@ namespace StewardessMCPService.Controllers
                                 Path = edit.Path,
                                 StartLine = edit.Range?.StartLine ?? 0,
                                 EndLine = edit.Range?.EndLine ?? 0,
-                                NewContent = edit.Replace,
+                                NewContent = edit.Replace!,
                                 Options = new EditOptions
                                 {
                                     DryRun = req.DryRun,
@@ -514,7 +514,7 @@ namespace StewardessMCPService.Controllers
                 {
                     var result = await _search.SearchSymbolAsync(new SearchSymbolRequest
                     {
-                        SymbolName = req.Name,
+                        SymbolName = req.Name!,
                         MaxResults = req.MaxResults
                     }, ct);
 
@@ -769,7 +769,7 @@ namespace StewardessMCPService.Controllers
                         Path = f.RelativePath,
                         OldPath = f.OldPath,
                         Status = MapGitStatus(f),
-                        Patch = patchByPath.TryGetValue(f.RelativePath, out var patch) ? patch : null
+                        Patch = patchByPath.TryGetValue(f.RelativePath, out var patch) ? patch : null!
                     })
                     .ToList();
 

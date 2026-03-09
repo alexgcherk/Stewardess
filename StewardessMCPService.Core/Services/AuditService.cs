@@ -20,7 +20,7 @@ namespace StewardessMCPService.Services
     /// </summary>
     public sealed class AuditService : IAuditService, IDisposable
     {
-        private readonly string _logPath;
+        private readonly string _logPath = null!;
         private readonly bool _enabled;
         private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
         private static readonly McpLogger _log = McpLogger.For<AuditService>();
@@ -53,7 +53,7 @@ namespace StewardessMCPService.Services
 
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(_logPath));
+                Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
             }
             catch (Exception ex)
             {
@@ -96,10 +96,10 @@ namespace StewardessMCPService.Services
 
         /// <inheritdoc />
         public Task LogOperationAsync(
-            string requestId, string sessionId, AuditOperationType operationType,
+            string requestId, string? sessionId, AuditOperationType operationType,
             string operationName, string clientIp, string targetPath,
-            AuditOutcome outcome, string errorCode, string description,
-            long elapsedMs, string changeReason = null, string backupPath = null,
+            AuditOutcome outcome, string? errorCode, string description,
+            long elapsedMs, string? changeReason = null, string? backupPath = null,
             CancellationToken ct = default)
         {
             var entry = new AuditEntry

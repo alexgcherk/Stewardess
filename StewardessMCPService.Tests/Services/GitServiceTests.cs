@@ -369,7 +369,7 @@ index 333..444 100644
         [Fact]
         public void BuildPathSuffix_Null_ReturnsEmpty()
         {
-            Assert.Equal("", GitService.BuildPathSuffix(null));
+            Assert.Equal("", GitService.BuildPathSuffix(null!));
         }
 
         // ── Security regression: BuildDiffScopeArgs injection (S03) ─────────────

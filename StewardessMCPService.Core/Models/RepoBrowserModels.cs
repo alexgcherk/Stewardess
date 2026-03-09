@@ -8,9 +8,9 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserTreeResponse
     {
         /// <summary>Absolute path of the repository root on the server.</summary>
-        public string RootPath { get; set; }
+        public string RootPath { get; set; } = null!;
         /// <summary>Repository-relative path that was inspected.</summary>
-        public string RelativePath { get; set; }
+        public string RelativePath { get; set; } = null!;
         /// <summary>Maximum depth that was traversed.</summary>
         public int MaxDepth { get; set; }
         /// <summary>Number of entries returned.</summary>
@@ -25,11 +25,11 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserTreeItem
     {
         /// <summary>Repository-relative path of the entry.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
         /// <summary>File or directory name without path prefix.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>"file" or "directory".</summary>
-        public string Kind { get; set; }
+        public string Kind { get; set; } = null!;
         /// <summary>Depth relative to the requested root (0 = immediate child).</summary>
         public int Depth { get; set; }
         /// <summary>True when the directory has children; null for files.</summary>
@@ -44,11 +44,11 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserGrepResponse
     {
         /// <summary>Absolute path of the repository root on the server.</summary>
-        public string RootPath { get; set; }
+        public string RootPath { get; set; } = null!;
         /// <summary>The query string that was searched.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
         /// <summary>Search mode that was used.</summary>
-        public string Mode { get; set; }
+        public string Mode { get; set; } = null!;
         /// <summary>Total number of match lines returned.</summary>
         public int MatchCount { get; set; }
         /// <summary>True when results were capped at the requested limits.</summary>
@@ -61,7 +61,7 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserGrepMatch
     {
         /// <summary>Repository-relative file path.</summary>
-        public string FilePath { get; set; }
+        public string FilePath { get; set; } = null!;
         /// <summary>1-based line number of the match.</summary>
         public int LineNumber { get; set; }
         /// <summary>0-based column of the match start; null when not available.</summary>
@@ -69,7 +69,7 @@ namespace StewardessMCPService.Models
         /// <summary>0-based column of the match end; null when not available.</summary>
         public int? ColumnEnd { get; set; }
         /// <summary>Full text of the matching line.</summary>
-        public string LineText { get; set; }
+        public string LineText { get; set; } = null!;
         /// <summary>Context lines immediately before the match.</summary>
         public List<string> BeforeContext { get; set; } = new List<string>();
         /// <summary>Context lines immediately after the match.</summary>
@@ -82,13 +82,13 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserReadFileResponse
     {
         /// <summary>Absolute path of the repository root on the server.</summary>
-        public string RootPath { get; set; }
+        public string RootPath { get; set; } = null!;
         /// <summary>Repository-relative file path that was requested.</summary>
-        public string FilePath { get; set; }
+        public string FilePath { get; set; } = null!;
         /// <summary>True when the file exists and was read successfully.</summary>
         public bool Exists { get; set; }
         /// <summary>Detected character encoding (e.g. "utf-8"); null when not available.</summary>
-        public string Encoding { get; set; }
+        public string? Encoding { get; set; }
         /// <summary>File size in bytes; null when not available.</summary>
         public long? SizeBytes { get; set; }
         /// <summary>True when the file was larger than the read limit and content was cut.</summary>
@@ -98,7 +98,7 @@ namespace StewardessMCPService.Models
         /// <summary>Actual 1-based end line returned; null for full-file reads.</summary>
         public int? EndLine { get; set; }
         /// <summary>File content, optionally prefixed with line numbers.</summary>
-        public string Content { get; set; }
+        public string Content { get; set; } = null!;
     }
 
     // ── repo_browser.find_path ───────────────────────────────────────────────────
@@ -107,13 +107,13 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserFindPathResponse
     {
         /// <summary>Absolute path of the repository root on the server.</summary>
-        public string RootPath { get; set; }
+        public string RootPath { get; set; } = null!;
         /// <summary>The query that was matched against.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
         /// <summary>Match mode that was used.</summary>
-        public string MatchMode { get; set; }
+        public string MatchMode { get; set; } = null!;
         /// <summary>Target kind filter that was applied.</summary>
-        public string TargetKind { get; set; }
+        public string? TargetKind { get; set; }
         /// <summary>Total number of results returned.</summary>
         public int ResultCount { get; set; }
         /// <summary>True when results were capped at maxResults.</summary>
@@ -126,24 +126,24 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserPathMatch
     {
         /// <summary>Repository-relative path of the entry.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
         /// <summary>File or directory name without path prefix.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>"file" or "directory".</summary>
-        public string Kind { get; set; }
+        public string Kind { get; set; } = null!;
         /// <summary>Human-readable description of why this entry matched.</summary>
-        public string MatchReason { get; set; }
+        public string? MatchReason { get; set; }
     }
 
     /// <summary>Response from a repo_browser.search call.</summary>
     public sealed class RepoBrowserSearchResponse
     {
         /// <summary>Absolute path of the repository root on the server.</summary>
-        public string RootPath { get; set; }
+        public string RootPath { get; set; } = null!;
         /// <summary>The filename substring that was searched for.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
         /// <summary>Subdirectory the search was restricted to (empty = whole repo).</summary>
-        public string PathPrefix { get; set; }
+        public string? PathPrefix { get; set; }
         /// <summary>Total number of results returned.</summary>
         public int ResultCount { get; set; }
         /// <summary>True when results were capped at max_results.</summary>
@@ -156,9 +156,9 @@ namespace StewardessMCPService.Models
     public sealed class RepoBrowserSearchMatch
     {
         /// <summary>Repository-relative path of the file.</summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
         /// <summary>Filename without path prefix.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>Always "file".</summary>
         public string Kind { get; set; } = "file";
         /// <summary>File size in bytes.</summary>

@@ -54,7 +54,7 @@ namespace StewardessMCPService.Services
         {
             if (_settings.ReadOnlyMode)
             {
-                absolutePath = null;
+                absolutePath = null!;
                 return SecurityCheckResult.Deny(
                     ErrorCodes.ReadOnlyMode,
                     "The service is running in read-only mode. Write operations are not permitted.");
@@ -118,7 +118,7 @@ namespace StewardessMCPService.Services
         }
 
         /// <inheritdoc />
-        public bool ValidateApprovalToken(string token)
+        public bool ValidateApprovalToken(string? token)
         {
             if (!_settings.RequireApprovalForDestructive) return true;
             if (string.IsNullOrWhiteSpace(token)) return false;

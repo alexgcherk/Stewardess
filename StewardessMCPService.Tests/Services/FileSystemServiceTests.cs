@@ -102,7 +102,7 @@ namespace StewardessMCPService.Tests.Services
 
             var result = await _svc.ReadFileAsync(
                 new ReadFileRequest { Path = "big.cs", MaxBytes = 100 }, CancellationToken.None);
-            Assert.True(result.Content.Length <= 100 || result.Truncated);
+            Assert.True(result.Content!.Length <= 100 || result.Truncated);
         }
 
         // ── ReadFileRange ────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ namespace StewardessMCPService.Tests.Services
                 new ListTreeRequest { Path = "", MaxDepth = -1 }, CancellationToken.None);
 
             Assert.NotNull(result.Root);
-            Assert.NotEmpty(result.Root.Children);
+            Assert.NotEmpty(result.Root.Children!);
             Assert.True(result.TotalDirectories > 0, "Expected directories to be enumerated");
         }
 
@@ -273,9 +273,9 @@ namespace StewardessMCPService.Tests.Services
                 new ListTreeRequest { Path = "", MaxDepth = 1 }, CancellationToken.None);
 
             Assert.NotNull(result.Root);
-            Assert.NotEmpty(result.Root.Children);
+            Assert.NotEmpty(result.Root.Children!);
             // No grandchildren should be present at depth 1.
-            Assert.All(result.Root.Children, child =>
+            Assert.All(result.Root.Children!, child =>
                 Assert.Empty(child.Children ?? new System.Collections.Generic.List<StewardessMCPService.Models.TreeNode>()));
         }
 

@@ -7,61 +7,61 @@ namespace StewardessMCPService.Models
     // Core entities from spec
     public class ApiUser
     {
-        public string Id { get; set; }
-        public string Username { get; set; }
-        public string Email { get; set; }
+        public string Id { get; set; } = null!;
+        public string Username { get; set; } = null!;
+        public string? Email { get; set; }
     }
 
     public class ApiRepository
     {
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string Id { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public string? Description { get; set; }
         public bool Private { get; set; }
-        public ApiUser Owner { get; set; }
+        public ApiUser Owner { get; set; } = null!;
         public DateTimeOffset? CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
     }
 
     public class ApiBranch
     {
-        public string Name { get; set; }
-        public string CommitSha { get; set; }
+        public string Name { get; set; } = null!;
+        public string CommitSha { get; set; } = null!;
         public DateTimeOffset? CreatedAt { get; set; }
     }
 
     public class ApiFile
     {
-        public string Path { get; set; }
-        public string Content { get; set; }
-        public string Encoding { get; set; }
+        public string Path { get; set; } = null!;
+        public string Content { get; set; } = null!;
+        public string? Encoding { get; set; }
         public DateTimeOffset? LastModified { get; set; }
     }
 
     public class ApiDiff
     {
-        public string FilePath { get; set; }
-        public string DiffText { get; set; }
+        public string FilePath { get; set; } = null!;
+        public string DiffText { get; set; } = null!;
     }
 
     public class ApiCommit
     {
-        public string Sha { get; set; }
-        public string Message { get; set; }
-        public ApiUser Author { get; set; }
+        public string Sha { get; set; } = null!;
+        public string Message { get; set; } = null!;
+        public ApiUser Author { get; set; } = null!;
         public List<ApiFile> Changes { get; set; } = new List<ApiFile>();
         public List<string> Parents { get; set; } = new List<string>();
     }
 
     public class ApiPullRequest
     {
-        public string Id { get; set; }
-        public string SourceBranch { get; set; }
-        public string TargetBranch { get; set; }
-        public string Title { get; set; }
-        public string Body { get; set; }
-        public ApiUser Author { get; set; }
-        public string State { get; set; }
+        public string Id { get; set; } = null!;
+        public string SourceBranch { get; set; } = null!;
+        public string TargetBranch { get; set; } = null!;
+        public string Title { get; set; } = null!;
+        public string? Body { get; set; }
+        public ApiUser Author { get; set; } = null!;
+        public string State { get; set; } = null!;
         public DateTimeOffset? CreatedAt { get; set; }
         public DateTimeOffset? MergedAt { get; set; }
     }
@@ -77,59 +77,59 @@ namespace StewardessMCPService.Models
     // Request types
     public class CreateRepositoryRequest
     {
-        public string Name { get; set; }
-        public string Description { get; set; }
+        public string Name { get; set; } = null!;
+        public string? Description { get; set; }
         public bool Private { get; set; }
     }
 
     public class CreateBranchRequest
     {
-        public string Name { get; set; }
-        public string SourceBranch { get; set; }
+        public string Name { get; set; } = null!;
+        public string SourceBranch { get; set; } = null!;
     }
 
     public class FileUpdateRequest
     {
-        public string Path { get; set; }
-        public string Content { get; set; }
+        public string Path { get; set; } = null!;
+        public string Content { get; set; } = null!;
         public string Encoding { get; set; } = "utf-8";
         public string Mode { get; set; } = "file";
     }
 
     public class FindFilesRequest
     {
-        public string Path { get; set; }
-        public string Pattern { get; set; }
+        public string Path { get; set; } = null!;
+        public string? Pattern { get; set; }
         public bool Recursive { get; set; } = true;
         public bool IncludeHidden { get; set; }
     }
 
     public class DiffRequest
     {
-        public string BaseSha { get; set; }
-        public string TargetSha { get; set; }
+        public string BaseSha { get; set; } = null!;
+        public string TargetSha { get; set; } = null!;
     }
 
     public class CommitRequest
     {
-        public string Message { get; set; }
-        public ApiUser Author { get; set; }
+        public string Message { get; set; } = null!;
+        public ApiUser Author { get; set; } = null!;
         public List<FileUpdateRequest> Changes { get; set; } = new List<FileUpdateRequest>();
         public List<string> Parents { get; set; } = new List<string>();
     }
 
     public class MergeRequest
     {
-        public string SourceBranch { get; set; }
-        public string TargetBranch { get; set; }
+        public string SourceBranch { get; set; } = null!;
+        public string TargetBranch { get; set; } = null!;
         public string Strategy { get; set; } = "recursive";
     }
 
     public class PullRequestRequest
     {
-        public string SourceBranch { get; set; }
-        public string TargetBranch { get; set; }
-        public string Title { get; set; }
-        public string Body { get; set; }
+        public string SourceBranch { get; set; } = null!;
+        public string TargetBranch { get; set; } = null!;
+        public string Title { get; set; } = null!;
+        public string? Body { get; set; }
     }
 }

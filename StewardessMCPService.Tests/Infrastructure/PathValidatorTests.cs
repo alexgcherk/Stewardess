@@ -171,7 +171,7 @@ namespace StewardessMCPService.Tests.Infrastructure
         [Fact]
         public void ToRelativePath_NullOrEmpty_ReturnsEmptyString()
         {
-            Assert.Equal(string.Empty, _validator.ToRelativePath(null));
+            Assert.Equal(string.Empty, _validator.ToRelativePath(null!));
             Assert.Equal(string.Empty, _validator.ToRelativePath(string.Empty));
         }
 

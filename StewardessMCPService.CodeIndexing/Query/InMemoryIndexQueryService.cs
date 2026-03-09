@@ -13,6 +13,8 @@ public sealed class InMemoryIndexQueryService : IIndexQueryService
 {
     private readonly ISnapshotStore _store;
 
+    /// <summary>Initializes a new instance of <see cref="InMemoryIndexQueryService"/> with the given snapshot store.</summary>
+    /// <param name="store">The snapshot store to query against.</param>
     public InMemoryIndexQueryService(ISnapshotStore store)
     {
         _store = store;

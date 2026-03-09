@@ -138,7 +138,7 @@ namespace StewardessMCPService.IntegrationTests.Helpers
         public string RootPath => TempRepo.Root;
 
         /// <summary>Snapshot ID returned by the index build during fixture initialisation.</summary>
-        public string SnapshotId { get; }
+        public string? SnapshotId { get; }
 
         /// <summary>Relative path of the C# source file written into the repo.</summary>
         public string SampleFilePath => FileName;

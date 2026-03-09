@@ -26,8 +26,8 @@ namespace StewardessMCPService.Mcp
 
         internal sealed class ToolEntry
         {
-            public McpToolDefinition Definition { get; set; }
-            public Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> Handler { get; set; }
+            public McpToolDefinition Definition { get; set; } = null!;
+            public Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> Handler { get; set; } = null!;
         }
 
         // ── Fields ───────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ namespace StewardessMCPService.Mcp
         /// <summary>Returns true and the definition when a tool with the given name exists.</summary>
         public bool TryGetDefinition(string name, out McpToolDefinition definition)
         {
-            definition = null;
+            definition = null!;
             if (_tools.TryGetValue(name, out var entry))
             {
                 definition = entry.Definition;
@@ -723,8 +723,8 @@ namespace StewardessMCPService.Mcp
                         Options = EditOpts(args),
                         Edits   = editsList?.Select(e => new TextEditOperation
                         {
-                            OldText = e["old_text"]?.ToString(),
-                            NewText = e["new_text"]?.ToString()
+                            OldText = e["old_text"]?.ToString()!,
+                            NewText = e["new_text"]?.ToString()!
                         }).ToList() ?? new List<TextEditOperation>()
                     };
                     var result = await _edit.EditFileAsync(req, ct).ConfigureAwait(false);
@@ -1637,7 +1637,7 @@ namespace StewardessMCPService.Mcp
                         return ErrorResult(StewardessMCPService.CodeIndexing.Query.McpErrorCode.ValidationError, "root_path is required", new { parameter = "root_path" });
 
                     var changedFilesList = StrList(args, "changed_files");
-                    IReadOnlyList<string> changedFiles = changedFilesList.Count > 0 ? changedFilesList : null;
+                    IReadOnlyList<string>? changedFiles = changedFilesList.Count > 0 ? changedFilesList : null;
 
                     var req = new StewardessMCPService.CodeIndexing.Indexing.IndexUpdateRequest
                     {
@@ -1865,7 +1865,7 @@ namespace StewardessMCPService.Mcp
                     var ctxLines    = Int(args, "context_lines", 2);
 
                     // Derive extension list from simple "*.ext" globs for faster service-side filtering
-                    List<string> extensions = null;
+                    List<string>? extensions = null;
                     if (globInclude.Count > 0)
                     {
                         var exts = globInclude
@@ -1886,7 +1886,7 @@ namespace StewardessMCPService.Mcp
                             MaxResults         = maxResults * 2,
                             ContextLinesBefore = ctxLines,
                             ContextLinesAfter  = ctxLines,
-                            Extensions         = extensions,
+                            Extensions         = extensions!,
                         }, ct).ConfigureAwait(false);
                     }
                     else
@@ -1900,7 +1900,7 @@ namespace StewardessMCPService.Mcp
                             MaxResults         = maxResults * 2,
                             ContextLinesBefore = ctxLines,
                             ContextLinesAfter  = ctxLines,
-                            Extensions         = extensions,
+                            Extensions         = extensions!,
                         }, ct).ConfigureAwait(false);
                     }
 
@@ -1997,7 +1997,7 @@ namespace StewardessMCPService.Mcp
                             resp.Encoding  = r.Encoding;
                             resp.SizeBytes = r.SizeBytes;
                             resp.Truncated = r.Truncated;
-                            resp.Content   = lineNums ? AddLineNumbers(r.Content) : r.Content;
+                            resp.Content   = lineNums ? AddLineNumbers(r.Content!) : r.Content!;
                         }
                     }
                     catch (Exception ex) when (
@@ -2043,7 +2043,7 @@ namespace StewardessMCPService.Mcp
                     bool trunc      = false;
 
                     var regexOpts = RegexOptions.Compiled | (caseSens ? RegexOptions.None : RegexOptions.IgnoreCase);
-                    Regex queryRegex = null;
+                    Regex? queryRegex = null;
                     if (useRegex && !string.IsNullOrEmpty(query))
                         queryRegex = new Regex(query, regexOpts);
 
@@ -2068,7 +2068,7 @@ namespace StewardessMCPService.Mcp
                             var norm = rel.Replace('\\', '/');
                             var qn   = query.Replace('\\', '/');
 
-                            string reason;
+                            string? reason;
                             if (useRegex && queryRegex != null)
                             {
                                 var target = matchMode == "name" ? m.Name : norm;
@@ -2118,7 +2118,7 @@ namespace StewardessMCPService.Mcp
                                 var norm = rel.Replace('\\', '/');
                                 var qn   = query.Replace('\\', '/');
 
-                                string reason;
+                                string? reason;
                                 if (useRegex && queryRegex != null)
                                 {
                                     var target = matchMode == "name" ? node.Name : norm;
@@ -2654,7 +2654,7 @@ namespace StewardessMCPService.Mcp
                 d.UsageGuidance = new McpUsageGuidance
                 {
                     UseWhen = "Use to get the current git status: branch, HEAD, staged/unstaged changes.",
-                    DoNotUseWhen = null,
+                    DoNotUseWhen = null!,
                     TypicalNextTools = new[] { "get_git_diff", "get_git_log" }
                 };
                 d.OutputSchema = new { type = "object", properties = new { currentBranch = new { type = "string" }, headCommit = new { type = "string" }, files = new { type = "array" } } };
@@ -2667,7 +2667,7 @@ namespace StewardessMCPService.Mcp
                 d.UsageGuidance = new McpUsageGuidance
                 {
                     UseWhen = "Use to get a unified diff for working-tree or staged changes.",
-                    DoNotUseWhen = null,
+                    DoNotUseWhen = null!,
                     TypicalNextTools = new[] { "get_git_status", "write_file", "replace_text" }
                 };
                 d.OutputSchema = new { type = "object", properties = new { diff = new { type = "string" }, scope = new { type = "string" } } };
@@ -3124,7 +3124,7 @@ namespace StewardessMCPService.Mcp
             Func<Dictionary<string, object>, CancellationToken, Task<McpToolCallResult>> handler,
             bool isDestructive  = false,
             bool isDisabled     = false,
-            string disabledReason = null)
+            string? disabledReason = null)
         {
             _tools[name] = new ToolEntry
             {
@@ -3160,15 +3160,15 @@ namespace StewardessMCPService.Mcp
             string type,
             string description,
             bool   required = false,
-            object def      = null,
-            string[] enums  = null)
+            object? def     = null,
+            string[]? enums = null)
         {
             var prop = new McpPropertySchema
             {
                 Type        = type,
                 Description = description,
                 Default     = def,
-                Enum        = enums != null ? new System.Collections.Generic.List<string>(enums) : null
+                Enum        = enums != null ? new System.Collections.Generic.List<string>(enums) : null!
             };
             return (name, prop, required);
         }
@@ -3177,7 +3177,7 @@ namespace StewardessMCPService.Mcp
             string name,
             string description,
             bool   required = false,
-            object items    = null)
+            object? items   = null)
         {
             var prop = new McpPropertySchema
             {
@@ -3190,11 +3190,11 @@ namespace StewardessMCPService.Mcp
 
         // ── Argument extraction helpers ──────────────────────────────────────────
 
-        private static string Str(Dictionary<string, object> args, string key, string def = null)
+        private static string Str(Dictionary<string, object> args, string key, string? def = null)
         {
             if (!args.TryGetValue(key, out var val) || val == null)
-                return def;
-            return val.ToString();
+                return def!;
+            return val.ToString()!;
         }
 
         private static bool Bool(Dictionary<string, object> args, string key, bool def = false)
@@ -3227,8 +3227,8 @@ namespace StewardessMCPService.Mcp
         {
             if (!args.TryGetValue(key, out var val) || val == null) return new List<string>();
             if (val is List<string> ls) return ls;
-            if (val is Newtonsoft.Json.Linq.JArray ja) return ja.ToObject<List<string>>();
-            if (val is IEnumerable<object> en) return en.Select(x => x?.ToString()).Where(x => x != null).ToList();
+            if (val is Newtonsoft.Json.Linq.JArray ja) return ja.ToObject<List<string>>()!;
+            if (val is IEnumerable<object> en) return en.Select(x => x?.ToString()).Where(x => x != null).Select(x => x!).ToList();
             return new List<string>();
         }
 
@@ -3249,7 +3249,7 @@ namespace StewardessMCPService.Mcp
         {
             var json = JsonConvert.SerializeObject(args,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-            return JsonConvert.DeserializeObject<T>(json);
+            return JsonConvert.DeserializeObject<T>(json)!;
         }
 
         /// <summary>Creates a structured error result with a machine-classifiable error code.</summary>

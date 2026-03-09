@@ -57,9 +57,9 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
 
             // Verify health data
             var data = json["data"];
-            Assert.Equal("healthy", data["status"]?.Value<string>());
-            Assert.NotNull(data["serviceVersion"]);
-            Assert.NotNull(data["timestamp"]);
+            Assert.Equal("healthy", data?["status"]?.Value<string>());
+            Assert.NotNull(data?["serviceVersion"]);
+            Assert.NotNull(data?["timestamp"]);
         }
 
         /// <summary>
@@ -78,12 +78,12 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             Assert.True(json["success"]?.Value<bool>() == true);
 
             var data = json["data"];
-            Assert.NotNull(data["status"]);
-            Assert.NotNull(data["repositoryAccessible"]);
-            Assert.NotNull(data["readOnlyMode"]);
-            Assert.NotNull(data["apiKeyRequired"]);
-            Assert.NotNull(data["ipAllowlistActive"]);
-            Assert.NotNull(data["registeredServices"]);
+            Assert.NotNull(data?["status"]);
+            Assert.NotNull(data?["repositoryAccessible"]);
+            Assert.NotNull(data?["readOnlyMode"]);
+            Assert.NotNull(data?["apiKeyRequired"]);
+            Assert.NotNull(data?["ipAllowlistActive"]);
+            Assert.NotNull(data?["registeredServices"]);
 
             // Verify registered services contains expected entries
             var services = data["registeredServices"] as JArray;
@@ -105,8 +105,8 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             var json = JObject.Parse(body);
 
             Assert.True(json["success"]?.Value<bool>() == true);
-            Assert.NotNull(json["data"]["version"]);
-            Assert.NotEmpty(json["data"]["version"].Value<string>());
+            Assert.NotNull(json["data"]?["version"]);
+            Assert.NotEmpty(json["data"]?["version"]?.Value<string>()!);
         }
 
         /// <summary>
@@ -125,7 +125,7 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
 
             Assert.True(json["success"]?.Value<bool>() == true);
 
-            var manifest = json["data"];
+            var manifest = json["data"]!;
             Assert.NotNull(manifest["serviceVersion"]);
             Assert.NotNull(manifest["generatedAt"]);
             Assert.NotNull(manifest["capabilities"]);
@@ -134,7 +134,7 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             Assert.NotNull(manifest["tools"]);
 
             // Verify capabilities structure
-            var caps = manifest["capabilities"];
+            var caps = manifest["capabilities"]!;
             Assert.NotNull(caps["canRead"]);
             Assert.NotNull(caps["canWrite"]);
             Assert.NotNull(caps["canSearch"]);
@@ -142,14 +142,14 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             Assert.NotNull(caps["canAccessGit"]);
 
             // Verify constraints structure
-            var constraints = manifest["constraints"];
+            var constraints = manifest["constraints"]!;
             Assert.NotNull(constraints["maxFileReadBytes"]);
             Assert.NotNull(constraints["maxSearchResults"]);
             Assert.NotNull(constraints["blockedFolders"]);
             Assert.NotNull(constraints["blockedExtensions"]);
 
             // Verify repository context exists (root comes from McpServiceSettings.Instance / web.config in tests)
-            var repoCtx = manifest["repositoryContext"];
+            var repoCtx = manifest["repositoryContext"]!;
             Assert.NotNull(repoCtx["repositoryName"]);
             Assert.NotNull(repoCtx["repositoryRoot"]);
 
@@ -221,7 +221,7 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             var capJson = JObject.Parse(capBody);
             var toolJson = JObject.Parse(toolBody);
 
-            var capTools = capJson["data"]["tools"] as JArray;
+            var capTools = capJson["data"]?["tools"] as JArray;
             var toolsArray = toolJson["data"] as JArray;
 
             Assert.NotNull(capTools);

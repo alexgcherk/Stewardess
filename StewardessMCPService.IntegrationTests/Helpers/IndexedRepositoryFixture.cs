@@ -64,7 +64,7 @@ namespace StewardessMCPService.IntegrationTests.Helpers
         /// Snapshot ID of the code index build that ran during fixture initialisation.
         /// Null if the build did not produce a snapshot (should not happen in practice).
         /// </summary>
-        public string SnapshotId { get; }
+        public string? SnapshotId { get; }
 
         /// <summary>Relative path of the sample C# file written into the repo.</summary>
         public string SampleFilePath => SampleCsFileName;

@@ -252,7 +252,7 @@ namespace StewardessMCPService.Services
                 description  : fullCommand,
                 elapsedMs    : sw.ElapsedMilliseconds);
 
-            BuildSummary summary = null;
+            BuildSummary? summary = null;
             if (isBuild)  summary = ParseBuildSummary(stdout + stderr);
             if (isTest)   summary = ParseTestSummary(stdout + stderr);
 
@@ -270,7 +270,7 @@ namespace StewardessMCPService.Services
                 TimeoutSeconds   = timeoutSec,
                 OutputTruncated  = outputTruncated,
                 StartedAt        = startedAt,
-                Summary          = summary
+                Summary          = summary!
             };
         }
 

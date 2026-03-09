@@ -18,17 +18,17 @@ namespace StewardessMCPService.Services
         /// </summary>
         Task LogOperationAsync(
             string requestId,
-            string sessionId,
+            string? sessionId,
             AuditOperationType operationType,
             string operationName,
             string clientIp,
             string targetPath,
             AuditOutcome outcome,
-            string errorCode,
+            string? errorCode,
             string description,
             long elapsedMs,
-            string changeReason = null,
-            string backupPath = null,
+            string? changeReason = null,
+            string? backupPath = null,
             CancellationToken ct = default);
 
         /// <summary>Queries the audit log with optional filters.</summary>

@@ -40,13 +40,13 @@ namespace StewardessMCPService.Services
             var root  = _settings.RepositoryRoot;
             var info  = new DirectoryInfo(root);
 
-            GitRepoSummary git = null;
+            GitRepoSummary? git = null;
             var gitDir = Path.Combine(root, ".git");
             if (Directory.Exists(gitDir))
             {
                 git = new GitRepoSummary { IsGitRepository = true };
                 git.CurrentBranch  = TryReadGitHead(gitDir);
-                git.HeadCommitSha  = TryReadHeadCommitSha(gitDir, git.CurrentBranch);
+                git.HeadCommitSha  = TryReadHeadCommitSha(gitDir, git.CurrentBranch!);
             }
 
             var policy = BuildPolicyInfo();
@@ -75,7 +75,7 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!Directory.Exists(absPath))
-                throw new DirectoryNotFoundException($"Directory not found: {request.Path}");
+                throw new DirectoryNotFoundException($"Directory not found: {request?.Path}");
 
             var dirInfo   = new DirectoryInfo(absPath);
             var allItems  = dirInfo.GetFileSystemInfos();
@@ -86,9 +86,9 @@ namespace StewardessMCPService.Services
                 bool isBlocked = _pathValidator.IsFolderBlocked(item.FullName)
                               || (_settings.BlockedFolders.Contains(item.Name));
 
-                if (isBlocked && !request.IncludeBlocked) continue;
+                if (isBlocked && !request!.IncludeBlocked) continue;
 
-                if (!string.IsNullOrEmpty(request.NamePattern) &&
+                if (!string.IsNullOrEmpty(request!.NamePattern) &&
                     !MatchesWildcard(item.Name, request.NamePattern))
                     continue;
 
@@ -114,7 +114,7 @@ namespace StewardessMCPService.Services
                 entries.Add(entry);
             }
 
-            var sorted   = string.Equals(request.SortBy, "size", StringComparison.OrdinalIgnoreCase)
+            var sorted   = string.Equals(request!.SortBy, "size", StringComparison.OrdinalIgnoreCase)
                 ? entries.OrderByDescending(e => e.SizeBytes ?? -1).ThenBy(e => e.Name).ToList()
                 : entries.OrderBy(e => e.Type).ThenBy(e => e.Name).ToList();
             bool truncated = sorted.Count > _settings.MaxDirectoryEntries;
@@ -138,10 +138,10 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!Directory.Exists(absPath))
-                throw new DirectoryNotFoundException($"Directory not found: {request.Path}");
+                throw new DirectoryNotFoundException($"Directory not found: {request?.Path}");
 
             // maxDepth < 0 means "use the configured limit" (callers pass -1 for unbounded).
-            int maxDepth = request.MaxDepth < 0
+            int maxDepth = request!.MaxDepth < 0
                 ? _settings.MaxDirectoryDepth
                 : Math.Min(request.MaxDepth, _settings.MaxDirectoryDepth);
             int totalFiles = 0, totalDirs = 0;
@@ -229,7 +229,7 @@ namespace StewardessMCPService.Services
                 });
             }
 
-            throw new FileNotFoundException($"Path not found: {request.Path}");
+            throw new FileNotFoundException($"Path not found: {request?.Path}");
         }
 
         // ── File reading ─────────────────────────────────────────────────────────
@@ -242,10 +242,10 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request.Path}");
+                throw new FileNotFoundException($"File not found: {request?.Path}");
 
             var fi       = new FileInfo(absPath);
-            long maxBytes = request.MaxBytes.HasValue
+            long maxBytes = request!.MaxBytes.HasValue
                 ? Math.Min(request.MaxBytes.Value, _settings.MaxFileReadBytes)
                 : _settings.MaxFileReadBytes;
 
@@ -253,8 +253,8 @@ namespace StewardessMCPService.Services
             bool truncated  = fi.Length > maxBytes;
             long toRead     = truncated ? maxBytes : fi.Length;
 
-            string content       = null;
-            string contentBase64 = null;
+            string? content       = null;
+            string? contentBase64 = null;
             string encoding      = "utf-8";
             string lineEnding    = "lf";
             int lineCount        = 0;
@@ -276,12 +276,12 @@ namespace StewardessMCPService.Services
                     if (request.Head.HasValue && request.Tail.HasValue)
                         throw new ArgumentException("Cannot specify both 'head' and 'tail' simultaneously.");
 
-                    var allLines = content.Split('\n');
+                    var allLines = content!.Split('\n');
                     string[] sliced;
                     if (request.Head.HasValue)
                         sliced = allLines.Take(Math.Max(0, request.Head.Value)).ToArray();
                     else
-                        sliced = allLines.Skip(Math.Max(0, allLines.Length - request.Tail.Value)).ToArray();
+                        sliced = allLines.Skip(Math.Max(0, allLines.Length - (request.Tail ?? 0))).ToArray();
 
                     content = string.Join("\n", sliced);
                 }
@@ -316,7 +316,7 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request.Path}");
+                throw new FileNotFoundException($"File not found: {request?.Path}");
 
             var fi = new FileInfo(absPath);
             var bytes = await ReadBytesAsync(absPath, fi.Length, ct).ConfigureAwait(false);
@@ -365,11 +365,11 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request.Path}");
+                throw new FileNotFoundException($"File not found: {request?.Path}");
 
             var allLines = await Task.Run(() => File.ReadAllLines(absPath), ct).ConfigureAwait(false);
             int total    = allLines.Length;
-            int start    = Math.Max(1, request.StartLine);
+            int start    = Math.Max(1, request!.StartLine);
             int end      = request.EndLine < 1 ? total : Math.Min(request.EndLine, total);
 
             if (start > total)
@@ -442,10 +442,10 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request.Path}");
+                throw new FileNotFoundException($"File not found: {request?.Path}");
 
             var fi        = new FileInfo(absPath);
-            var algorithm = (request.Algorithm ?? "SHA256").ToUpperInvariant();
+            var algorithm = (request!.Algorithm ?? "SHA256").ToUpperInvariant();
 
             string hash;
             using (var stream = new FileStream(absPath, FileMode.Open, FileAccess.Read, FileShare.Read,
@@ -482,7 +482,7 @@ namespace StewardessMCPService.Services
                 throw new ArgumentException(validation.ErrorMessage);
 
             if (!File.Exists(absPath))
-                throw new FileNotFoundException($"File not found: {request.Path}");
+                throw new FileNotFoundException($"File not found: {request?.Path}");
 
             var ext      = Path.GetExtension(absPath).ToLowerInvariant();
             var language = MapExtensionToLanguage(ext);
@@ -594,7 +594,7 @@ namespace StewardessMCPService.Services
 
         // ── Git head helpers ─────────────────────────────────────────────────────
 
-        private static string TryReadGitHead(string gitDir)
+        private static string? TryReadGitHead(string gitDir)
         {
             try
             {
@@ -608,7 +608,7 @@ namespace StewardessMCPService.Services
             catch { return null; }
         }
 
-        private static string TryReadHeadCommitSha(string gitDir, string branch)
+        private static string? TryReadHeadCommitSha(string gitDir, string? branch)
         {
             try
             {
@@ -665,7 +665,7 @@ namespace StewardessMCPService.Services
             catch { return "lf"; }
         }
 
-        private static string DetectLineEndingInText(string text)
+        private static string DetectLineEndingInText(string? text)
         {
             if (string.IsNullOrEmpty(text)) return "lf";
             bool hasCrlf = text.Contains("\r\n");
@@ -691,7 +691,7 @@ namespace StewardessMCPService.Services
             catch { return 0; }
         }
 
-        private static int CountNewlines(string text)
+        private static int CountNewlines(string? text)
         {
             if (string.IsNullOrEmpty(text)) return 0;
             int count = 0;
@@ -792,8 +792,8 @@ namespace StewardessMCPService.Services
                 Language     = language
             };
 
-            NamespaceInfo currentNs = null;
-            TypeInfo      currentType = null;
+            NamespaceInfo? currentNs = null;
+            TypeInfo?      currentType = null;
 
             for (int i = 0; i < lines.Length; i++)
             {

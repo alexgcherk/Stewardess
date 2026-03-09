@@ -70,7 +70,7 @@ namespace StewardessMCPService.Infrastructure
                 {
                     Code         = code,
                     Message      = "An unexpected error occurred.",
-                    InnerMessage = IsDebugMode() ? ex.Message : null
+                    InnerMessage = IsDebugMode() ? ex.Message : null!
                 },
                 requestId);
 
