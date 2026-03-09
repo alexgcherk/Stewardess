@@ -147,17 +147,50 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
             Assert.True(found, $"OperationId '{expectedId}' was not found in the spec.");
         }
 
+        /// <summary>
+        /// All 18 CodeManagement endpoints must appear in the spec with their expected operationIds.
+        /// </summary>
+        [Theory]
+        [InlineData("CodeManagement_GetRepositoryInfo")]
+        [InlineData("CodeManagement_GetRepositoryTree")]
+        [InlineData("CodeManagement_SearchFiles")]
+        [InlineData("CodeManagement_SearchText")]
+        [InlineData("CodeManagement_ReadFile")]
+        [InlineData("CodeManagement_ReadFilesBatch")]
+        [InlineData("CodeManagement_WriteFile")]
+        [InlineData("CodeManagement_DeleteFile")]
+        [InlineData("CodeManagement_MoveFile")]
+        [InlineData("CodeManagement_ApplyPatch")]
+        [InlineData("CodeManagement_FindSymbols")]
+        [InlineData("CodeManagement_FindReferences")]
+        [InlineData("CodeManagement_GetDependencies")]
+        [InlineData("CodeManagement_GetCallGraph")]
+        [InlineData("CodeManagement_BuildWorkspace")]
+        [InlineData("CodeManagement_FormatFiles")]
+        [InlineData("CodeManagement_RunTests")]
+        [InlineData("CodeManagement_GetChanges")]
+        public async Task CodeManagementOperations_HaveExpectedOperationId(string expectedId)
+        {
+            var (ops, _) = await CollectOperationsAsync();
+
+            var found = ops.Any(o => string.Equals(o.OperationId, expectedId, StringComparison.OrdinalIgnoreCase));
+            Assert.True(found,
+                $"OperationId '{expectedId}' was not found in the spec.\n" +
+                $"Available IDs:\n  {string.Join("\n  ", ops.Select(o => o.OperationId))}");
+        }
+
         // ── minimum operation count ──────────────────────────────────────────────
 
         /// <summary>
-        /// The spec must contain at least 35 operations.
-        /// Repositories (19) + Command (4) + Health (3) + Capabilities (2) + McpController (3) + RepoBrowser (4) + Search (3+) = 38+
+        /// The spec must contain at least 53 operations.
+        /// Repositories (19) + Command (4) + Health (3) + Capabilities (2) + McpController (3)
+        /// + RepoBrowser (4) + Search (3+) + CodeManagement (18) = 56+
         /// </summary>
         [Fact]
-        public async Task Spec_HasAtLeast35Operations()
+        public async Task Spec_HasAtLeast53Operations()
         {
             var (ops, _) = await CollectOperationsAsync();
-            Assert.True(ops.Count >= 35, $"Expected ≥35 operations but found {ops.Count}.");
+            Assert.True(ops.Count >= 53, $"Expected ≥53 operations but found {ops.Count}.");
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

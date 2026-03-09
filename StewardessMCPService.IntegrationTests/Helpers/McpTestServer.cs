@@ -55,7 +55,7 @@ namespace StewardessMCPService.IntegrationTests.Helpers
                 ["Mcp:RepositoryRoot"]  = repoRoot,
                 ["Mcp:ReadOnly"]        = "false",
                 ["Mcp:ApiKey"]          = apiKey ?? "",
-                ["Mcp:AllowedCommands"] = "dotnet build,dotnet restore,dotnet test,dotnet run,msbuild",
+                ["Mcp:AllowedCommands"] = "dotnet build,dotnet restore,dotnet test,dotnet run,dotnet format,msbuild",
             };
 
             _factory = new WebApplicationFactory<Program>()

@@ -186,5 +186,32 @@ namespace StewardessMCPService.IntegrationTests.Helpers
             AddApiKeyIfNeeded(request);
             return await _http.SendAsync(request);
         }
+
+        /// <summary>
+        /// Issues a POST request with a JSON body and returns the raw <see cref="HttpResponseMessage"/>.
+        /// Used for endpoints that return a direct object (no <see cref="ApiResponse{T}"/> envelope).
+        /// </summary>
+        public async Task<HttpResponseMessage> PostJsonAsync(string path, object body)
+        {
+            var json    = JsonConvert.SerializeObject(body);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = content };
+            AddApiKeyIfNeeded(request);
+            return await _http.SendAsync(request);
+        }
+
+        /// <summary>
+        /// Issues a POST request and parses the response body as a <see cref="JObject"/>.
+        /// Throws on non-2xx status codes.
+        /// </summary>
+        public async Task<JObject> PostJsonGetBodyAsync(string path, object body)
+        {
+            var response = await PostJsonAsync(path, body);
+            var raw      = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new InvalidOperationException(
+                    $"POST {path} → HTTP {(int)response.StatusCode}\n{raw}");
+            return JObject.Parse(raw);
+        }
     }
 }
