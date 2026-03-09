@@ -331,13 +331,13 @@ dotnet build Stewardess.sln
 ### Run the Service
 
 ```
-cd StewardessMCPServive.Core
+cd StewardessMCPService.Core
 dotnet run
 ```
 
 The service starts on **http://localhost:55703**.
 
-You can verify it is running by opening http://localhost:55703/api/capabilities in a browser — you should see a JSON document listing all 66 tools.
+You can verify it is running by opening http://localhost:55703/api/capabilities in a browser — you should see a JSON document listing all 74 tools.
 
 ### Run the Tests
 
@@ -354,7 +354,7 @@ All 578 tests should pass.
 All configuration lives in one file:
 
 ```
-StewardessMCPServive.Core\appsettings.json
+StewardessMCPService.Core\appsettings.json
 ```
 
 The only required setting is `RepositoryRoot`. Everything else has a sensible default.
@@ -550,7 +550,7 @@ Click **Save**. Open WebUI will fetch the OpenAPI spec from Stewardess and impor
 
 **Step 6 — Enable tools in a chat**
 
-Open a new chat and select your Ollama model. Click the **Tools** icon (the spanner/wrench icon near the message input) and make sure Stewardess tools are toggled on. The model can now call any of the 66 Stewardess tools during the conversation.
+Open a new chat and select your Ollama model. Click the **Tools** icon (the spanner/wrench icon near the message input) and make sure Stewardess tools are toggled on. The model can now call any of the 74 Stewardess tools during the conversation.
 
 ### Talking to Your Code
 
@@ -616,7 +616,7 @@ The service is a standard ASP.NET Core application and can be deployed anywhere 
 **Publish a self-contained executable:**
 
 ```
-cd StewardessMCPServive.Core
+cd StewardessMCPService.Core
 dotnet publish -c Release -r win-x64 --self-contained
 ```
 
@@ -624,7 +624,7 @@ Replace `win-x64` with `linux-x64` for Linux.
 
 **Run as a Windows service or Linux systemd unit:**
 
-Point the process at `StewardessMCPServive.Core.exe` (Windows) or the published binary (Linux) and supply the `RepositoryRoot` and `ApiKey` via environment variables rather than the config file, to avoid committing secrets.
+Point the process at `StewardessMCPService.Core.exe` (Windows) or the published binary (Linux) and supply the `RepositoryRoot` and `ApiKey` via environment variables rather than the config file, to avoid committing secrets.
 
 **For remote access:**
 
@@ -636,12 +636,12 @@ If the service runs on a remote machine (not localhost), update the URLs in any 
 
 | Folder | What It Contains |
 |--------|-----------------|
-| `StewardessMCPServive.Core` | The runnable service: controllers, tool registry, startup, configuration |
-| `StewardessMCPServive.CodeIndexing` | The semantic code indexing engine (language-agnostic core) |
-| `StewardessMCPServive.Parsers.CSharp` | C# language adapter for the indexing engine |
-| `StewardessMCPServive.Tests` | Unit tests |
-| `StewardessMCPServive.IntegrationTests` | End-to-end integration tests |
-| `StewardessMCPServive.CodeIndexing.Tests` | Unit tests for the indexing engine |
+| `StewardessMCPService.Core` | The runnable service: controllers, tool registry, startup, configuration |
+| `StewardessMCPService.CodeIndexing` | The semantic code indexing engine (language-agnostic core) |
+| `StewardessMCPService.Parsers.CSharp` | C# language adapter for the indexing engine |
+| `StewardessMCPService.Tests` | Unit tests |
+| `StewardessMCPService.IntegrationTests` | End-to-end integration tests |
+| `StewardessMCPService.CodeIndexing.Tests` | Unit tests for the indexing engine |
 
 ---
 
@@ -649,9 +649,9 @@ If the service runs on a remote machine (not localhost), update the URLs in any 
 
 1. Install .NET 8 SDK
 2. Clone or download this repository
-3. Edit `StewardessMCPServive.Core\appsettings.json` and set `RepositoryRoot` to the folder you want the AI to work with
+3. Edit `StewardessMCPService.Core\appsettings.json` and set `RepositoryRoot` to the folder you want the AI to work with
 4. Set `ApiKey` to a strong secret value — this is required for Open WebUI and other clients to authenticate correctly
-5. Run `dotnet run` from inside `StewardessMCPServive.Core`
+5. Run `dotnet run` from inside `StewardessMCPService.Core`
 6. Confirm the service is running by visiting `http://localhost:55703/api/health`
 7. If using Open WebUI, follow the steps in the **Using with Ollama and Open WebUI** section above to register Stewardess as a tool server
 8. If using another MCP client, point it at `http://localhost:55703/mcp/v1/` with `Authorization: Bearer <your-api-key>`
