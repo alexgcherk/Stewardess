@@ -24,6 +24,44 @@ namespace StewardessMCPService.Models
         /// instead of the text field (for binary files).
         /// </summary>
         public bool ReturnBase64 { get; set; } = false;
+
+        /// <summary>
+        /// When set, returns only the first N lines of the file.
+        /// Cannot be combined with <see cref="Tail"/>.
+        /// </summary>
+        public int? Head { get; set; }
+
+        /// <summary>
+        /// When set, returns only the last N lines of the file.
+        /// Cannot be combined with <see cref="Head"/>.
+        /// </summary>
+        public int? Tail { get; set; }
+    }
+
+    // ── read_media_file ──────────────────────────────────────────────────────────
+
+    /// <summary>Request to read a binary or media file as base64.</summary>
+    public sealed class ReadMediaFileRequest
+    {
+        /// <summary>Path relative to the repository root.</summary>
+        public string Path { get; set; }
+    }
+
+    /// <summary>Response containing base64-encoded media file content and MIME type.</summary>
+    public sealed class ReadMediaFileResponse
+    {
+        /// <summary>Repository-relative path of the file.</summary>
+        public string RelativePath { get; set; }
+        /// <summary>File name without path.</summary>
+        public string Name { get; set; }
+        /// <summary>Detected MIME type based on file extension.</summary>
+        public string MimeType { get; set; }
+        /// <summary>Base64-encoded raw bytes of the file.</summary>
+        public string ContentBase64 { get; set; }
+        /// <summary>File size in bytes.</summary>
+        public long SizeBytes { get; set; }
+        /// <summary>UTC timestamp of the last write to this file.</summary>
+        public DateTimeOffset LastModified { get; set; }
     }
 
     /// <summary>Response containing file content and metadata.</summary>

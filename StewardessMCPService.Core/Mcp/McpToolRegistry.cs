@@ -138,13 +138,34 @@ namespace StewardessMCPService.Mcp
                 description: "Lists immediate children (files and sub-directories) of the given directory.",
                 schema: Schema(
                     Prop("path",           "string",  "Relative path to the directory (empty = repo root)."),
-                    Prop("include_blocked","boolean", "Include blocked folders in the listing (default false).", def: false)),
+                    Prop("include_blocked","boolean", "Include blocked folders in the listing (default false).", def: false),
+                    Prop("sort_by",        "string",  "Sort order: 'name' (default) or 'size' (largest files first).", def: "name", enums: new[] { "name", "size" })),
                 handler: async (args, ct) =>
                 {
                     var req = new ListDirectoryRequest
                     {
                         Path           = Str(args, "path", ""),
-                        IncludeBlocked = Bool(args, "include_blocked", false)
+                        IncludeBlocked = Bool(args, "include_blocked", false),
+                        SortBy         = Str(args, "sort_by", "name")
+                    };
+                    var result = await _files.ListDirectoryAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("list_directory_with_sizes",
+                category: "repository",
+                description: "Lists immediate children of a directory with file sizes, sortable by name or size. " +
+                             "Each entry includes name, type, size in bytes, and last-modified date. " +
+                             "Equivalent to 'list_directory' with richer size-focused output.",
+                schema: Schema(
+                    Prop("path",    "string",  "Relative path to the directory (empty = repo root)."),
+                    Prop("sort_by", "string",  "Sort order: 'name' (alphabetical, default) or 'size' (largest files first).", def: "name", enums: new[] { "name", "size" })),
+                handler: async (args, ct) =>
+                {
+                    var req = new ListDirectoryRequest
+                    {
+                        Path   = Str(args, "path", ""),
+                        SortBy = Str(args, "sort_by", "name")
                     };
                     var result = await _files.ListDirectoryAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
@@ -364,18 +385,22 @@ namespace StewardessMCPService.Mcp
         {
             Add("read_file",
                 category: "files",
-                description: "Reads the full content of a file. Large files are automatically truncated at the server limit.",
+                description: "Reads the full content of a file. Large files are automatically truncated at the server limit. Use 'head' or 'tail' to limit to the first or last N lines.",
                 schema: Schema(
                     Prop("path",        "string",  "Relative file path.", required: true),
                     Prop("max_bytes",   "integer", "Maximum bytes to return (server limit applies)."),
-                    Prop("return_base64","boolean","Return base64-encoded content instead of text (for binary files).", def: false)),
+                    Prop("return_base64","boolean","Return base64-encoded content instead of text (for binary files).", def: false),
+                    Prop("head",        "integer", "Return only the first N lines of the file."),
+                    Prop("tail",        "integer", "Return only the last N lines of the file.")),
                 handler: async (args, ct) =>
                 {
                     var req = new ReadFileRequest
                     {
                         Path         = Str(args, "path"),
                         MaxBytes     = NullableInt(args, "max_bytes"),
-                        ReturnBase64 = Bool(args, "return_base64", false)
+                        ReturnBase64 = Bool(args, "return_base64", false),
+                        Head         = NullableInt(args, "head"),
+                        Tail         = NullableInt(args, "tail")
                     };
                     var result = await _files.ReadFileAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
@@ -412,6 +437,19 @@ namespace StewardessMCPService.Mcp
                         Paths = StrList(args, "paths")
                     };
                     var result = await _files.ReadMultipleFilesAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("read_media_file",
+                category: "files",
+                description: "Reads an image, audio, or other binary file and returns it as base64-encoded content with its detected MIME type. " +
+                             "Suitable for images (.png, .jpg, .gif, .webp, .svg), audio (.mp3, .wav), video (.mp4), PDFs, ZIPs, and other binary formats.",
+                schema: Schema(
+                    Prop("path", "string", "Relative file path.", required: true)),
+                handler: async (args, ct) =>
+                {
+                    var req    = new ReadMediaFileRequest { Path = Str(args, "path") };
+                    var result = await _files.ReadMediaFileAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
 
@@ -644,6 +682,52 @@ namespace StewardessMCPService.Mcp
                         Options         = EditOpts(args)
                     };
                     var result = await _edit.ReplaceTextAsync(req, ct).ConfigureAwait(false);
+                    return ToResult(result);
+                });
+
+            Add("edit_file",
+                category: "edit",
+                description: "Applies multiple find-and-replace edits to a single file in sequence. " +
+                             "Each edit specifies an exact 'old_text' to locate and a 'new_text' to replace it with. " +
+                             "Edits are applied in order; each edit operates on the result of the previous one. " +
+                             "Returns a git-style diff. Supports dry-run mode.",
+                isDestructive: true, isDisabled: ro, disabledReason: ro ? "Read-only mode" : null,
+                schema: Schema(
+                    Prop("path",         "string",  "Relative file path.", required: true),
+                    Prop("dry_run",      "boolean", "Simulate without writing (default false).", def: false),
+                    Prop("create_backup","boolean", "Create backup before writing (default true).", def: true),
+                    Prop("change_reason","string",  "Agent-supplied reason for the change (audit log)."),
+                    PropWithItems("edits", "Ordered list of text edits to apply.", required: true,
+                        items: new
+                        {
+                            type = "object",
+                            properties = new
+                            {
+                                old_text = new { type = "string", description = "Exact text to find. Must match exactly including whitespace." },
+                                new_text = new { type = "string", description = "Replacement text." }
+                            },
+                            required = new[] { "old_text", "new_text" },
+                            additionalProperties = false
+                        })),
+                handler: async (args, ct) =>
+                {
+                    var editsRaw = args.TryGetValue("edits", out var ev) ? ev : null;
+                    var editsList = editsRaw is Newtonsoft.Json.Linq.JArray ja
+                        ? ja.ToObject<List<Newtonsoft.Json.Linq.JObject>>()
+                        : new List<Newtonsoft.Json.Linq.JObject>();
+
+                    var req = new EditFileRequest
+                    {
+                        Path    = Str(args, "path"),
+                        DryRun  = Bool(args, "dry_run", false),
+                        Options = EditOpts(args),
+                        Edits   = editsList?.Select(e => new TextEditOperation
+                        {
+                            OldText = e["old_text"]?.ToString(),
+                            NewText = e["new_text"]?.ToString()
+                        }).ToList() ?? new List<TextEditOperation>()
+                    };
+                    var result = await _edit.EditFileAsync(req, ct).ConfigureAwait(false);
                     return ToResult(result);
                 });
 
@@ -2165,6 +2249,19 @@ namespace StewardessMCPService.Mcp
                 d.OutputSchema = new { type = "object", properties = new { items = new { type = "array", items = new { type = "object", properties = new { name = new { type = "string" }, path = new { type = "string" }, type = new { type = "string", @enum = new[] { "file", "directory" } } } } }, totalItems = new { type = "integer" } } };
             });
 
+            Annotate("list_directory_with_sizes", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "navigation", "filesystem" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to enumerate files/subdirectories with file sizes, sortable by name or size.",
+                    DoNotUseWhen = "Do not use for searching file contents or symbols.",
+                    TypicalNextTools = new[] { "read_file", "get_file_structure", "list_tree" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { items = new { type = "array", items = new { type = "object", properties = new { name = new { type = "string" }, path = new { type = "string" }, type = new { type = "string" }, sizeBytes = new { type = "integer" }, lastModified = new { type = "string" } } } }, totalItems = new { type = "integer" } } };
+            });
+
             Annotate("list_tree", d =>
             {
                 d.SideEffectClass = "read-only"; d.RiskLevel = "low";
@@ -2332,6 +2429,19 @@ namespace StewardessMCPService.Mcp
                 d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, content = new { type = "string" }, encoding = new { type = "string" }, lines = new { type = "integer" }, sizeBytes = new { type = "integer" } } };
             });
 
+            Annotate("read_media_file", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "files", "media" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to read binary or image files as base64 with MIME type detection.",
+                    DoNotUseWhen = "Do not use for text files — use read_file instead.",
+                    TypicalNextTools = new[] { "read_file" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, mimeType = new { type = "string" }, base64Content = new { type = "string" }, sizeBytes = new { type = "integer" } } };
+            });
+
             Annotate("read_file_range", d =>
             {
                 d.SideEffectClass = "read-only"; d.RiskLevel = "low";
@@ -2461,6 +2571,20 @@ namespace StewardessMCPService.Mcp
                     TypicalNextTools = new[] { "read_file", "get_git_diff" }
                 };
                 d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, replacementsApplied = new { type = "integer" }, success = new { type = "boolean" } } };
+            });
+
+            Annotate("edit_file", d =>
+            {
+                d.SideEffectClass = "file-write"; d.RiskLevel = "medium";
+                d.SupportsDryRun = true; d.SupportsRollback = true; d.SupportsAuditReason = true;
+                d.Tags = new[] { "edit" };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen = "Use to apply multiple find-and-replace edits to a single file in one operation.",
+                    DoNotUseWhen = "Do not use for multi-file changes — use batch_edit instead.",
+                    TypicalNextTools = new[] { "read_file", "get_git_diff" }
+                };
+                d.OutputSchema = new { type = "object", properties = new { path = new { type = "string" }, editsApplied = new { type = "integer" }, success = new { type = "boolean" }, diff = new { type = "string" } } };
             });
 
             Annotate("replace_lines", d =>

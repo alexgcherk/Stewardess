@@ -420,6 +420,58 @@ namespace StewardessMCPService.Services
         }
 
         /// <inheritdoc />
+        public async Task<EditResult> EditFileAsync(EditFileRequest request, CancellationToken ct = default)
+        {
+            if (request == null)                              throw new ArgumentNullException(nameof(request));
+            if (string.IsNullOrWhiteSpace(request.Path))     throw new ArgumentException("Path is required.",   nameof(request));
+            if (request.Edits == null || request.Edits.Count == 0)
+                throw new ArgumentException("At least one edit is required.", nameof(request));
+
+            EnsureWriteAllowed();
+            var absPath = ResolveWritePath(request.Path);
+            if (!File.Exists(absPath))
+                throw new FileNotFoundException($"File not found: {_pathValidator.ToRelativePath(absPath)}");
+
+            var opts    = request.Options ?? new EditOptions();
+            opts.DryRun = opts.DryRun || request.DryRun;
+            var relPath = _pathValidator.ToRelativePath(absPath);
+            var sw      = Stopwatch.StartNew();
+
+            var original = await ReadFileTextAsync(absPath, ct);
+            var current  = original;
+
+            for (int i = 0; i < request.Edits.Count; i++)
+            {
+                var edit = request.Edits[i];
+                if (edit == null || edit.OldText == null)
+                    throw new ArgumentException($"Edit[{i}].OldText must not be null.", nameof(request));
+                if (edit.NewText == null)
+                    throw new ArgumentException($"Edit[{i}].NewText must not be null.", nameof(request));
+
+                if (!current.Contains(edit.OldText, StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"Edit[{i}].OldText was not found in '{relPath}': \"{Truncate(edit.OldText, 80)}\"");
+
+                current = current.Replace(edit.OldText, edit.NewText, StringComparison.Ordinal);
+            }
+
+            var diff = GenerateUnifiedDiff(original, current, relPath);
+
+            if (opts.DryRun)
+            {
+                await Audit(opts, "edit_file", relPath, AuditOutcome.DryRun, null, sw.ElapsedMilliseconds, ct);
+                return DryRunResult(relPath, "edit_file", diff, request.Edits.Count);
+            }
+
+            var (backupRel, token) = opts.CreateBackup ? CreateBackup(absPath) : (null, null);
+            var enc = DetectFileEncoding(absPath);
+            await Task.Run(() => File.WriteAllText(absPath, current, enc), ct);
+
+            await Audit(opts, "edit_file", relPath, AuditOutcome.Success, backupRel, sw.ElapsedMilliseconds, ct);
+            return SuccessResult(relPath, "edit_file", diff, request.Edits.Count, backupRel, token);
+        }
+
+        /// <inheritdoc />
         public async Task<EditResult> ReplaceLinesAsync(ReplaceLinesRequest request, CancellationToken ct = default)
         {
             if (request == null)                          throw new ArgumentNullException(nameof(request));
@@ -1323,6 +1375,9 @@ namespace StewardessMCPService.Services
             sb.Append(content, index, content.Length - index);
             return sb.ToString();
         }
+
+        private static string Truncate(string s, int max) =>
+            s != null && s.Length > max ? s.Substring(0, max) + "…" : s;
 
         private static int CountDiffLines(string diff, char op)
         {

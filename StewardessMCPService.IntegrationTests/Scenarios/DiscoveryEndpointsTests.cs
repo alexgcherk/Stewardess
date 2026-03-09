@@ -188,30 +188,22 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         }
 
         /// <summary>
-        /// GET /api/repository should return repository metadata.
+        /// GET /repositories/default should return repository metadata.
         /// </summary>
         [Fact]
         public async Task GetRepositoryInfo_ReturnsRepositoryMetadata()
         {
-            var response = await _client.GetAsync("/api/repository");
+            var response = await _client.GetAsync("/repositories/default");
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var body = await response.Content.ReadAsStringAsync();
             var json = JObject.Parse(body);
 
-            Assert.True(json["success"]?.Value<bool>() == true);
-
-            var info = json["data"];
-            Assert.NotNull(info["repositoryRoot"]);
-            Assert.NotNull(info["readOnlyMode"]);
-            Assert.NotNull(info["serviceVersion"]);
-            Assert.NotNull(info["policy"]);
-            Assert.NotNull(info["policy"]["blockedFolders"]);
-            Assert.NotNull(info["policy"]["blockedExtensions"]);
-
-            // Verify repository root matches our test repo (FileSystemService uses injected settings)
-            Assert.Equal(_tempRepo.Root, info["repositoryRoot"]?.Value<string>());
+            // New spec: direct object, no ApiResponse envelope
+            Assert.NotNull(json["id"]);
+            Assert.NotNull(json["name"]);
+            Assert.NotNull(json["owner"]);
         }
 
         /// <summary>
@@ -303,7 +295,6 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         [InlineData("/api/version")]
         [InlineData("/api/capabilities")]
         [InlineData("/api/tools")]
-        [InlineData("/api/repository")]
         public async Task DiscoveryEndpoints_ReturnValidApiResponseEnvelope(string endpoint)
         {
             var response = await _client.GetAsync(endpoint);

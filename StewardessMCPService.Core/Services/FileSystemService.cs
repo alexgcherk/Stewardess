@@ -114,7 +114,9 @@ namespace StewardessMCPService.Services
                 entries.Add(entry);
             }
 
-            var sorted   = entries.OrderBy(e => e.Type).ThenBy(e => e.Name).ToList();
+            var sorted   = string.Equals(request.SortBy, "size", StringComparison.OrdinalIgnoreCase)
+                ? entries.OrderByDescending(e => e.SizeBytes ?? -1).ThenBy(e => e.Name).ToList()
+                : entries.OrderBy(e => e.Type).ThenBy(e => e.Name).ToList();
             bool truncated = sorted.Count > _settings.MaxDirectoryEntries;
             if (truncated) sorted = sorted.Take(_settings.MaxDirectoryEntries).ToList();
 
@@ -267,6 +269,23 @@ namespace StewardessMCPService.Services
                 encoding  = DetectFileEncodingSync(absPath);
                 var enc   = ResolveEncoding(encoding);
                 content   = await ReadTextAsync(absPath, toRead, enc, ct).ConfigureAwait(false);
+
+                // Apply head/tail slicing when requested
+                if (request.Head.HasValue || request.Tail.HasValue)
+                {
+                    if (request.Head.HasValue && request.Tail.HasValue)
+                        throw new ArgumentException("Cannot specify both 'head' and 'tail' simultaneously.");
+
+                    var allLines = content.Split('\n');
+                    string[] sliced;
+                    if (request.Head.HasValue)
+                        sliced = allLines.Take(Math.Max(0, request.Head.Value)).ToArray();
+                    else
+                        sliced = allLines.Skip(Math.Max(0, allLines.Length - request.Tail.Value)).ToArray();
+
+                    content = string.Join("\n", sliced);
+                }
+
                 lineEnding = DetectLineEndingInText(content);
                 lineCount  = CountNewlines(content) + 1;
             }
@@ -286,6 +305,55 @@ namespace StewardessMCPService.Services
                 IsBinary      = isBinary,
                 Truncated     = truncated,
                 BytesReturned = toRead
+            };
+        }
+
+        /// <inheritdoc />
+        public async Task<ReadMediaFileResponse> ReadMediaFileAsync(ReadMediaFileRequest request, CancellationToken ct = default)
+        {
+            var validation = _pathValidator.ValidateRead(request?.Path, out var absPath);
+            if (!validation.IsValid)
+                throw new ArgumentException(validation.ErrorMessage);
+
+            if (!File.Exists(absPath))
+                throw new FileNotFoundException($"File not found: {request.Path}");
+
+            var fi = new FileInfo(absPath);
+            var bytes = await ReadBytesAsync(absPath, fi.Length, ct).ConfigureAwait(false);
+            var mimeType = GetMimeType(fi.Extension);
+
+            return new ReadMediaFileResponse
+            {
+                RelativePath  = _pathValidator.ToRelativePath(absPath),
+                Name          = fi.Name,
+                MimeType      = mimeType,
+                ContentBase64 = Convert.ToBase64String(bytes),
+                SizeBytes     = fi.Length,
+                LastModified  = new DateTimeOffset(fi.LastWriteTimeUtc, TimeSpan.Zero)
+            };
+        }
+
+        private static string GetMimeType(string extension)
+        {
+            return (extension ?? "").ToLowerInvariant() switch
+            {
+                ".png"  => "image/png",
+                ".jpg"  => "image/jpeg",
+                ".jpeg" => "image/jpeg",
+                ".gif"  => "image/gif",
+                ".webp" => "image/webp",
+                ".bmp"  => "image/bmp",
+                ".svg"  => "image/svg+xml",
+                ".ico"  => "image/x-icon",
+                ".mp3"  => "audio/mpeg",
+                ".wav"  => "audio/wav",
+                ".ogg"  => "audio/ogg",
+                ".flac" => "audio/flac",
+                ".mp4"  => "video/mp4",
+                ".webm" => "video/webm",
+                ".pdf"  => "application/pdf",
+                ".zip"  => "application/zip",
+                _       => "application/octet-stream"
             };
         }
 

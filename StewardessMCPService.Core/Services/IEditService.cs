@@ -47,6 +47,12 @@ namespace StewardessMCPService.Services
         /// <summary>Replaces all (or a limited number of) occurrences of a literal string.</summary>
         Task<EditResult> ReplaceTextAsync(ReplaceTextRequest request, CancellationToken ct = default);
 
+        /// <summary>
+        /// Applies multiple find-and-replace edits to a single file in sequence.
+        /// Returns a git-style diff. Supports dry-run mode.
+        /// </summary>
+        Task<EditResult> EditFileAsync(EditFileRequest request, CancellationToken ct = default);
+
         /// <summary>Replaces a contiguous range of lines with new content.</summary>
         Task<EditResult> ReplaceLinesAsync(ReplaceLinesRequest request, CancellationToken ct = default);
 

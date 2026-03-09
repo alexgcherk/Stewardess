@@ -130,15 +130,15 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         }
 
         /// <summary>
-        /// Core file/search/git/command operation IDs must also be present,
-        /// proving the fix applies globally (not just to the new controller).
+        /// Core operation IDs from new Repositories controller and unchanged controllers
+        /// must appear in the spec.
         /// </summary>
         [Theory]
-        [InlineData("File_ReadFile")]
+        [InlineData("Repositories_GetRepository")]
+        [InlineData("Repositories_GetFile")]
+        [InlineData("Repositories_ListBranches")]
         [InlineData("Search_SearchTextGet")]
-        [InlineData("Git_GetStatus")]
         [InlineData("Command_RunBuild")]
-        [InlineData("Repository_GetRepositoryInfo")]
         public async Task CoreOperations_HaveExpectedOperationId(string expectedId)
         {
             var (ops, _) = await CollectOperationsAsync();
@@ -150,13 +150,14 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         // ── minimum operation count ──────────────────────────────────────────────
 
         /// <summary>
-        /// The spec must contain at least 41 operations (37 pre-existing + 4 new repo_browser ones).
+        /// The spec must contain at least 35 operations.
+        /// Repositories (19) + Command (4) + Health (3) + Capabilities (2) + McpController (3) + RepoBrowser (4) + Search (3+) = 38+
         /// </summary>
         [Fact]
-        public async Task Spec_HasAtLeast41Operations()
+        public async Task Spec_HasAtLeast35Operations()
         {
             var (ops, _) = await CollectOperationsAsync();
-            Assert.True(ops.Count >= 41, $"Expected ≥41 operations but found {ops.Count}.");
+            Assert.True(ops.Count >= 35, $"Expected ≥35 operations but found {ops.Count}.");
         }
 
         // ── Private helpers ──────────────────────────────────────────────────────

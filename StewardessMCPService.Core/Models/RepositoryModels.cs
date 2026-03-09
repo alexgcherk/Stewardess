@@ -85,6 +85,11 @@ namespace StewardessMCPService.Models
 
         /// <summary>Filter entries by name pattern using simple wildcard (* and ?).</summary>
         public string NamePattern { get; set; }
+
+        /// <summary>
+        /// Sort order for entries: "name" (default, alphabetical) or "size" (largest files first).
+        /// </summary>
+        public string SortBy { get; set; } = "name";
     }
 
     /// <summary>Result of a directory listing.</summary>

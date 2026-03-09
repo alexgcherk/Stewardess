@@ -85,19 +85,22 @@ namespace StewardessMCPService.IntegrationTests.Helpers
         // ── Edit operations ──────────────────────────────────────────────────────
 
         /// <summary>Creates a directory at <paramref name="relativePath"/>.</summary>
-        public Task<EditResult> CreateDirectoryAsync(string relativePath) =>
-            PostAsync<CreateDirectoryRequest, EditResult>(
-                "api/edit/create-directory",
-                new CreateDirectoryRequest { Path = relativePath, CreateParents = true });
+        public async Task<EditResult> CreateDirectoryAsync(string relativePath)
+        {
+            var (data, isError) = await CallToolAsync("create_directory", new { path = relativePath, create_parents = true });
+            if (isError)
+                return new EditResult { Success = false, ErrorMessage = data.GetValue("message", StringComparison.OrdinalIgnoreCase)?.Value<string>() ?? "create_directory failed" };
+            return new EditResult { Success = true, Operation = "create_directory", RelativePath = relativePath };
+        }
 
-        /// <summary>
-        /// Writes <paramref name="content"/> to the file at
-        /// <paramref name="relativePath"/>, creating it when absent.
-        /// </summary>
-        public Task<EditResult> WriteFileAsync(string relativePath, string content) =>
-            PostAsync<WriteFileRequest, EditResult>(
-                "api/edit/write",
-                new WriteFileRequest { Path = relativePath, Content = content });
+        /// <summary>Writes <paramref name="content"/> to the file at <paramref name="relativePath"/>.</summary>
+        public async Task<EditResult> WriteFileAsync(string relativePath, string content)
+        {
+            var (data, isError) = await CallToolAsync("write_file", new { path = relativePath, content = content });
+            if (isError)
+                return new EditResult { Success = false, ErrorMessage = data.GetValue("message", StringComparison.OrdinalIgnoreCase)?.Value<string>() ?? "write_file failed" };
+            return new EditResult { Success = true, RelativePath = relativePath };
+        }
 
         // ── Command operations ───────────────────────────────────────────────────
 

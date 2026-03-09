@@ -169,6 +169,37 @@ namespace StewardessMCPService.Models
         public EditOptions Options { get; set; } = new EditOptions();
     }
 
+    // ── edit_file ─────────────────────────────────────────────────────────────────
+
+    /// <summary>A single find-and-replace operation within an <see cref="EditFileRequest"/>.</summary>
+    public sealed class TextEditOperation
+    {
+        /// <summary>Exact text to find in the file. Must match exactly (including whitespace).</summary>
+        public string OldText { get; set; }
+
+        /// <summary>Text to replace the matched region with.</summary>
+        public string NewText { get; set; }
+    }
+
+    /// <summary>
+    /// Applies multiple find-and-replace edits to a single file in sequence.
+    /// Supports dry-run mode which returns a git-style diff without modifying the file.
+    /// </summary>
+    public sealed class EditFileRequest
+    {
+        /// <summary>File path relative to repository root.</summary>
+        public string Path { get; set; }
+
+        /// <summary>Ordered list of text edits to apply. Each edit is applied to the result of the previous one.</summary>
+        public List<TextEditOperation> Edits { get; set; } = new List<TextEditOperation>();
+
+        /// <summary>When true, returns a diff preview without writing to disk.</summary>
+        public bool DryRun { get; set; } = false;
+
+        /// <summary>Write options such as backup control and audit metadata.</summary>
+        public EditOptions Options { get; set; } = new EditOptions();
+    }
+
     // ── replace_text ─────────────────────────────────────────────────────────────
 
     /// <summary>Replaces all occurrences of a literal string within a file.</summary>

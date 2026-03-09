@@ -35,6 +35,9 @@ namespace StewardessMCPService.Services
         /// <summary>Reads the full or partial content of a file.</summary>
         Task<ReadFileResponse> ReadFileAsync(ReadFileRequest request, CancellationToken ct = default);
 
+        /// <summary>Reads a binary or media file and returns it as base64 with MIME type.</summary>
+        Task<ReadMediaFileResponse> ReadMediaFileAsync(ReadMediaFileRequest request, CancellationToken ct = default);
+
         /// <summary>Reads a contiguous range of lines from a file.</summary>
         Task<ReadFileRangeResponse> ReadFileRangeAsync(ReadFileRangeRequest request, CancellationToken ct = default);
 

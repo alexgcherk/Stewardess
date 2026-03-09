@@ -205,6 +205,199 @@ namespace StewardessMCPService.Services
             return response;
         }
 
+        // ── Spec extensions ──────────────────────────────────────────────────────
+
+        /// <inheritdoc/>
+        public async Task<List<ApiBranch>> ListBranchesAsync(CancellationToken ct = default)
+        {
+            var result = await RunGitAsync(
+                "branch -a --format=%(refname:short)|%(objectname)|%(creatordate:iso-strict)", ct)
+                .ConfigureAwait(false);
+
+            var branches = new List<ApiBranch>();
+            if (result.ExitCode != 0) return branches;
+
+            foreach (var line in result.Stdout.Split('\n'))
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                var parts = trimmed.Split('|');
+                var name = parts.Length > 0 ? parts[0].Trim() : trimmed;
+                var sha  = parts.Length > 1 ? parts[1].Trim() : string.Empty;
+                DateTimeOffset? createdAt = null;
+                if (parts.Length > 2 && DateTimeOffset.TryParse(parts[2].Trim(), out var dt))
+                    createdAt = dt;
+
+                branches.Add(new ApiBranch { Name = name, CommitSha = sha, CreatedAt = createdAt });
+            }
+
+            return branches;
+        }
+
+        /// <inheritdoc/>
+        public async Task<ApiBranch> CreateBranchAsync(
+            string name, string sourceBranch, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Branch name is required.", nameof(name));
+            if (string.IsNullOrWhiteSpace(sourceBranch))
+                throw new ArgumentException("Source branch is required.", nameof(sourceBranch));
+
+            var createResult = await RunGitAsync(
+                $"branch {EscapeShellArg(name)} {EscapeShellArg(sourceBranch)}", ct)
+                .ConfigureAwait(false);
+            if (createResult.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"Failed to create branch '{name}': {createResult.Stderr.Trim()}");
+
+            var shaResult = await RunGitAsync(
+                $"rev-parse {EscapeShellArg(name)}", ct).ConfigureAwait(false);
+            var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
+
+            return new ApiBranch { Name = name, CommitSha = sha, CreatedAt = DateTimeOffset.UtcNow };
+        }
+
+        /// <inheritdoc/>
+        public async Task<List<ApiDiff>> DiffBetweenCommitsAsync(
+            string baseSha, string targetSha, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(baseSha))
+                throw new ArgumentException("baseSha is required.", nameof(baseSha));
+            if (string.IsNullOrWhiteSpace(targetSha))
+                throw new ArgumentException("targetSha is required.", nameof(targetSha));
+
+            var result = await RunGitAsync(
+                $"diff {EscapeShellArg(baseSha)} {EscapeShellArg(targetSha)}", ct)
+                .ConfigureAwait(false);
+
+            if (result.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"git diff failed: {result.Stderr.Trim()}");
+
+            var parsed = ParseDiffOutput(result.Stdout, "commits");
+            return parsed.Files.Select(f =>
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"diff --git a/{f.RelativePath} b/{f.RelativePath}");
+                foreach (var hunk in f.Hunks)
+                {
+                    if (!string.IsNullOrEmpty(hunk.Header))
+                        sb.AppendLine(hunk.Header);
+                    foreach (var line in hunk.Lines)
+                    {
+                        var prefix = line.Type switch { "added" => "+", "removed" => "-", _ => " " };
+                        sb.AppendLine(prefix + (line.Text ?? ""));
+                    }
+                }
+                return new ApiDiff { FilePath = f.RelativePath, DiffText = sb.ToString() };
+            }).ToList();
+        }
+
+        /// <inheritdoc/>
+        public async Task<ApiCommit> CreateCommitAsync(
+            string message, string authorName, string authorEmail,
+            IReadOnlyList<string> files, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                throw new ArgumentException("Commit message is required.", nameof(message));
+
+            string addArgs = (files == null || files.Count == 0)
+                ? "add -A"
+                : "add " + string.Join(" ", files.Select(f => EscapeShellArg(f)));
+
+            var addResult = await RunGitAsync(addArgs, ct).ConfigureAwait(false);
+            if (addResult.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"git add failed: {addResult.Stderr.Trim()}");
+
+            var commitArgs = new StringBuilder("commit");
+            if (!string.IsNullOrWhiteSpace(authorName) || !string.IsNullOrWhiteSpace(authorEmail))
+            {
+                var authorStr = !string.IsNullOrWhiteSpace(authorEmail)
+                    ? $"{authorName ?? string.Empty} <{authorEmail}>"
+                    : authorName;
+                commitArgs.Append($" --author={EscapeShellArg(authorStr)}");
+            }
+            commitArgs.Append($" -m {EscapeShellArg(message)}");
+
+            var commitResult = await RunGitAsync(commitArgs.ToString(), ct).ConfigureAwait(false);
+            if (commitResult.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"git commit failed: {commitResult.Stderr.Trim()}");
+
+            var shaResult = await RunGitAsync("rev-parse HEAD", ct).ConfigureAwait(false);
+            var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
+
+            return new ApiCommit
+            {
+                Sha     = sha,
+                Message = message,
+                Author  = new ApiUser { Username = authorName, Email = authorEmail },
+                Parents = new List<string>()
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<ApiCommit> MergeBranchAsync(
+            string sourceBranch, string targetBranch, string strategy, CancellationToken ct = default)
+        {
+            if (string.IsNullOrWhiteSpace(sourceBranch))
+                throw new ArgumentException("sourceBranch is required.", nameof(sourceBranch));
+
+            if (!string.IsNullOrWhiteSpace(targetBranch))
+            {
+                var checkoutResult = await RunGitAsync(
+                    $"checkout {EscapeShellArg(targetBranch)}", ct).ConfigureAwait(false);
+                if (checkoutResult.ExitCode != 0)
+                    throw new InvalidOperationException(
+                        $"Cannot checkout '{targetBranch}': {checkoutResult.Stderr.Trim()}");
+            }
+
+            var mergeArgs = new StringBuilder("merge");
+            switch ((strategy ?? "recursive").ToLowerInvariant())
+            {
+                case "ours":   mergeArgs.Append(" -X ours");   break;
+                case "theirs": mergeArgs.Append(" -X theirs"); break;
+                default:       break;
+            }
+            mergeArgs.Append($" {EscapeShellArg(sourceBranch)}");
+
+            var mergeResult = await RunGitAsync(mergeArgs.ToString(), ct).ConfigureAwait(false);
+            if (mergeResult.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"Merge conflict or error: {mergeResult.Stderr.Trim()}");
+
+            var shaResult = await RunGitAsync("rev-parse HEAD", ct).ConfigureAwait(false);
+            var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
+
+            return new ApiCommit
+            {
+                Sha     = sha,
+                Message = $"Merged '{sourceBranch}' into '{targetBranch}'",
+                Author  = new ApiUser { Username = "git", Email = "" },
+                Parents = new List<string>()
+            };
+        }
+
+        /// <inheritdoc/>
+        public async Task<string> PushAsync(CancellationToken ct = default)
+        {
+            var result = await RunGitAsync("push", ct).ConfigureAwait(false);
+            if (result.ExitCode != 0)
+                throw new InvalidOperationException($"git push failed: {result.Stderr.Trim()}");
+            return result.Stdout.Trim();
+        }
+
+        /// <inheritdoc/>
+        public async Task<string> PullAsync(CancellationToken ct = default)
+        {
+            var result = await RunGitAsync("pull", ct).ConfigureAwait(false);
+            if (result.ExitCode != 0)
+                throw new InvalidOperationException($"git pull failed: {result.Stderr.Trim()}");
+            return result.Stdout.Trim();
+        }
+
         // ── Process runner ───────────────────────────────────────────────────────
 
         /// <summary>
