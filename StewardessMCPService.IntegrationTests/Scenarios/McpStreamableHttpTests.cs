@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -35,6 +36,7 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
         private readonly McpTestServer  _server;
         private readonly HttpClient     _http;
         private readonly string?        _apiKey;
+        private const string SseContentType = "text/event-stream";
 
         public McpStreamableHttpTests()
         {
@@ -333,22 +335,53 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
 
             Assert.NotNull(sessionId);
 
-            // Open SSE channel and read just the first event (the endpoint event),
-            // then cancel the stream.
-            using var cts    = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var sseClient    = new McpSseClient(_http);
-            var events       = new List<SseEvent>();
+            // Open the SSE channel in a background task so it doesn't block the test
+            // thread while the server is in its infinite channel-read loop.
+            // We read the raw stream directly (bypassing McpSseClient) so that the
+            // HttpRequest's cancellation token is independent of the stream reader.
+            string? firstEventLine = null;
+            using var requestCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-            await foreach (var evt in sseClient.ReadNotificationsAsync(sessionId!, cts.Token))
+            var readTask = Task.Run(async () =>
             {
-                events.Add(evt);
-                // Cancel after receiving the first event.
-                await cts.CancelAsync();
-            }
+                var req = new HttpRequestMessage(HttpMethod.Get, "mcp");
+                req.Headers.Add("Mcp-Session-Id", sessionId!);
+                req.Headers.Add("Accept", SseContentType);
 
-            // We should have received the endpoint handshake event.
-            Assert.NotEmpty(events);
-            Assert.Equal("endpoint", events[0].EventType);
+                using var response = await _http.SendAsync(
+                    req, HttpCompletionOption.ResponseHeadersRead, requestCts.Token)
+                    .ConfigureAwait(false);
+
+                response.EnsureSuccessStatusCode();
+
+                await using var stream = await response.Content
+                    .ReadAsStreamAsync(requestCts.Token).ConfigureAwait(false);
+
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+
+                // Read lines until we find the first "event:" line (the endpoint event).
+                while (!requestCts.Token.IsCancellationRequested)
+                {
+                    string? line;
+                    try { line = await reader.ReadLineAsync(requestCts.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { break; }
+
+                    if (line == null) break;
+                    if (line.StartsWith("event:", StringComparison.Ordinal))
+                    {
+                        firstEventLine = line.Trim();
+                        break; // Got what we need; cancel the request.
+                    }
+                }
+            });
+
+            // Give the background reader up to 5 seconds to receive the endpoint event.
+            await Task.WhenAny(readTask, Task.Delay(TimeSpan.FromSeconds(5)));
+            await requestCts.CancelAsync(); // Cancel the long-lived SSE connection.
+            try { await readTask; } catch { /* OperationCanceledException is expected */ }
+
+            Assert.NotNull(firstEventLine);
+            Assert.Contains("endpoint", firstEventLine, StringComparison.OrdinalIgnoreCase);
         }
 
         // ── Backward compatibility: POST /mcp/v1/ still works ───────────────────

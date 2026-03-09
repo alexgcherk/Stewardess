@@ -178,6 +178,12 @@ namespace StewardessMCPService.Controllers
             Response.Headers["Cache-Control"] = "no-cache";
             Response.Headers["X-Accel-Buffering"] = "no"; // Disable Nginx buffering
 
+            // Explicitly commit the response headers to the transport before writing
+            // any body data.  Without this call the in-process test server (and some
+            // reverse proxies) may buffer the headers until the action completes,
+            // which would deadlock a streaming SSE consumer waiting on ResponseHeadersRead.
+            await HttpContext.Response.StartAsync(ct).ConfigureAwait(false);
+
             // Send the initial "endpoint" event so client knows the channel is open.
             await WriteSseEventAsync(
                 Response.Body,
