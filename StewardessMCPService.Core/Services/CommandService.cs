@@ -41,7 +41,7 @@ namespace StewardessMCPService.Services
         // ── ICommandService ──────────────────────────────────────────────────────
 
         /// <inheritdoc/>
-        public bool IsCommandAllowed(string command)
+        public bool IsCommandAllowed(string? command)
         {
             if (string.IsNullOrWhiteSpace(command)) return false;
             var trimmed = command.Trim();

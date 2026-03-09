@@ -49,7 +49,7 @@ namespace StewardessMCPService.Tests.Services
         [InlineData("powershell -enc ABC", false)]
         [InlineData("", false)]
         [InlineData(null, false)]
-        public void IsCommandAllowed_ReturnsExpected(string command, bool expected)
+        public void IsCommandAllowed_ReturnsExpected(string? command, bool expected)
         {
             Assert.Equal(expected, _svc.IsCommandAllowed(command));
         }

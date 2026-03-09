@@ -708,7 +708,7 @@ namespace StewardessMCPService.Services
             return $" -- \"{gitPath}\"";
         }
 
-        internal static string BuildDiffScopeArgs(string scope)
+        internal static string BuildDiffScopeArgs(string? scope)
         {
             switch ((scope ?? "unstaged").ToLowerInvariant())
             {

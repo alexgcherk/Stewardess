@@ -25,6 +25,6 @@ namespace StewardessMCPService.Services
         /// Returns true when the given command string is permitted by the
         /// AllowedCommands configuration.
         /// </summary>
-        bool IsCommandAllowed(string command);
+        bool IsCommandAllowed(string? command);
     }
 }

@@ -366,7 +366,7 @@ namespace StewardessMCPService.Tests.Mcp
             var result = await InvokeAsync(PrintTree, new { max_entries = 1 });
             var items  = result["items"] as JArray;
             Assert.NotNull(items);
-            Assert.Equal(1, items.Count);
+            Assert.Single(items);
         }
 
         /// <summary>print_tree with max_depth=1 returns no items deeper than depth 0.</summary>

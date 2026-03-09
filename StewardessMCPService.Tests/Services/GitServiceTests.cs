@@ -39,7 +39,7 @@ namespace StewardessMCPService.Tests.Services
         public async Task IsGitRepository_NoDotGit_ReturnsFalse()
         {
             // Temp dir has no .git — should return false
-            var result = await _svc.IsGitRepositoryAsync().ConfigureAwait(false);
+            var result = await _svc.IsGitRepositoryAsync();
             Assert.False(result);
         }
 
@@ -48,7 +48,7 @@ namespace StewardessMCPService.Tests.Services
         {
             // Create a .git directory to simulate a real repo.
             Directory.CreateDirectory(Path.Combine(_repo.Root, ".git"));
-            var result = await _svc.IsGitRepositoryAsync().ConfigureAwait(false);
+            var result = await _svc.IsGitRepositoryAsync();
             Assert.True(result);
         }
 
@@ -57,7 +57,7 @@ namespace StewardessMCPService.Tests.Services
         [Fact]
         public async Task GetStatus_NonGitDir_ReturnsIsGitRepositoryFalse()
         {
-            var response = await _svc.GetStatusAsync(new GitStatusRequest()).ConfigureAwait(false);
+            var response = await _svc.GetStatusAsync(new GitStatusRequest());
             Assert.False(response.IsGitRepository);
             Assert.Empty(response.Files);
         }
@@ -381,7 +381,7 @@ index 333..444 100644
         [InlineData("unstaged", "")]
         [InlineData("unknown",  "")]
         [InlineData(null,       "")]
-        public void BuildDiffScopeArgs_KnownScopes_ReturnFixedArgs(string scope, string expected)
+        public void BuildDiffScopeArgs_KnownScopes_ReturnFixedArgs(string? scope, string expected)
         {
             Assert.Equal(expected, GitService.BuildDiffScopeArgs(scope));
         }

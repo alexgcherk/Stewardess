@@ -224,7 +224,7 @@ namespace StewardessMCPService.Tests.Services
 
             var result = await _svc.SearchRegexAsync(
                 new SearchRegexRequest { Pattern = "(a+)+$", IgnoreCase = false },
-                cts.Token).ConfigureAwait(false);
+                cts.Token);
 
             sw.Stop();
 

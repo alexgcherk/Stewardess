@@ -36,10 +36,10 @@ namespace StewardessMCPService.Tests.Services
         public async Task GetRepositoryInfo_ReturnsCorrectRoot()
         {
             var info = await _svc.GetRepositoryInfoAsync(CancellationToken.None);
-            Assert.True(string.Equals(
+            Assert.Equal(
                 Path.GetFullPath(_repo.Root),
                 Path.GetFullPath(info.RepositoryRoot),
-                StringComparison.OrdinalIgnoreCase));
+                StringComparer.OrdinalIgnoreCase);
         }
 
         [Fact]
