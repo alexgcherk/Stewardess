@@ -45,7 +45,7 @@ namespace StewardessMCPService.Controllers
     /// Authentication
     /// ──────────────
     /// POST and DELETE require the standard API-key header (applied globally by
-    /// <see cref="ApiKeyAuthFilter"/>).  GET uses <c>[AllowAnonymous]</c> because SSE
+    /// the <c>ApiKeyAuthFilter</c>).  GET uses <c>[AllowAnonymous]</c> because SSE
     /// clients that have established a session cannot re-set headers on the keep-alive
     /// connection; instead the controller validates the session ID manually.
     /// </summary>

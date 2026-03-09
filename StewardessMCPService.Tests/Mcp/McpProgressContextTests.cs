@@ -116,7 +116,7 @@ namespace StewardessMCPService.Tests.Mcp
         }
 
         [Fact]
-        public async Task Current_CanBeRestoredAfterToolCall()
+        public void Current_CanBeRestoredAfterToolCall()
         {
             // Simulate what McpToolHandler does: save, set, call tool, restore.
             McpProgressContext.Current = null;
