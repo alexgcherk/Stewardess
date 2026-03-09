@@ -1,10 +1,11 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Semantic;
 
 /// <summary>
-/// Role of a <see cref="SymbolOccurrence"/> within its file.
-/// Supports partial classes, header/source separation, and distributed declarations.
+///     Role of a <see cref="SymbolOccurrence" /> within its file.
+///     Supports partial classes, header/source separation, and distributed declarations.
 /// </summary>
 public enum OccurrenceRole
 {
@@ -24,5 +25,5 @@ public enum OccurrenceRole
     ForwardDeclaration,
 
     /// <summary>Merged declaration spanning multiple files or compilation units.</summary>
-    MergedDeclaration,
+    MergedDeclaration
 }

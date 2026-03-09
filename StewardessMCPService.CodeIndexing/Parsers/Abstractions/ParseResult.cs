@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Diagnostics;
 using StewardessMCPService.CodeIndexing.Model.References;
 using StewardessMCPService.CodeIndexing.Model.Semantic;
@@ -8,7 +9,7 @@ using StewardessMCPService.CodeIndexing.Model.Structural;
 namespace StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 
 /// <summary>
-/// Output of a parser adapter for a single file parse operation.
+///     Output of a parser adapter for a single file parse operation.
 /// </summary>
 public sealed class ParseResult
 {

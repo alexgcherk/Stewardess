@@ -1,18 +1,19 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Model.Semantic;
 
 /// <summary>
-/// Represents a query-facing semantic symbol projected from the structural tree.
-/// A logical symbol identifies a semantic entity (e.g., a class, method, namespace)
-/// independently of its concrete file location.
+///     Represents a query-facing semantic symbol projected from the structural tree.
+///     A logical symbol identifies a semantic entity (e.g., a class, method, namespace)
+///     independently of its concrete file location.
 /// </summary>
 /// <remarks>
-/// Logical symbol identity is stable: moving a symbol within a file or renaming its
-/// containing file SHOULD NOT change the symbol ID if the semantic identity is preserved.
-/// Line numbers MUST NOT be part of logical symbol identity.
+///     Logical symbol identity is stable: moving a symbol within a file or renaming its
+///     containing file SHOULD NOT change the symbol ID if the semantic identity is preserved.
+///     Line numbers MUST NOT be part of logical symbol identity.
 /// </remarks>
 public sealed class LogicalSymbol
 {

@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using System.Security.Cryptography;
 using System.Text;
 using StewardessMCPService.CodeIndexing.Eligibility;
@@ -7,12 +8,12 @@ using StewardessMCPService.CodeIndexing.Eligibility;
 namespace StewardessMCPService.CodeIndexing.Source;
 
 /// <summary>
-/// File system-based source provider. Enumerates files recursively,
-/// reads content with encoding detection, and computes SHA-256 hashes.
+///     File system-based source provider. Enumerates files recursively,
+///     reads content with encoding detection, and computes SHA-256 hashes.
 /// </summary>
 public sealed class FileSystemSourceProvider : ISourceProvider
 {
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<IReadOnlyList<SourceFileInfo>> EnumerateFilesAsync(
         string rootPath,
         IEligibilityPolicy policy,
@@ -35,7 +36,7 @@ public sealed class FileSystemSourceProvider : ISourceProvider
                     var sizeBytes = info.Length;
 
                     // Quick binary pre-check using first 512 bytes (no full read needed for eligibility)
-                    bool isBinary = QuickBinaryCheck(file);
+                    var isBinary = QuickBinaryCheck(file);
 
                     var eligibility = policy.Evaluate(file, sizeBytes, isBinary);
                     if (!eligibility.IsEligible) continue;
@@ -44,7 +45,7 @@ public sealed class FileSystemSourceProvider : ISourceProvider
                     {
                         FilePath = file,
                         SizeBytes = sizeBytes,
-                        LastModified = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
+                        LastModified = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero)
                     });
                 }
                 catch (Exception)
@@ -57,7 +58,7 @@ public sealed class FileSystemSourceProvider : ISourceProvider
         return results;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<SourceFileContent> ReadFileAsync(string filePath, CancellationToken ct = default)
     {
         var rawBytes = await File.ReadAllBytesAsync(filePath, ct);
@@ -70,30 +71,31 @@ public sealed class FileSystemSourceProvider : ISourceProvider
             Content = content,
             Encoding = encoding,
             ContentHash = hash,
-            RawBytes = rawBytes,
+            RawBytes = rawBytes
         };
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public string ComputeHash(byte[] content)
     {
         var hashBytes = SHA256.HashData(content);
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public bool IsBinaryContent(byte[] sample)
     {
         // Check for null bytes or high proportion of non-printable characters
-        int checkLength = Math.Min(sample.Length, 8000);
-        int nonPrintable = 0;
-        for (int i = 0; i < checkLength; i++)
+        var checkLength = Math.Min(sample.Length, 8000);
+        var nonPrintable = 0;
+        for (var i = 0; i < checkLength; i++)
         {
-            byte b = sample[i];
-            if (b == 0) return true;         // Null byte = definite binary
+            var b = sample[i];
+            if (b == 0) return true; // Null byte = definite binary
             if (b < 8 || (b > 13 && b < 32)) nonPrintable++;
         }
-        return checkLength > 0 && (nonPrintable * 100 / checkLength) > 30;
+
+        return checkLength > 0 && nonPrintable * 100 / checkLength > 30;
     }
 
     // Reads a few hundred bytes to decide binary without reading the whole file
@@ -103,7 +105,7 @@ public sealed class FileSystemSourceProvider : ISourceProvider
         {
             using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             var buffer = new byte[512];
-            int read = fs.Read(buffer, 0, buffer.Length);
+            var read = fs.Read(buffer, 0, buffer.Length);
             if (read == 0) return false;
             return IsBinaryContent(buffer[..read]);
         }

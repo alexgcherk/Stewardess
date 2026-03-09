@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,16 +10,16 @@ using LangId = StewardessMCPService.CodeIndexing.LanguageDetection.LanguageId;
 namespace StewardessMCPService.Parsers.CSharp;
 
 /// <summary>
-/// Walks a Roslyn C# SyntaxTree and produces a flat list of <see cref="StructuralNode"/>
-/// objects representing the file's declaration hierarchy.
+///     Walks a Roslyn C# SyntaxTree and produces a flat list of <see cref="StructuralNode" />
+///     objects representing the file's declaration hierarchy.
 /// </summary>
 internal sealed class CSharpStructuralExtractor
 {
+    private readonly CancellationToken _ct;
     private readonly string _fileId;
     private readonly string _filePath;
-    private readonly CancellationToken _ct;
-    private readonly List<StructuralNode> _nodes = [];
     private readonly Dictionary<SyntaxNode, string> _nodeIds = [];
+    private readonly List<StructuralNode> _nodes = [];
     private int _counter;
 
     internal CSharpStructuralExtractor(string fileId, string filePath, CancellationToken ct)
@@ -29,12 +30,12 @@ internal sealed class CSharpStructuralExtractor
     }
 
     /// <summary>
-    /// Extracts structural nodes from the syntax root.
-    /// Returns a flat list; parent-child relationships are encoded via <see cref="StructuralNode.Children"/>.
+    ///     Extracts structural nodes from the syntax root.
+    ///     Returns a flat list; parent-child relationships are encoded via <see cref="StructuralNode.Children" />.
     /// </summary>
     internal IReadOnlyList<StructuralNode> Extract(SyntaxNode root)
     {
-        Visit(root, parentNodeId: null, containerPath: []);
+        Visit(root, null, []);
         return _nodes;
     }
 
@@ -73,7 +74,7 @@ internal sealed class CSharpStructuralExtractor
 
             case EnumDeclarationSyntax enm:
                 VisitTypeDeclaration(enm, "enum", enm.Identifier.Text,
-                    enm.Modifiers, typeParams: null, parentNodeId, containerPath);
+                    enm.Modifiers, null, parentNodeId, containerPath);
                 break;
 
             case RecordDeclarationSyntax rec:
@@ -98,8 +99,8 @@ internal sealed class CSharpStructuralExtractor
 
             case ConstructorDeclarationSyntax ctor:
                 VisitCallable(ctor, "constructor", ctor.Identifier.Text,
-                    ctor.Modifiers, typeParams: null,
-                    returnType: null, ctor.ParameterList,
+                    ctor.Modifiers, null,
+                    null, ctor.ParameterList,
                     parentNodeId, containerPath);
                 break;
 
@@ -110,11 +111,9 @@ internal sealed class CSharpStructuralExtractor
 
             case FieldDeclarationSyntax field:
                 foreach (var variable in field.Declaration.Variables)
-                {
                     VisitMember(field, "field", variable.Identifier.Text,
                         field.Modifiers, field.Declaration.Type.ToString(),
                         parentNodeId, containerPath);
-                }
                 break;
 
             case EventDeclarationSyntax evt:
@@ -124,11 +123,9 @@ internal sealed class CSharpStructuralExtractor
 
             case EventFieldDeclarationSyntax efld:
                 foreach (var variable in efld.Declaration.Variables)
-                {
                     VisitMember(efld, "event", variable.Identifier.Text,
                         efld.Modifiers, efld.Declaration.Type.ToString(),
                         parentNodeId, containerPath);
-                }
                 break;
 
             case IndexerDeclarationSyntax idx:
@@ -166,7 +163,7 @@ internal sealed class CSharpStructuralExtractor
             Modifiers = [],
             ExtractionMode = ExtractionMode.CompilerSyntax,
             Confidence = 1.0,
-            Children = children,
+            Children = children
         });
 
         VisitChildrenInto(node, nodeId, newPath, children);
@@ -202,7 +199,7 @@ internal sealed class CSharpStructuralExtractor
             Visibility = GetVisibility(modifiers),
             ExtractionMode = ExtractionMode.CompilerSyntax,
             Confidence = 1.0,
-            Children = children,
+            Children = children
         });
 
         VisitChildrenInto(node, nodeId, newPath, children);
@@ -243,7 +240,7 @@ internal sealed class CSharpStructuralExtractor
             Visibility = GetVisibility(modifiers),
             ExtractionMode = ExtractionMode.CompilerSyntax,
             Confidence = 1.0,
-            Children = [],
+            Children = []
         });
     }
 
@@ -270,7 +267,7 @@ internal sealed class CSharpStructuralExtractor
             Visibility = GetVisibility(modifiers),
             ExtractionMode = ExtractionMode.CompilerSyntax,
             Confidence = 1.0,
-            Children = [],
+            Children = []
         });
     }
 
@@ -285,19 +282,19 @@ internal sealed class CSharpStructuralExtractor
     {
         foreach (var child in parent.ChildNodes())
         {
-            int countBefore = _nodes.Count;
+            var countBefore = _nodes.Count;
             Visit(child, parentNodeId, containerPath);
             // Any nodes added since our count are direct children
-            for (int i = countBefore; i < _nodes.Count; i++)
-            {
+            for (var i = countBefore; i < _nodes.Count; i++)
                 if (_nodes[i].ParentNodeId == parentNodeId)
                     childIds.Add(_nodes[i].NodeId);
-            }
         }
     }
 
-    private string NextId(string prefix) =>
-        $"{prefix}-{_fileId}-{++_counter}";
+    private string NextId(string prefix)
+    {
+        return $"{prefix}-{_fileId}-{++_counter}";
+    }
 
     private static SourceSpan GetSpan(SyntaxNode node)
     {
@@ -310,14 +307,13 @@ internal sealed class CSharpStructuralExtractor
             EndLine = lineSpan.EndLinePosition.Line + 1,
             EndColumn = lineSpan.EndLinePosition.Character + 1,
             StartOffset = node.SpanStart,
-            EndOffset = node.Span.End,
+            EndOffset = node.Span.End
         };
     }
 
     private static string? GetVisibility(SyntaxTokenList modifiers)
     {
         foreach (var mod in modifiers)
-        {
             switch (mod.Kind())
             {
                 case SyntaxKind.PublicKeyword: return "public";
@@ -325,7 +321,7 @@ internal sealed class CSharpStructuralExtractor
                 case SyntaxKind.ProtectedKeyword: return "protected";
                 case SyntaxKind.InternalKeyword: return "internal";
             }
-        }
+
         return null;
     }
 }

@@ -1,11 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
-using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Model.Structural;
 
 /// <summary>
-/// Tracks one indexed file revision within a snapshot.
+///     Tracks one indexed file revision within a snapshot.
 /// </summary>
 public sealed class FileRecord
 {
@@ -15,7 +14,7 @@ public sealed class FileRecord
     /// <summary>Repository-relative path using forward slashes.</summary>
     public required string Path { get; init; }
 
-    /// <summary>Language identifier from <see cref="LanguageDetection.LanguageId"/>.</summary>
+    /// <summary>Language identifier from <see cref="LanguageDetection.LanguageId" />.</summary>
     public required string LanguageId { get; init; }
 
     /// <summary>SHA-256 hex hash of file content at time of indexing.</summary>

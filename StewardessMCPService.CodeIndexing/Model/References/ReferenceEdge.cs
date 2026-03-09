@@ -1,12 +1,13 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Model.References;
 
 /// <summary>
-/// Represents a resolved or partially resolved reference relationship between symbols.
-/// Forms the edges of the repository reference graph.
+///     Represents a resolved or partially resolved reference relationship between symbols.
+///     Forms the edges of the repository reference graph.
 /// </summary>
 public sealed class ReferenceEdge
 {

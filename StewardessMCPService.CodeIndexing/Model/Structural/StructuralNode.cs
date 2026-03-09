@@ -1,12 +1,11 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
-using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Model.Structural;
 
 /// <summary>
-/// Universal node for all supported source and document structures.
-/// Forms a language-neutral containment hierarchy within a file.
+///     Universal node for all supported source and document structures.
+///     Forms a language-neutral containment hierarchy within a file.
 /// </summary>
 public sealed class StructuralNode
 {
@@ -16,7 +15,7 @@ public sealed class StructuralNode
     /// <summary>File record ID this node belongs to.</summary>
     public required string FileId { get; init; }
 
-    /// <summary>Parent node ID, or <see langword="null"/> for top-level nodes.</summary>
+    /// <summary>Parent node ID, or <see langword="null" /> for top-level nodes.</summary>
     public string? ParentNodeId { get; init; }
 
     /// <summary>Broad structural category.</summary>

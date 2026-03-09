@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -15,41 +16,41 @@ using LangId = StewardessMCPService.CodeIndexing.LanguageDetection.LanguageId;
 namespace StewardessMCPService.Parsers.CSharp;
 
 /// <summary>
-/// Parser adapter for C# source files using the Roslyn syntax tree.
-/// Extraction mode: <see cref="ExtractionMode.CompilerSyntax"/> (no semantic model).
+///     Parser adapter for C# source files using the Roslyn syntax tree.
+///     Extraction mode: <see cref="ExtractionMode.CompilerSyntax" /> (no semantic model).
 /// </summary>
 public sealed class CSharpParserAdapter : IParserAdapter
 {
     private const string Version = "1.0.0";
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public string LanguageId => LangId.CSharp;
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public AdapterCapabilities Capabilities { get; } = new()
     {
         LanguageId = LangId.CSharp,
         AdapterVersion = Version,
         SupportsOutline = true,
         SupportsDeclarations = true,
-        SupportsLogicalSymbols = false,     // Phase 2
-        SupportsOccurrences = false,        // Phase 2
+        SupportsLogicalSymbols = false, // Phase 2
+        SupportsOccurrences = false, // Phase 2
         SupportsImportsOrUses = true,
         SupportsTypeExtraction = true,
         SupportsCallableExtraction = true,
         SupportsMemberExtraction = true,
-        SupportsReferenceExtraction = true,  // Phase 3
+        SupportsReferenceExtraction = true, // Phase 3
         SupportsRepositoryResolution = false,
         SupportsCrossFileResolution = false,
         SupportsHeuristicFallback = false,
-        SupportsSyntaxErrorRecovery = true,  // Roslyn always produces a tree
+        SupportsSyntaxErrorRecovery = true, // Roslyn always produces a tree
         SupportsDocumentTreeOnly = false,
         GuaranteeNotes = "Uses Roslyn SyntaxTree (CompilerSyntax mode). " +
                          "Structural nodes and source spans are accurate. " +
-                         "Semantic analysis (type resolution, overloads) is deferred to Phase 2.",
+                         "Semantic analysis (type resolution, overloads) is deferred to Phase 2."
     };
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public Task<ParseResult> ParseAsync(ParseRequest request, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -61,14 +62,13 @@ public sealed class CSharpParserAdapter : IParserAdapter
             var tree = CSharpSyntaxTree.ParseText(
                 request.Content,
                 new CSharpParseOptions(LanguageVersion.Latest),
-                path: request.FilePath,
+                request.FilePath,
                 cancellationToken: ct);
 
             var root = tree.GetRoot(ct);
 
             // Collect Roslyn parser diagnostics
             foreach (var d in tree.GetDiagnostics(ct))
-            {
                 if (d.Severity == RoslynSeverity.Error)
                 {
                     var span = d.Location.GetLineSpan();
@@ -80,10 +80,9 @@ public sealed class CSharpParserAdapter : IParserAdapter
                         Code = d.Id,
                         Message = d.GetMessage(),
                         FilePath = request.FilePath,
-                        SourceSpan = ToSourceSpan(span),
+                        SourceSpan = ToSourceSpan(span)
                     });
                 }
-            }
 
             var extractor = new CSharpStructuralExtractor(request.FileId, request.FilePath, ct);
             var nodes = extractor.Extract(root);
@@ -107,7 +106,7 @@ public sealed class CSharpParserAdapter : IParserAdapter
                 ReferenceHints = referenceHints,
                 Diagnostics = diagnostics,
                 ExtractionMode = ExtractionMode.CompilerSyntax,
-                AdapterVersion = Version,
+                AdapterVersion = Version
             });
         }
         catch (OperationCanceledException)
@@ -123,7 +122,7 @@ public sealed class CSharpParserAdapter : IParserAdapter
                 Source = IndexDiagSource.ParserAdapter,
                 Code = "PARSE_EXCEPTION",
                 Message = $"Roslyn parser threw: {ex.Message}",
-                FilePath = request.FilePath,
+                FilePath = request.FilePath
             });
 
             return Task.FromResult(new ParseResult
@@ -132,7 +131,7 @@ public sealed class CSharpParserAdapter : IParserAdapter
                 Status = ParseStatus.Failed,
                 Diagnostics = diagnostics,
                 ExtractionMode = ExtractionMode.CompilerSyntax,
-                AdapterVersion = Version,
+                AdapterVersion = Version
             });
         }
     }
@@ -155,9 +154,10 @@ public sealed class CSharpParserAdapter : IParserAdapter
                 RawText = usingDir.ToString().Trim(),
                 NormalizedTarget = target,
                 Alias = alias,
-                SourceSpan = ToSourceSpan(usingDir.GetLocation().GetLineSpan()),
+                SourceSpan = ToSourceSpan(usingDir.GetLocation().GetLineSpan())
             });
         }
+
         return imports;
     }
 
@@ -169,7 +169,7 @@ public sealed class CSharpParserAdapter : IParserAdapter
             StartLine = span.StartLinePosition.Line + 1,
             StartColumn = span.StartLinePosition.Character + 1,
             EndLine = span.EndLinePosition.Line + 1,
-            EndColumn = span.EndLinePosition.Character + 1,
+            EndColumn = span.EndLinePosition.Character + 1
         };
     }
 }

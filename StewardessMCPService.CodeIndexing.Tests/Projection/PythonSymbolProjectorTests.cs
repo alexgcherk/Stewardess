@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Semantic;
 using StewardessMCPService.CodeIndexing.Model.Structural;
 using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
@@ -10,9 +11,9 @@ using Xunit;
 namespace StewardessMCPService.CodeIndexing.Tests.Projection;
 
 /// <summary>
-/// Integration tests for <see cref="PythonSymbolProjector"/> using the
-/// canonical SampleModule.py golden file. Verifies that classes, functions,
-/// methods, and module containers are projected with correct kinds and parent chains.
+///     Integration tests for <see cref="PythonSymbolProjector" /> using the
+///     canonical SampleModule.py golden file. Verifies that classes, functions,
+///     methods, and module containers are projected with correct kinds and parent chains.
 /// </summary>
 public class PythonSymbolProjectorTests
 {
@@ -22,8 +23,10 @@ public class PythonSymbolProjectorTests
     private readonly PythonParserAdapter _adapter = new();
     private readonly PythonSymbolProjector _projector = new();
 
-    private static string GoldenFile(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "Python", name);
+    private static string GoldenFile(string name)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "Python", name);
+    }
 
     /// <summary>Parses SampleModule.py and projects it to symbols.</summary>
     private async Task<SymbolProjectionResult> ProjectSampleModuleAsync()
@@ -35,7 +38,7 @@ public class PythonSymbolProjectorTests
             FilePath = "GoldenFiles/Python/SampleModule.py",
             Content = content,
             LanguageId = "python",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
         var parseResult = await _adapter.ParseAsync(parseReq);
         var nodeMap = parseResult.Nodes.ToDictionary(n => n.NodeId);

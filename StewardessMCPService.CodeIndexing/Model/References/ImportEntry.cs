@@ -1,12 +1,12 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
-using StewardessMCPService.CodeIndexing.Model.References;
 
 namespace StewardessMCPService.CodeIndexing.Model.References;
 
 /// <summary>
-/// Represents an import, using, require, or include directive extracted from a file.
+///     Represents an import, using, require, or include directive extracted from a file.
 /// </summary>
 public sealed class ImportEntry
 {

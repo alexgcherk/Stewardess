@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Semantic;
 using StewardessMCPService.CodeIndexing.Projection;
 using Xunit;
@@ -7,8 +8,8 @@ using Xunit;
 namespace StewardessMCPService.CodeIndexing.Tests.Projection;
 
 /// <summary>
-/// Unit tests for <see cref="SymbolIdBuilder"/>.
-/// Verifies stable ID format, repo scope derivation, and kind category mapping.
+///     Unit tests for <see cref="SymbolIdBuilder" />.
+///     Verifies stable ID format, repo scope derivation, and kind category mapping.
 /// </summary>
 public class SymbolIdBuilderTests
 {

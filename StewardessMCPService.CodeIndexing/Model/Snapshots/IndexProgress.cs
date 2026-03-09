@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 /// <summary>
-/// Progress report emitted during an active indexing build or update.
+///     Progress report emitted during an active indexing build or update.
 /// </summary>
 public sealed class IndexProgress
 {
@@ -21,7 +22,7 @@ public sealed class IndexProgress
 
     /// <summary>Percentage complete in [0, 100].</summary>
     public int PercentComplete =>
-        TotalFiles > 0 ? (int)((ProcessedFiles * 100.0) / TotalFiles) : 0;
+        TotalFiles > 0 ? (int)(ProcessedFiles * 100.0 / TotalFiles) : 0;
 
     /// <summary>Current file being processed, if available.</summary>
     public string? CurrentFile { get; init; }

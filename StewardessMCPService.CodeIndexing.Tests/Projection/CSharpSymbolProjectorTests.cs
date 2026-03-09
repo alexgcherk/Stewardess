@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Semantic;
 using StewardessMCPService.CodeIndexing.Model.Structural;
 using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
@@ -10,9 +11,9 @@ using Xunit;
 namespace StewardessMCPService.CodeIndexing.Tests.Projection;
 
 /// <summary>
-/// Integration tests for <see cref="CSharpSymbolProjector"/> using the
-/// canonical SampleClass.cs golden file. Verifies that all expected symbols
-/// and occurrences are produced with correct kinds, parent chains, and IDs.
+///     Integration tests for <see cref="CSharpSymbolProjector" /> using the
+///     canonical SampleClass.cs golden file. Verifies that all expected symbols
+///     and occurrences are produced with correct kinds, parent chains, and IDs.
 /// </summary>
 public class CSharpSymbolProjectorTests
 {
@@ -22,8 +23,10 @@ public class CSharpSymbolProjectorTests
     private readonly CSharpParserAdapter _adapter = new();
     private readonly CSharpSymbolProjector _projector = new();
 
-    private static string GoldenFile(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "CSharp", name);
+    private static string GoldenFile(string name)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "CSharp", name);
+    }
 
     /// <summary>Parses SampleClass.cs and projects it to symbols.</summary>
     private async Task<SymbolProjectionResult> ProjectSampleClassAsync()
@@ -35,7 +38,7 @@ public class CSharpSymbolProjectorTests
             FilePath = "GoldenFiles/CSharp/SampleClass.cs",
             Content = content,
             LanguageId = "csharp",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
         var parseResult = await _adapter.ParseAsync(parseReq);
         var nodeMap = parseResult.Nodes.ToDictionary(n => n.NodeId);

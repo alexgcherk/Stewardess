@@ -1,12 +1,13 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Semantic;
 
 namespace StewardessMCPService.CodeIndexing.Projection;
 
 /// <summary>
-/// Holds the logical symbols and symbol occurrences produced by a single
-/// <see cref="ISymbolProjector.Project"/> call for one file.
+///     Holds the logical symbols and symbol occurrences produced by a single
+///     <see cref="ISymbolProjector.Project" /> call for one file.
 /// </summary>
 public sealed class SymbolProjectionResult
 {

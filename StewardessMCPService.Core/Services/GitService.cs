@@ -1,817 +1,882 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
-using System;
-using System.Collections.Generic;
+
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using StewardessMCPService.Configuration;
 using StewardessMCPService.Infrastructure;
 using StewardessMCPService.Models;
 
-namespace StewardessMCPService.Services
+namespace StewardessMCPService.Services;
+
+/// <summary>
+///     Executes read-only git commands (status, diff, log) against the configured
+///     repository root.  Never performs commits, pushes, or other mutations.
+/// </summary>
+public sealed class GitService : IGitService
 {
-    /// <summary>
-    /// Executes read-only git commands (status, diff, log) against the configured
-    /// repository root.  Never performs commits, pushes, or other mutations.
-    /// </summary>
-    public sealed class GitService : IGitService
+    // Maximum raw diff size returned to callers (2 MB).
+    private const int MaxDiffBytes = 2 * 1024 * 1024;
+    private static readonly McpLogger _log = McpLogger.For<GitService>();
+    private readonly McpServiceSettings _settings;
+
+    /// <summary>Initialises a new instance of <see cref="GitService" />.</summary>
+    public GitService(McpServiceSettings settings, PathValidator pathValidator)
     {
-        private readonly McpServiceSettings _settings;
-        private static readonly McpLogger _log = McpLogger.For<GitService>();
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    }
 
-        // Maximum raw diff size returned to callers (2 MB).
-        private const int MaxDiffBytes = 2 * 1024 * 1024;
+    // ── Public interface ─────────────────────────────────────────────────────
 
-        /// <summary>Initialises a new instance of <see cref="GitService"/>.</summary>
-        public GitService(McpServiceSettings settings, PathValidator pathValidator)
+    /// <inheritdoc />
+    public async Task<bool> IsGitRepositoryAsync(CancellationToken ct = default)
+    {
+        // Fast check: look for .git directory / file (submodule worktrees use a file).
+        var gitEntry = Path.Combine(_settings.RepositoryRoot, ".git");
+        if (Directory.Exists(gitEntry) || File.Exists(gitEntry))
+            return true;
+
+        // Slow check: ask git itself.
+        try
         {
-            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            var result = await RunGitAsync("rev-parse --is-inside-work-tree", ct).ConfigureAwait(false);
+            return result.ExitCode == 0 && result.Stdout.Trim() == "true";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<GitStatusResponse> GetStatusAsync(GitStatusRequest request, CancellationToken ct = default)
+    {
+        var response = new GitStatusResponse();
+
+        if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
+            return response;
+
+        response.IsGitRepository = true;
+
+        // Current branch.
+        var branchResult = await RunGitAsync("rev-parse --abbrev-ref HEAD", ct).ConfigureAwait(false);
+        if (branchResult.ExitCode == 0)
+            response.CurrentBranch = branchResult.Stdout.Trim();
+
+        // HEAD commit (SHA + subject).
+        var headResult = await RunGitAsync("log -1 --format=%H%x1F%s", ct).ConfigureAwait(false);
+        if (headResult.ExitCode == 0)
+        {
+            var parts = headResult.Stdout.Trim().Split('\x1F');
+            if (parts.Length >= 1) response.HeadCommitSha = parts[0].Trim();
+            if (parts.Length >= 2) response.HeadCommitMessage = parts[1].Trim();
         }
 
-        // ── Public interface ─────────────────────────────────────────────────────
+        // Remote URL (best-effort — fails gracefully on repos with no origin).
+        var remoteResult = await RunGitAsync("remote get-url origin", ct).ConfigureAwait(false);
+        if (remoteResult.ExitCode == 0)
+            response.RemoteUrl = remoteResult.Stdout.Trim();
 
-        /// <inheritdoc/>
-        public async Task<bool> IsGitRepositoryAsync(CancellationToken ct = default)
+        // File status.
+        var pathSuffix = BuildPathSuffix(request?.Path);
+        var statusResult = await RunGitAsync($"status --porcelain=v1{pathSuffix}", ct).ConfigureAwait(false);
+        if (statusResult.ExitCode == 0)
         {
-            // Fast check: look for .git directory / file (submodule worktrees use a file).
-            var gitEntry = Path.Combine(_settings.RepositoryRoot, ".git");
-            if (Directory.Exists(gitEntry) || File.Exists(gitEntry))
-                return true;
+            var entries = ParsePorcelainStatus(statusResult.Stdout);
+            response.Files = entries;
+            response.StagedCount = entries.Count(e => e.IsStaged);
+            response.UnstagedCount = entries.Count(e => e.IsUnstaged);
+            response.UntrackedCount = entries.Count(e => e.IsUntracked);
+            response.HasUncommittedChanges = entries.Count > 0;
+        }
 
-            // Slow check: ask git itself.
+        return response;
+    }
+
+    /// <inheritdoc />
+    public async Task<GitDiffResponse> GetDiffAsync(GitDiffRequest request, CancellationToken ct = default)
+    {
+        request = request ?? new GitDiffRequest();
+
+        if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
+            return new GitDiffResponse { Scope = request.Scope };
+
+        var scopeArgs = BuildDiffScopeArgs(request.Scope);
+        var contextArg = $"--unified={Math.Max(0, request.ContextLines)}";
+        var pathSuffix = BuildPathSuffix(request.Path);
+        var args = $"diff {scopeArgs} {contextArg}{pathSuffix}";
+
+        var result = await RunGitAsync(args, ct).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+            return new GitDiffResponse { Scope = request.Scope };
+
+        return ParseDiffOutput(result.Stdout, request.Scope);
+    }
+
+    /// <inheritdoc />
+    public Task<GitDiffResponse> GetDiffForFileAsync(
+        string relativePath, string scope = "unstaged", CancellationToken ct = default)
+    {
+        return GetDiffAsync(new GitDiffRequest
+        {
+            Path = relativePath ?? "",
+            Scope = scope ?? "unstaged"
+        }, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitLogResponse> GetLogAsync(GitLogRequest request, CancellationToken ct = default)
+    {
+        request = request ?? new GitLogRequest();
+
+        if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
+            return new GitLogResponse();
+
+        var maxCount = Math.Max(1, Math.Min(request.MaxCount, 200));
+        var sb = new StringBuilder("log");
+        sb.Append($" -n {maxCount}");
+        // Unit-separator-delimited format to avoid splitting on |
+        sb.Append(" --format=%H%x1F%h%x1F%an%x1F%ae%x1F%aI%x1F%cn%x1F%cI%x1F%s%x1F%b%x1F%P");
+        sb.Append(" --name-only");
+
+        if (!string.IsNullOrWhiteSpace(request.Ref))
+            sb.Append($" {EscapeShellArg(request.Ref)}");
+        if (!string.IsNullOrWhiteSpace(request.Author))
+            sb.Append($" --author={EscapeShellArg(request.Author)}");
+        if (!string.IsNullOrWhiteSpace(request.Since))
+            sb.Append($" --after={EscapeShellArg(request.Since)}");
+        if (!string.IsNullOrWhiteSpace(request.Until))
+            sb.Append($" --before={EscapeShellArg(request.Until)}");
+
+        sb.Append(BuildPathSuffix(request.Path));
+
+        var result = await RunGitAsync(sb.ToString(), ct).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+            return new GitLogResponse();
+
+        return ParseLogOutput(result.Stdout, maxCount);
+    }
+
+    /// <inheritdoc />
+    public async Task<GitShowResponse> GetCommitAsync(GitShowRequest request, CancellationToken ct = default)
+    {
+        request = request ?? new GitShowRequest();
+
+        if (string.IsNullOrWhiteSpace(request.Sha))
+            throw new ArgumentException("Sha is required.", nameof(request.Sha));
+
+        // Accept only hex characters (full or abbreviated SHA).
+        if (!IsValidSha(request.Sha))
+            throw new ArgumentException($"Invalid SHA format: '{request.Sha}'.", nameof(request.Sha));
+
+        if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
+            return new GitShowResponse { NotFound = true };
+
+        // Run git show to get structured metadata (same unit-separator format as log).
+        var metaArgs =
+            $"show --no-patch --format=%H%x1F%h%x1F%an%x1F%ae%x1F%aI%x1F%cn%x1F%ce%x1F%cI%x1F%s%x1F%b%x1F%P --name-only {EscapeShellArg(request.Sha)}";
+        var metaResult = await RunGitAsync(metaArgs, ct).ConfigureAwait(false);
+
+        if (metaResult.ExitCode != 0)
+            return new GitShowResponse { NotFound = true };
+
+        var response = ParseShowOutput(metaResult.Stdout);
+        if (response.NotFound)
+            return response;
+
+        // Optionally include the full diff patch.
+        if (request.IncludeDiff)
+        {
+            var diffArgs = $"show --format=\"\" {EscapeShellArg(request.Sha)}";
+            var diffResult = await RunGitAsync(diffArgs, ct).ConfigureAwait(false);
+            if (diffResult.ExitCode == 0)
+            {
+                var rawDiff = diffResult.Stdout;
+                if (rawDiff.Length > MaxDiffBytes)
+                    rawDiff = rawDiff.Substring(0, MaxDiffBytes) + "\n... [diff truncated]";
+                response.Diff = rawDiff;
+            }
+        }
+
+        return response;
+    }
+
+    // ── Spec extensions ──────────────────────────────────────────────────────
+
+    /// <inheritdoc />
+    public async Task<List<ApiBranch>> ListBranchesAsync(CancellationToken ct = default)
+    {
+        var result = await RunGitAsync(
+                "branch -a --format=%(refname:short)|%(objectname)|%(creatordate:iso-strict)", ct)
+            .ConfigureAwait(false);
+
+        var branches = new List<ApiBranch>();
+        if (result.ExitCode != 0) return branches;
+
+        foreach (var line in result.Stdout.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed)) continue;
+
+            var parts = trimmed.Split('|');
+            var name = parts.Length > 0 ? parts[0].Trim() : trimmed;
+            var sha = parts.Length > 1 ? parts[1].Trim() : string.Empty;
+            DateTimeOffset? createdAt = null;
+            if (parts.Length > 2 && DateTimeOffset.TryParse(parts[2].Trim(), out var dt))
+                createdAt = dt;
+
+            branches.Add(new ApiBranch { Name = name, CommitSha = sha, CreatedAt = createdAt });
+        }
+
+        return branches;
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiBranch> CreateBranchAsync(
+        string name, string sourceBranch, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Branch name is required.", nameof(name));
+        if (string.IsNullOrWhiteSpace(sourceBranch))
+            throw new ArgumentException("Source branch is required.", nameof(sourceBranch));
+
+        var createResult = await RunGitAsync(
+                $"branch {EscapeShellArg(name)} {EscapeShellArg(sourceBranch)}", ct)
+            .ConfigureAwait(false);
+        if (createResult.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"Failed to create branch '{name}': {createResult.Stderr.Trim()}");
+
+        var shaResult = await RunGitAsync(
+            $"rev-parse {EscapeShellArg(name)}", ct).ConfigureAwait(false);
+        var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
+
+        return new ApiBranch { Name = name, CommitSha = sha, CreatedAt = DateTimeOffset.UtcNow };
+    }
+
+    /// <inheritdoc />
+    public async Task<List<ApiDiff>> DiffBetweenCommitsAsync(
+        string baseSha, string targetSha, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(baseSha))
+            throw new ArgumentException("baseSha is required.", nameof(baseSha));
+        if (string.IsNullOrWhiteSpace(targetSha))
+            throw new ArgumentException("targetSha is required.", nameof(targetSha));
+
+        var result = await RunGitAsync(
+                $"diff {EscapeShellArg(baseSha)} {EscapeShellArg(targetSha)}", ct)
+            .ConfigureAwait(false);
+
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"git diff failed: {result.Stderr.Trim()}");
+
+        var parsed = ParseDiffOutput(result.Stdout, "commits");
+        return parsed.Files.Select(f =>
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"diff --git a/{f.RelativePath} b/{f.RelativePath}");
+            foreach (var hunk in f.Hunks)
+            {
+                if (!string.IsNullOrEmpty(hunk.Header))
+                    sb.AppendLine(hunk.Header);
+                foreach (var line in hunk.Lines)
+                {
+                    var prefix = line.Type switch { "added" => "+", "removed" => "-", _ => " " };
+                    sb.AppendLine(prefix + (line.Text ?? ""));
+                }
+            }
+
+            return new ApiDiff { FilePath = f.RelativePath, DiffText = sb.ToString() };
+        }).ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiCommit> CreateCommitAsync(
+        string message, string authorName, string authorEmail,
+        IReadOnlyList<string> files, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            throw new ArgumentException("Commit message is required.", nameof(message));
+
+        var addArgs = files == null || files.Count == 0
+            ? "add -A"
+            : "add " + string.Join(" ", files.Select(f => EscapeShellArg(f)));
+
+        var addResult = await RunGitAsync(addArgs, ct).ConfigureAwait(false);
+        if (addResult.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"git add failed: {addResult.Stderr.Trim()}");
+
+        var commitArgs = new StringBuilder("commit");
+        if (!string.IsNullOrWhiteSpace(authorName) || !string.IsNullOrWhiteSpace(authorEmail))
+        {
+            var authorStr = !string.IsNullOrWhiteSpace(authorEmail)
+                ? $"{authorName ?? string.Empty} <{authorEmail}>"
+                : authorName;
+            commitArgs.Append($" --author={EscapeShellArg(authorStr)}");
+        }
+
+        commitArgs.Append($" -m {EscapeShellArg(message)}");
+
+        var commitResult = await RunGitAsync(commitArgs.ToString(), ct).ConfigureAwait(false);
+        if (commitResult.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"git commit failed: {commitResult.Stderr.Trim()}");
+
+        var shaResult = await RunGitAsync("rev-parse HEAD", ct).ConfigureAwait(false);
+        var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
+
+        return new ApiCommit
+        {
+            Sha = sha,
+            Message = message,
+            Author = new ApiUser { Username = authorName!, Email = authorEmail! },
+            Parents = new List<string>()
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiCommit> MergeBranchAsync(
+        string sourceBranch, string targetBranch, string strategy, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(sourceBranch))
+            throw new ArgumentException("sourceBranch is required.", nameof(sourceBranch));
+
+        if (!string.IsNullOrWhiteSpace(targetBranch))
+        {
+            var checkoutResult = await RunGitAsync(
+                $"checkout {EscapeShellArg(targetBranch)}", ct).ConfigureAwait(false);
+            if (checkoutResult.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"Cannot checkout '{targetBranch}': {checkoutResult.Stderr.Trim()}");
+        }
+
+        var mergeArgs = new StringBuilder("merge");
+        switch ((strategy ?? "recursive").ToLowerInvariant())
+        {
+            case "ours": mergeArgs.Append(" -X ours"); break;
+            case "theirs": mergeArgs.Append(" -X theirs"); break;
+        }
+
+        mergeArgs.Append($" {EscapeShellArg(sourceBranch)}");
+
+        var mergeResult = await RunGitAsync(mergeArgs.ToString(), ct).ConfigureAwait(false);
+        if (mergeResult.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"Merge conflict or error: {mergeResult.Stderr.Trim()}");
+
+        var shaResult = await RunGitAsync("rev-parse HEAD", ct).ConfigureAwait(false);
+        var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
+
+        return new ApiCommit
+        {
+            Sha = sha,
+            Message = $"Merged '{sourceBranch}' into '{targetBranch}'",
+            Author = new ApiUser { Username = "git", Email = "" },
+            Parents = new List<string>()
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<string> PushAsync(CancellationToken ct = default)
+    {
+        var result = await RunGitAsync("push", ct).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException($"git push failed: {result.Stderr.Trim()}");
+        return result.Stdout.Trim();
+    }
+
+    /// <inheritdoc />
+    public async Task<string> PullAsync(CancellationToken ct = default)
+    {
+        var result = await RunGitAsync("pull", ct).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException($"git pull failed: {result.Stderr.Trim()}");
+        return result.Stdout.Trim();
+    }
+
+    // ── Process runner ───────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Runs <c>git &lt;args&gt;</c> in the repository root directory and returns
+    ///     stdout, stderr, and the exit code.
+    /// </summary>
+    internal async Task<(string Stdout, string Stderr, int ExitCode)> RunGitAsync(
+        string args, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = args,
+            WorkingDirectory = _settings.RepositoryRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+
+        var stdoutBuilder = new StringBuilder();
+        var stderrBuilder = new StringBuilder();
+
+        using (var process = new Process { StartInfo = psi, EnableRaisingEvents = true })
+        {
+            var tcs = new TaskCompletionSource<int>();
+
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data != null) stdoutBuilder.AppendLine(e.Data);
+            };
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null) stderrBuilder.AppendLine(e.Data);
+            };
+            process.Exited += (_, __) => tcs.TrySetResult(process.ExitCode);
+
             try
             {
-                var result = await RunGitAsync("rev-parse --is-inside-work-tree", ct).ConfigureAwait(false);
-                return result.ExitCode == 0 && result.Stdout.Trim() == "true";
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                using (ct.Register(() =>
+                       {
+                           try
+                           {
+                               process.Kill();
+                           }
+                           catch
+                           {
+                           }
+
+                           tcs.TrySetCanceled();
+                       }))
+                {
+                    await tcs.Task.ConfigureAwait(false);
+                }
             }
-            catch
+            catch (OperationCanceledException)
             {
-                return false;
+                throw;
             }
+            catch (Exception ex)
+            {
+                _log.Error($"git {args} failed to start", ex);
+                return (string.Empty, ex.Message, -1);
+            }
+
+            return (stdoutBuilder.ToString(), stderrBuilder.ToString(), process.ExitCode);
+        }
+    }
+
+    // ── Parsing helpers ──────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     Parses <c>git status --porcelain=v1</c> output into a list of status entries.
+    ///     Format per line: <c>XY path</c> or <c>XY old-path -> new-path</c> for renames.
+    /// </summary>
+    internal static List<GitStatusEntry> ParsePorcelainStatus(string output)
+    {
+        var entries = new List<GitStatusEntry>();
+        if (string.IsNullOrEmpty(output)) return entries;
+
+        foreach (var line in output.Split('\n'))
+        {
+            if (line.Length < 4) continue;
+
+            var indexStatus = line[0].ToString();
+            var worktreeStatus = line[1].ToString();
+            var rest = line.Substring(3).Trim();
+
+            // Renames: "old -> new"
+            var relativePath = rest;
+            string? oldPath = null;
+            var arrowIdx = rest.IndexOf(" -> ", StringComparison.Ordinal);
+            if (arrowIdx >= 0)
+            {
+                oldPath = rest.Substring(0, arrowIdx).Trim('"');
+                relativePath = rest.Substring(arrowIdx + 4).Trim('"');
+            }
+            else
+            {
+                relativePath = rest.Trim('"');
+            }
+
+            var isUntracked = indexStatus == "?" && worktreeStatus == "?";
+            var isStaged = !isUntracked && indexStatus.Trim() != "" && indexStatus != " ";
+            var isUnstaged = !isUntracked && worktreeStatus.Trim() != "" && worktreeStatus != " ";
+
+            entries.Add(new GitStatusEntry
+            {
+                RelativePath = relativePath,
+                IndexStatus = indexStatus,
+                WorkTreeStatus = worktreeStatus,
+                OldPath = oldPath,
+                IsStaged = isStaged,
+                IsUnstaged = isUnstaged,
+                IsUntracked = isUntracked
+            });
         }
 
-        /// <inheritdoc/>
-        public async Task<GitStatusResponse> GetStatusAsync(GitStatusRequest request, CancellationToken ct = default)
-        {
-            var response = new GitStatusResponse();
+        return entries;
+    }
 
-            if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
-                return response;
+    /// <summary>
+    ///     Parses unified diff output from <c>git diff</c> into structured objects.
+    /// </summary>
+    internal static GitDiffResponse ParseDiffOutput(string diffText, string scope)
+    {
+        var response = new GitDiffResponse { Scope = scope ?? "unstaged" };
 
-            response.IsGitRepository = true;
-
-            // Current branch.
-            var branchResult = await RunGitAsync("rev-parse --abbrev-ref HEAD", ct).ConfigureAwait(false);
-            if (branchResult.ExitCode == 0)
-                response.CurrentBranch = branchResult.Stdout.Trim();
-
-            // HEAD commit (SHA + subject).
-            var headResult = await RunGitAsync("log -1 --format=%H%x1F%s", ct).ConfigureAwait(false);
-            if (headResult.ExitCode == 0)
-            {
-                var parts = headResult.Stdout.Trim().Split('\x1F');
-                if (parts.Length >= 1) response.HeadCommitSha     = parts[0].Trim();
-                if (parts.Length >= 2) response.HeadCommitMessage = parts[1].Trim();
-            }
-
-            // Remote URL (best-effort — fails gracefully on repos with no origin).
-            var remoteResult = await RunGitAsync("remote get-url origin", ct).ConfigureAwait(false);
-            if (remoteResult.ExitCode == 0)
-                response.RemoteUrl = remoteResult.Stdout.Trim();
-
-            // File status.
-            var pathSuffix = BuildPathSuffix(request?.Path);
-            var statusResult = await RunGitAsync($"status --porcelain=v1{pathSuffix}", ct).ConfigureAwait(false);
-            if (statusResult.ExitCode == 0)
-            {
-                var entries = ParsePorcelainStatus(statusResult.Stdout);
-                response.Files              = entries;
-                response.StagedCount        = entries.Count(e => e.IsStaged);
-                response.UnstagedCount      = entries.Count(e => e.IsUnstaged);
-                response.UntrackedCount     = entries.Count(e => e.IsUntracked);
-                response.HasUncommittedChanges = entries.Count > 0;
-            }
-
+        if (string.IsNullOrEmpty(diffText))
             return response;
+
+        // Truncate if too large.
+        if (diffText.Length > MaxDiffBytes)
+        {
+            diffText = diffText.Substring(0, MaxDiffBytes);
+            response.Truncated = true;
         }
 
-        /// <inheritdoc/>
-        public async Task<GitDiffResponse> GetDiffAsync(GitDiffRequest request, CancellationToken ct = default)
+        response.RawDiff = diffText;
+
+        // Split on "diff --git" boundaries.
+        var fileBlocks = Regex.Split(diffText, @"(?=^diff --git )", RegexOptions.Multiline);
+
+        foreach (var block in fileBlocks)
         {
-            request = request ?? new GitDiffRequest();
+            if (string.IsNullOrWhiteSpace(block)) continue;
 
-            if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
-                return new GitDiffResponse { Scope = request.Scope };
-
-            var scopeArgs = BuildDiffScopeArgs(request.Scope);
-            var contextArg = $"--unified={Math.Max(0, request.ContextLines)}";
-            var pathSuffix = BuildPathSuffix(request.Path);
-            var args = $"diff {scopeArgs} {contextArg}{pathSuffix}";
-
-            var result = await RunGitAsync(args, ct).ConfigureAwait(false);
-            if (result.ExitCode != 0)
-                return new GitDiffResponse { Scope = request.Scope };
-
-            return ParseDiffOutput(result.Stdout, request.Scope);
-        }
-
-        /// <inheritdoc/>
-        public Task<GitDiffResponse> GetDiffForFileAsync(
-            string relativePath, string scope = "unstaged", CancellationToken ct = default)
-        {
-            return GetDiffAsync(new GitDiffRequest
+            var fileDiff = ParseFileDiffBlock(block);
+            if (fileDiff != null)
             {
-                Path  = relativePath ?? "",
-                Scope = scope ?? "unstaged"
-            }, ct);
-        }
-
-        /// <inheritdoc/>
-        public async Task<GitLogResponse> GetLogAsync(GitLogRequest request, CancellationToken ct = default)
-        {
-            request = request ?? new GitLogRequest();
-
-            if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
-                return new GitLogResponse();
-
-            var maxCount = Math.Max(1, Math.Min(request.MaxCount, 200));
-            var sb = new StringBuilder("log");
-            sb.Append($" -n {maxCount}");
-            // Unit-separator-delimited format to avoid splitting on |
-            sb.Append(" --format=%H%x1F%h%x1F%an%x1F%ae%x1F%aI%x1F%cn%x1F%cI%x1F%s%x1F%b%x1F%P");
-            sb.Append(" --name-only");
-
-            if (!string.IsNullOrWhiteSpace(request.Ref))
-                sb.Append($" {EscapeShellArg(request.Ref)}");
-            if (!string.IsNullOrWhiteSpace(request.Author))
-                sb.Append($" --author={EscapeShellArg(request.Author)}");
-            if (!string.IsNullOrWhiteSpace(request.Since))
-                sb.Append($" --after={EscapeShellArg(request.Since)}");
-            if (!string.IsNullOrWhiteSpace(request.Until))
-                sb.Append($" --before={EscapeShellArg(request.Until)}");
-
-            sb.Append(BuildPathSuffix(request.Path));
-
-            var result = await RunGitAsync(sb.ToString(), ct).ConfigureAwait(false);
-            if (result.ExitCode != 0)
-                return new GitLogResponse();
-
-            return ParseLogOutput(result.Stdout, maxCount);
-        }
-
-        /// <inheritdoc/>
-        public async Task<GitShowResponse> GetCommitAsync(GitShowRequest request, CancellationToken ct = default)
-        {
-            request = request ?? new GitShowRequest();
-
-            if (string.IsNullOrWhiteSpace(request.Sha))
-                throw new ArgumentException("Sha is required.", nameof(request.Sha));
-
-            // Accept only hex characters (full or abbreviated SHA).
-            if (!IsValidSha(request.Sha))
-                throw new ArgumentException($"Invalid SHA format: '{request.Sha}'.", nameof(request.Sha));
-
-            if (!await IsGitRepositoryAsync(ct).ConfigureAwait(false))
-                return new GitShowResponse { NotFound = true };
-
-            // Run git show to get structured metadata (same unit-separator format as log).
-            var metaArgs = $"show --no-patch --format=%H%x1F%h%x1F%an%x1F%ae%x1F%aI%x1F%cn%x1F%ce%x1F%cI%x1F%s%x1F%b%x1F%P --name-only {EscapeShellArg(request.Sha)}";
-            var metaResult = await RunGitAsync(metaArgs, ct).ConfigureAwait(false);
-
-            if (metaResult.ExitCode != 0)
-                return new GitShowResponse { NotFound = true };
-
-            var response = ParseShowOutput(metaResult.Stdout);
-            if (response.NotFound)
-                return response;
-
-            // Optionally include the full diff patch.
-            if (request.IncludeDiff)
-            {
-                var diffArgs = $"show --format=\"\" {EscapeShellArg(request.Sha)}";
-                var diffResult = await RunGitAsync(diffArgs, ct).ConfigureAwait(false);
-                if (diffResult.ExitCode == 0)
-                {
-                    var rawDiff = diffResult.Stdout;
-                    if (rawDiff.Length > MaxDiffBytes)
-                        rawDiff = rawDiff.Substring(0, MaxDiffBytes) + "\n... [diff truncated]";
-                    response.Diff = rawDiff;
-                }
-            }
-
-            return response;
-        }
-
-        // ── Spec extensions ──────────────────────────────────────────────────────
-
-        /// <inheritdoc/>
-        public async Task<List<ApiBranch>> ListBranchesAsync(CancellationToken ct = default)
-        {
-            var result = await RunGitAsync(
-                "branch -a --format=%(refname:short)|%(objectname)|%(creatordate:iso-strict)", ct)
-                .ConfigureAwait(false);
-
-            var branches = new List<ApiBranch>();
-            if (result.ExitCode != 0) return branches;
-
-            foreach (var line in result.Stdout.Split('\n'))
-            {
-                var trimmed = line.Trim();
-                if (string.IsNullOrEmpty(trimmed)) continue;
-
-                var parts = trimmed.Split('|');
-                var name = parts.Length > 0 ? parts[0].Trim() : trimmed;
-                var sha  = parts.Length > 1 ? parts[1].Trim() : string.Empty;
-                DateTimeOffset? createdAt = null;
-                if (parts.Length > 2 && DateTimeOffset.TryParse(parts[2].Trim(), out var dt))
-                    createdAt = dt;
-
-                branches.Add(new ApiBranch { Name = name, CommitSha = sha, CreatedAt = createdAt });
-            }
-
-            return branches;
-        }
-
-        /// <inheritdoc/>
-        public async Task<ApiBranch> CreateBranchAsync(
-            string name, string sourceBranch, CancellationToken ct = default)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Branch name is required.", nameof(name));
-            if (string.IsNullOrWhiteSpace(sourceBranch))
-                throw new ArgumentException("Source branch is required.", nameof(sourceBranch));
-
-            var createResult = await RunGitAsync(
-                $"branch {EscapeShellArg(name)} {EscapeShellArg(sourceBranch)}", ct)
-                .ConfigureAwait(false);
-            if (createResult.ExitCode != 0)
-                throw new InvalidOperationException(
-                    $"Failed to create branch '{name}': {createResult.Stderr.Trim()}");
-
-            var shaResult = await RunGitAsync(
-                $"rev-parse {EscapeShellArg(name)}", ct).ConfigureAwait(false);
-            var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
-
-            return new ApiBranch { Name = name, CommitSha = sha, CreatedAt = DateTimeOffset.UtcNow };
-        }
-
-        /// <inheritdoc/>
-        public async Task<List<ApiDiff>> DiffBetweenCommitsAsync(
-            string baseSha, string targetSha, CancellationToken ct = default)
-        {
-            if (string.IsNullOrWhiteSpace(baseSha))
-                throw new ArgumentException("baseSha is required.", nameof(baseSha));
-            if (string.IsNullOrWhiteSpace(targetSha))
-                throw new ArgumentException("targetSha is required.", nameof(targetSha));
-
-            var result = await RunGitAsync(
-                $"diff {EscapeShellArg(baseSha)} {EscapeShellArg(targetSha)}", ct)
-                .ConfigureAwait(false);
-
-            if (result.ExitCode != 0)
-                throw new InvalidOperationException(
-                    $"git diff failed: {result.Stderr.Trim()}");
-
-            var parsed = ParseDiffOutput(result.Stdout, "commits");
-            return parsed.Files.Select(f =>
-            {
-                var sb = new StringBuilder();
-                sb.AppendLine($"diff --git a/{f.RelativePath} b/{f.RelativePath}");
-                foreach (var hunk in f.Hunks)
-                {
-                    if (!string.IsNullOrEmpty(hunk.Header))
-                        sb.AppendLine(hunk.Header);
-                    foreach (var line in hunk.Lines)
-                    {
-                        var prefix = line.Type switch { "added" => "+", "removed" => "-", _ => " " };
-                        sb.AppendLine(prefix + (line.Text ?? ""));
-                    }
-                }
-                return new ApiDiff { FilePath = f.RelativePath, DiffText = sb.ToString() };
-            }).ToList();
-        }
-
-        /// <inheritdoc/>
-        public async Task<ApiCommit> CreateCommitAsync(
-            string message, string authorName, string authorEmail,
-            IReadOnlyList<string> files, CancellationToken ct = default)
-        {
-            if (string.IsNullOrWhiteSpace(message))
-                throw new ArgumentException("Commit message is required.", nameof(message));
-
-            string addArgs = (files == null || files.Count == 0)
-                ? "add -A"
-                : "add " + string.Join(" ", files.Select(f => EscapeShellArg(f)));
-
-            var addResult = await RunGitAsync(addArgs, ct).ConfigureAwait(false);
-            if (addResult.ExitCode != 0)
-                throw new InvalidOperationException(
-                    $"git add failed: {addResult.Stderr.Trim()}");
-
-            var commitArgs = new StringBuilder("commit");
-            if (!string.IsNullOrWhiteSpace(authorName) || !string.IsNullOrWhiteSpace(authorEmail))
-            {
-                var authorStr = !string.IsNullOrWhiteSpace(authorEmail)
-                    ? $"{authorName ?? string.Empty} <{authorEmail}>"
-                    : authorName;
-                commitArgs.Append($" --author={EscapeShellArg(authorStr)}");
-            }
-            commitArgs.Append($" -m {EscapeShellArg(message)}");
-
-            var commitResult = await RunGitAsync(commitArgs.ToString(), ct).ConfigureAwait(false);
-            if (commitResult.ExitCode != 0)
-                throw new InvalidOperationException(
-                    $"git commit failed: {commitResult.Stderr.Trim()}");
-
-            var shaResult = await RunGitAsync("rev-parse HEAD", ct).ConfigureAwait(false);
-            var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
-
-            return new ApiCommit
-            {
-                Sha     = sha,
-                Message = message,
-                Author  = new ApiUser { Username = authorName!, Email = authorEmail! },
-                Parents = new List<string>()
-            };
-        }
-
-        /// <inheritdoc/>
-        public async Task<ApiCommit> MergeBranchAsync(
-            string sourceBranch, string targetBranch, string strategy, CancellationToken ct = default)
-        {
-            if (string.IsNullOrWhiteSpace(sourceBranch))
-                throw new ArgumentException("sourceBranch is required.", nameof(sourceBranch));
-
-            if (!string.IsNullOrWhiteSpace(targetBranch))
-            {
-                var checkoutResult = await RunGitAsync(
-                    $"checkout {EscapeShellArg(targetBranch)}", ct).ConfigureAwait(false);
-                if (checkoutResult.ExitCode != 0)
-                    throw new InvalidOperationException(
-                        $"Cannot checkout '{targetBranch}': {checkoutResult.Stderr.Trim()}");
-            }
-
-            var mergeArgs = new StringBuilder("merge");
-            switch ((strategy ?? "recursive").ToLowerInvariant())
-            {
-                case "ours":   mergeArgs.Append(" -X ours");   break;
-                case "theirs": mergeArgs.Append(" -X theirs"); break;
-                default:       break;
-            }
-            mergeArgs.Append($" {EscapeShellArg(sourceBranch)}");
-
-            var mergeResult = await RunGitAsync(mergeArgs.ToString(), ct).ConfigureAwait(false);
-            if (mergeResult.ExitCode != 0)
-                throw new InvalidOperationException(
-                    $"Merge conflict or error: {mergeResult.Stderr.Trim()}");
-
-            var shaResult = await RunGitAsync("rev-parse HEAD", ct).ConfigureAwait(false);
-            var sha = shaResult.ExitCode == 0 ? shaResult.Stdout.Trim() : string.Empty;
-
-            return new ApiCommit
-            {
-                Sha     = sha,
-                Message = $"Merged '{sourceBranch}' into '{targetBranch}'",
-                Author  = new ApiUser { Username = "git", Email = "" },
-                Parents = new List<string>()
-            };
-        }
-
-        /// <inheritdoc/>
-        public async Task<string> PushAsync(CancellationToken ct = default)
-        {
-            var result = await RunGitAsync("push", ct).ConfigureAwait(false);
-            if (result.ExitCode != 0)
-                throw new InvalidOperationException($"git push failed: {result.Stderr.Trim()}");
-            return result.Stdout.Trim();
-        }
-
-        /// <inheritdoc/>
-        public async Task<string> PullAsync(CancellationToken ct = default)
-        {
-            var result = await RunGitAsync("pull", ct).ConfigureAwait(false);
-            if (result.ExitCode != 0)
-                throw new InvalidOperationException($"git pull failed: {result.Stderr.Trim()}");
-            return result.Stdout.Trim();
-        }
-
-        // ── Process runner ───────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Runs <c>git &lt;args&gt;</c> in the repository root directory and returns
-        /// stdout, stderr, and the exit code.
-        /// </summary>
-        internal async Task<(string Stdout, string Stderr, int ExitCode)> RunGitAsync(
-            string args, CancellationToken ct)
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName               = "git",
-                Arguments              = args,
-                WorkingDirectory       = _settings.RepositoryRoot,
-                UseShellExecute        = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                CreateNoWindow         = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding  = Encoding.UTF8
-            };
-
-            var stdoutBuilder = new StringBuilder();
-            var stderrBuilder = new StringBuilder();
-
-            using (var process = new Process { StartInfo = psi, EnableRaisingEvents = true })
-            {
-                var tcs = new TaskCompletionSource<int>();
-
-                process.OutputDataReceived += (_, e) => { if (e.Data != null) stdoutBuilder.AppendLine(e.Data); };
-                process.ErrorDataReceived  += (_, e) => { if (e.Data != null) stderrBuilder.AppendLine(e.Data); };
-                process.Exited             += (_, __) => tcs.TrySetResult(process.ExitCode);
-
-                try
-                {
-                    process.Start();
-                    process.BeginOutputReadLine();
-                    process.BeginErrorReadLine();
-
-                    using (ct.Register(() => { try { process.Kill(); } catch { } tcs.TrySetCanceled(); }))
-                    {
-                        await tcs.Task.ConfigureAwait(false);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    _log.Error($"git {args} failed to start", ex);
-                    return (string.Empty, ex.Message, -1);
-                }
-
-                return (stdoutBuilder.ToString(), stderrBuilder.ToString(), process.ExitCode);
+                response.Files.Add(fileDiff);
+                response.TotalLinesAdded += fileDiff.LinesAdded;
+                response.TotalLinesRemoved += fileDiff.LinesRemoved;
             }
         }
 
-        // ── Parsing helpers ──────────────────────────────────────────────────────
+        return response;
+    }
 
-        /// <summary>
-        /// Parses <c>git status --porcelain=v1</c> output into a list of status entries.
-        /// Format per line: <c>XY path</c> or <c>XY old-path -> new-path</c> for renames.
-        /// </summary>
-        internal static List<GitStatusEntry> ParsePorcelainStatus(string output)
+    private static GitFileDiff? ParseFileDiffBlock(string block)
+    {
+        var lines = block.Split('\n');
+        if (lines.Length == 0) return null;
+
+        // Header: diff --git a/path b/path
+        var headerMatch = Regex.Match(lines[0], @"^diff --git a/(.+) b/(.+)$");
+        if (!headerMatch.Success) return null;
+
+        var fileDiff = new GitFileDiff
         {
-            var entries = new List<GitStatusEntry>();
-            if (string.IsNullOrEmpty(output)) return entries;
+            RelativePath = headerMatch.Groups[2].Value.Trim(),
+            ChangeType = "modified"
+        };
 
-            foreach (var line in output.Split('\n'))
-            {
-                if (line.Length < 4) continue;
+        var lineIdx = 1;
 
-                var indexStatus   = line[0].ToString();
-                var worktreeStatus = line[1].ToString();
-                var rest          = line.Substring(3).Trim();
-
-                // Renames: "old -> new"
-                string relativePath = rest;
-                string? oldPath      = null;
-                var arrowIdx = rest.IndexOf(" -> ", StringComparison.Ordinal);
-                if (arrowIdx >= 0)
-                {
-                    oldPath      = rest.Substring(0, arrowIdx).Trim('"');
-                    relativePath = rest.Substring(arrowIdx + 4).Trim('"');
-                }
-                else
-                {
-                    relativePath = rest.Trim('"');
-                }
-
-                var isUntracked = indexStatus == "?" && worktreeStatus == "?";
-                var isStaged    = !isUntracked && indexStatus.Trim() != "" && indexStatus != " ";
-                var isUnstaged  = !isUntracked && worktreeStatus.Trim() != "" && worktreeStatus != " ";
-
-                entries.Add(new GitStatusEntry
-                {
-                    RelativePath  = relativePath,
-                    IndexStatus   = indexStatus,
-                    WorkTreeStatus= worktreeStatus,
-                    OldPath       = oldPath,
-                    IsStaged      = isStaged,
-                    IsUnstaged    = isUnstaged,
-                    IsUntracked   = isUntracked
-                });
-            }
-
-            return entries;
-        }
-
-        /// <summary>
-        /// Parses unified diff output from <c>git diff</c> into structured objects.
-        /// </summary>
-        internal static GitDiffResponse ParseDiffOutput(string diffText, string scope)
+        // Parse metadata lines until we hit "--- " or "@@ ".
+        while (lineIdx < lines.Length)
         {
-            var response = new GitDiffResponse { Scope = scope ?? "unstaged" };
-
-            if (string.IsNullOrEmpty(diffText))
-                return response;
-
-            // Truncate if too large.
-            if (diffText.Length > MaxDiffBytes)
+            var l = lines[lineIdx];
+            if (l.StartsWith("new file mode"))
             {
-                diffText = diffText.Substring(0, MaxDiffBytes);
-                response.Truncated = true;
-            }
-
-            response.RawDiff = diffText;
-
-            // Split on "diff --git" boundaries.
-            var fileBlocks = Regex.Split(diffText, @"(?=^diff --git )", RegexOptions.Multiline);
-
-            foreach (var block in fileBlocks)
-            {
-                if (string.IsNullOrWhiteSpace(block)) continue;
-
-                var fileDiff = ParseFileDiffBlock(block);
-                if (fileDiff != null)
-                {
-                    response.Files.Add(fileDiff);
-                    response.TotalLinesAdded   += fileDiff.LinesAdded;
-                    response.TotalLinesRemoved += fileDiff.LinesRemoved;
-                }
-            }
-
-            return response;
-        }
-
-        private static GitFileDiff? ParseFileDiffBlock(string block)
-        {
-            var lines = block.Split('\n');
-            if (lines.Length == 0) return null;
-
-            // Header: diff --git a/path b/path
-            var headerMatch = Regex.Match(lines[0], @"^diff --git a/(.+) b/(.+)$");
-            if (!headerMatch.Success) return null;
-
-            var fileDiff = new GitFileDiff
-            {
-                RelativePath = headerMatch.Groups[2].Value.Trim(),
-                ChangeType   = "modified"
-            };
-
-            int lineIdx = 1;
-
-            // Parse metadata lines until we hit "--- " or "@@ ".
-            while (lineIdx < lines.Length)
-            {
-                var l = lines[lineIdx];
-                if (l.StartsWith("new file mode"))      { fileDiff.ChangeType = "added";   lineIdx++; continue; }
-                if (l.StartsWith("deleted file mode"))  { fileDiff.ChangeType = "deleted"; lineIdx++; continue; }
-                if (l.StartsWith("rename from "))       { fileDiff.OldPath = l.Substring("rename from ".Length).Trim(); fileDiff.ChangeType = "renamed"; lineIdx++; continue; }
-                if (l.StartsWith("rename to "))         { fileDiff.RelativePath = l.Substring("rename to ".Length).Trim(); lineIdx++; continue; }
-                if (l.StartsWith("similarity index"))   { lineIdx++; continue; }
-                if (l.StartsWith("index "))             { lineIdx++; continue; }
-                if (l.StartsWith("--- ") || l.StartsWith("@@ ")) break;
+                fileDiff.ChangeType = "added";
                 lineIdx++;
+                continue;
             }
 
-            // Skip "--- a/..." and "+++ b/..." lines.
-            while (lineIdx < lines.Length && (lines[lineIdx].StartsWith("--- ") || lines[lineIdx].StartsWith("+++ ")))
-                lineIdx++;
-
-            // Parse hunks.
-            GitDiffHunk? currentHunk = null;
-            int oldLine = 0, newLine = 0;
-
-            while (lineIdx < lines.Length)
+            if (l.StartsWith("deleted file mode"))
             {
-                var l = lines[lineIdx];
-
-                var hunkHeader = Regex.Match(l, @"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)");
-                if (hunkHeader.Success)
-                {
-                    currentHunk = new GitDiffHunk
-                    {
-                        OldStart = int.Parse(hunkHeader.Groups[1].Value),
-                        OldCount = hunkHeader.Groups[2].Success ? int.Parse(hunkHeader.Groups[2].Value) : 1,
-                        NewStart = int.Parse(hunkHeader.Groups[3].Value),
-                        NewCount = hunkHeader.Groups[4].Success ? int.Parse(hunkHeader.Groups[4].Value) : 1,
-                        Header   = l.Trim()
-                    };
-                    fileDiff.Hunks.Add(currentHunk);
-                    oldLine = currentHunk.OldStart;
-                    newLine = currentHunk.NewStart;
-                    lineIdx++;
-                    continue;
-                }
-
-                if (currentHunk != null)
-                {
-                    if (l.StartsWith("+"))
-                    {
-                        currentHunk.Lines.Add(new GitDiffLine { Type = "added",   Text = l.Substring(1), NewLineNumber = newLine++ });
-                        fileDiff.LinesAdded++;
-                    }
-                    else if (l.StartsWith("-"))
-                    {
-                        currentHunk.Lines.Add(new GitDiffLine { Type = "removed", Text = l.Substring(1), OldLineNumber = oldLine++ });
-                        fileDiff.LinesRemoved++;
-                    }
-                    else if (l.StartsWith(" "))
-                    {
-                        currentHunk.Lines.Add(new GitDiffLine { Type = "context", Text = l.Substring(1), OldLineNumber = oldLine++, NewLineNumber = newLine++ });
-                    }
-                }
-
+                fileDiff.ChangeType = "deleted";
                 lineIdx++;
+                continue;
             }
 
-            return fileDiff;
+            if (l.StartsWith("rename from "))
+            {
+                fileDiff.OldPath = l.Substring("rename from ".Length).Trim();
+                fileDiff.ChangeType = "renamed";
+                lineIdx++;
+                continue;
+            }
+
+            if (l.StartsWith("rename to "))
+            {
+                fileDiff.RelativePath = l.Substring("rename to ".Length).Trim();
+                lineIdx++;
+                continue;
+            }
+
+            if (l.StartsWith("similarity index"))
+            {
+                lineIdx++;
+                continue;
+            }
+
+            if (l.StartsWith("index "))
+            {
+                lineIdx++;
+                continue;
+            }
+
+            if (l.StartsWith("--- ") || l.StartsWith("@@ ")) break;
+            lineIdx++;
         }
 
-        /// <summary>
-        /// Parses <c>git log --format=%H%x1F%h%x1F...  --name-only</c> output.
-        /// Records are separated by blank lines; changed files follow after a blank line
-        /// in the name-only section.
-        /// </summary>
-        internal static GitLogResponse ParseLogOutput(string output, int maxCount)
+        // Skip "--- a/..." and "+++ b/..." lines.
+        while (lineIdx < lines.Length && (lines[lineIdx].StartsWith("--- ") || lines[lineIdx].StartsWith("+++ ")))
+            lineIdx++;
+
+        // Parse hunks.
+        GitDiffHunk? currentHunk = null;
+        int oldLine = 0, newLine = 0;
+
+        while (lineIdx < lines.Length)
         {
-            var response = new GitLogResponse();
-            if (string.IsNullOrEmpty(output)) return response;
+            var l = lines[lineIdx];
 
-            // git log with --name-only produces blocks separated by blank lines.
-            // Each block: format-line, blank, list-of-files, blank.
-            // We split on the unit-separator (0x1F) in the format line.
-            var lines = output.Split('\n');
-            int i = 0;
-
-            while (i < lines.Length && response.Commits.Count < maxCount)
+            var hunkHeader = Regex.Match(l, @"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)");
+            if (hunkHeader.Success)
             {
-                var line = lines[i].Trim();
-                if (string.IsNullOrEmpty(line)) { i++; continue; }
-
-                // Detect format line by presence of unit-separator.
-                if (!line.Contains('\x1F')) { i++; continue; }
-
-                var parts = line.Split('\x1F');
-                if (parts.Length < 9) { i++; continue; }
-
-                var entry = new GitLogEntry
+                currentHunk = new GitDiffHunk
                 {
-                    Sha           = parts[0].Trim(),
-                    ShortSha      = parts[1].Trim(),
-                    AuthorName    = parts[2].Trim(),
-                    AuthorEmail   = parts[3].Trim(),
-                    CommitterName = parts[5].Trim(),
-                    Subject       = parts[7].Trim(),
-                    Body          = parts[8].Trim()
+                    OldStart = int.Parse(hunkHeader.Groups[1].Value),
+                    OldCount = hunkHeader.Groups[2].Success ? int.Parse(hunkHeader.Groups[2].Value) : 1,
+                    NewStart = int.Parse(hunkHeader.Groups[3].Value),
+                    NewCount = hunkHeader.Groups[4].Success ? int.Parse(hunkHeader.Groups[4].Value) : 1,
+                    Header = l.Trim()
                 };
-
-                if (DateTimeOffset.TryParse(parts[4].Trim(), out var aDate)) entry.AuthorDate    = aDate;
-                if (DateTimeOffset.TryParse(parts[6].Trim(), out var cDate)) entry.CommitterDate = cDate;
-
-                // Parent SHAs are space-separated.
-                if (parts.Length >= 10 && !string.IsNullOrWhiteSpace(parts[9]))
-                    entry.ParentShas = parts[9].Trim().Split(' ').Where(p => !string.IsNullOrEmpty(p)).ToList();
-
-                i++;
-
-                // Collect changed files (non-empty lines until next format line or end).
-                while (i < lines.Length)
-                {
-                    var fl = lines[i].Trim();
-                    if (fl.Contains('\x1F')) break;   // next commit's format line
-                    if (!string.IsNullOrEmpty(fl))
-                        entry.ChangedFiles.Add(fl);
-                    i++;
-                }
-
-                response.Commits.Add(entry);
+                fileDiff.Hunks.Add(currentHunk);
+                oldLine = currentHunk.OldStart;
+                newLine = currentHunk.NewStart;
+                lineIdx++;
+                continue;
             }
 
-            return response;
-        }
-
-        // ── Small helpers ────────────────────────────────────────────────────────
-
-        internal static string BuildPathSuffix(string? relativePath)
-        {
-            if (string.IsNullOrWhiteSpace(relativePath)) return "";
-            // Replace back-slashes with forward-slashes for git.
-            var gitPath = relativePath.Replace('\\', '/').Trim('/');
-            // Windows file paths cannot legally contain " or NUL.
-            // Reject both to prevent argument injection via ProcessStartInfo.Arguments.
-            if (gitPath.IndexOf('"') >= 0 || gitPath.IndexOf('\0') >= 0)
-                return ""; // silently drop a malicious suffix — git will run without a path filter
-            return $" -- \"{gitPath}\"";
-        }
-
-        internal static string BuildDiffScopeArgs(string? scope)
-        {
-            switch ((scope ?? "unstaged").ToLowerInvariant())
+            if (currentHunk != null)
             {
-                case "staged":  return "--cached";
-                case "head":    return "HEAD";
-                case "unstaged":
-                default:
-                    // Check if scope looks like "commit:sha1..sha2".
-                    if (scope != null && scope.StartsWith("commit:", StringComparison.OrdinalIgnoreCase))
+                if (l.StartsWith("+"))
+                {
+                    currentHunk.Lines.Add(new GitDiffLine
+                        { Type = "added", Text = l.Substring(1), NewLineNumber = newLine++ });
+                    fileDiff.LinesAdded++;
+                }
+                else if (l.StartsWith("-"))
+                {
+                    currentHunk.Lines.Add(new GitDiffLine
+                        { Type = "removed", Text = l.Substring(1), OldLineNumber = oldLine++ });
+                    fileDiff.LinesRemoved++;
+                }
+                else if (l.StartsWith(" "))
+                {
+                    currentHunk.Lines.Add(new GitDiffLine
                     {
-                        // The commit range is user-supplied; wrap it safely so it cannot
-                        // inject additional git options via unquoted whitespace or shell chars.
-                        var range = scope.Substring("commit:".Length);
-                        return EscapeShellArg(range);
-                    }
-                    return "";
-            }
-        }
-
-        private static string EscapeShellArg(string value)
-        {
-            // For ProcessStartInfo.Arguments on Windows, wrap in double-quotes and escape inner double-quotes.
-            return "\"" + value.Replace("\"", "\\\"") + "\"";
-        }
-
-        /// <summary>
-        /// Parses <c>git show --no-patch --format=... --name-only</c> output for a single commit.
-        /// Uses the same unit-separator (0x1F) format as <see cref="ParseLogOutput"/>,
-        /// but also includes CommitterEmail (parts[6]).
-        /// </summary>
-        internal static GitShowResponse ParseShowOutput(string output)
-        {
-            if (string.IsNullOrEmpty(output))
-                return new GitShowResponse { NotFound = true };
-
-            var lines = output.Split('\n');
-
-            // Find the format line (contains unit-separator).
-            string? formatLine = null;
-            int fileStart = 0;
-            for (int i = 0; i < lines.Length; i++)
-            {
-                var trimmed = lines[i].Trim();
-                if (trimmed.Contains('\x1F'))
-                {
-                    formatLine = trimmed;
-                    fileStart  = i + 1;
-                    break;
+                        Type = "context", Text = l.Substring(1), OldLineNumber = oldLine++, NewLineNumber = newLine++
+                    });
                 }
             }
 
-            if (formatLine == null)
-                return new GitShowResponse { NotFound = true };
+            lineIdx++;
+        }
 
-            // %H %h %an %ae %aI %cn %ce %cI %s %b %P
-            var parts = formatLine.Split('\x1F');
-            if (parts.Length < 9)
-                return new GitShowResponse { NotFound = true };
+        return fileDiff;
+    }
 
-            var response = new GitShowResponse
+    /// <summary>
+    ///     Parses <c>git log --format=%H%x1F%h%x1F...  --name-only</c> output.
+    ///     Records are separated by blank lines; changed files follow after a blank line
+    ///     in the name-only section.
+    /// </summary>
+    internal static GitLogResponse ParseLogOutput(string output, int maxCount)
+    {
+        var response = new GitLogResponse();
+        if (string.IsNullOrEmpty(output)) return response;
+
+        // git log with --name-only produces blocks separated by blank lines.
+        // Each block: format-line, blank, list-of-files, blank.
+        // We split on the unit-separator (0x1F) in the format line.
+        var lines = output.Split('\n');
+        var i = 0;
+
+        while (i < lines.Length && response.Commits.Count < maxCount)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line))
             {
-                Sha            = parts[0].Trim(),
-                ShortSha       = parts[1].Trim(),
-                AuthorName     = parts[2].Trim(),
-                AuthorEmail    = parts[3].Trim(),
-                CommitterName  = parts.Length > 5 ? parts[5].Trim() : "",
-                CommitterEmail = parts.Length > 6 ? parts[6].Trim() : "",
-                Subject        = parts.Length > 8 ? parts[8].Trim() : "",
-                Body           = parts.Length > 9 ? parts[9].Trim() : "",
+                i++;
+                continue;
+            }
+
+            // Detect format line by presence of unit-separator.
+            if (!line.Contains('\x1F'))
+            {
+                i++;
+                continue;
+            }
+
+            var parts = line.Split('\x1F');
+            if (parts.Length < 9)
+            {
+                i++;
+                continue;
+            }
+
+            var entry = new GitLogEntry
+            {
+                Sha = parts[0].Trim(),
+                ShortSha = parts[1].Trim(),
+                AuthorName = parts[2].Trim(),
+                AuthorEmail = parts[3].Trim(),
+                CommitterName = parts[5].Trim(),
+                Subject = parts[7].Trim(),
+                Body = parts[8].Trim()
             };
 
-            if (DateTimeOffset.TryParse(parts[4].Trim(), out var aDate)) response.AuthorDate    = aDate;
-            if (parts.Length > 7 && DateTimeOffset.TryParse(parts[7].Trim(), out var cDate))    response.CommitterDate = cDate;
+            if (DateTimeOffset.TryParse(parts[4].Trim(), out var aDate)) entry.AuthorDate = aDate;
+            if (DateTimeOffset.TryParse(parts[6].Trim(), out var cDate)) entry.CommitterDate = cDate;
 
-            if (parts.Length > 10 && !string.IsNullOrWhiteSpace(parts[10]))
-                response.ParentShas = parts[10].Trim().Split(' ')
-                    .Where(p => !string.IsNullOrEmpty(p)).ToList();
+            // Parent SHAs are space-separated.
+            if (parts.Length >= 10 && !string.IsNullOrWhiteSpace(parts[9]))
+                entry.ParentShas = parts[9].Trim().Split(' ').Where(p => !string.IsNullOrEmpty(p)).ToList();
 
-            // Collect changed files (non-empty, non-format lines after the format line).
-            for (int i = fileStart; i < lines.Length; i++)
+            i++;
+
+            // Collect changed files (non-empty lines until next format line or end).
+            while (i < lines.Length)
             {
                 var fl = lines[i].Trim();
-                if (!string.IsNullOrEmpty(fl) && !fl.Contains('\x1F'))
-                    response.ChangedFiles.Add(fl);
+                if (fl.Contains('\x1F')) break; // next commit's format line
+                if (!string.IsNullOrEmpty(fl))
+                    entry.ChangedFiles.Add(fl);
+                i++;
             }
 
-            return response;
+            response.Commits.Add(entry);
         }
 
-        /// <summary>Returns true when <paramref name="sha"/> is a valid git ref (4-40 hex chars or HEAD/branch-like name).</summary>
-        private static bool IsValidSha(string sha)
+        return response;
+    }
+
+    // ── Small helpers ────────────────────────────────────────────────────────
+
+    internal static string BuildPathSuffix(string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return "";
+        // Replace back-slashes with forward-slashes for git.
+        var gitPath = relativePath.Replace('\\', '/').Trim('/');
+        // Windows file paths cannot legally contain " or NUL.
+        // Reject both to prevent argument injection via ProcessStartInfo.Arguments.
+        if (gitPath.IndexOf('"') >= 0 || gitPath.IndexOf('\0') >= 0)
+            return ""; // silently drop a malicious suffix — git will run without a path filter
+        return $" -- \"{gitPath}\"";
+    }
+
+    internal static string BuildDiffScopeArgs(string? scope)
+    {
+        switch ((scope ?? "unstaged").ToLowerInvariant())
         {
-            if (string.IsNullOrWhiteSpace(sha)) return false;
-            // Allow abbreviated SHAs (minimum 4 chars), full SHAs (40), and symbolic refs (HEAD, branches).
-            // Reject anything containing characters that could escape the git argument quoting.
-            foreach (var c in sha)
-            {
-                if (c == '"' || c == '\'' || c == '\\' || c == '\0' || c == '\n' || c == '\r' || c == ';' || c == '|' || c == '&' || c == '`' || c == ' ')
-                    return false;
-            }
-            return sha.Length >= 4 && sha.Length <= 256;
+            case "staged": return "--cached";
+            case "head": return "HEAD";
+            case "unstaged":
+            default:
+                // Check if scope looks like "commit:sha1..sha2".
+                if (scope != null && scope.StartsWith("commit:", StringComparison.OrdinalIgnoreCase))
+                {
+                    // The commit range is user-supplied; wrap it safely so it cannot
+                    // inject additional git options via unquoted whitespace or shell chars.
+                    var range = scope.Substring("commit:".Length);
+                    return EscapeShellArg(range);
+                }
+
+                return "";
         }
+    }
+
+    private static string EscapeShellArg(string value)
+    {
+        // For ProcessStartInfo.Arguments on Windows, wrap in double-quotes and escape inner double-quotes.
+        return "\"" + value.Replace("\"", "\\\"") + "\"";
+    }
+
+    /// <summary>
+    ///     Parses <c>git show --no-patch --format=... --name-only</c> output for a single commit.
+    ///     Uses the same unit-separator (0x1F) format as <see cref="ParseLogOutput" />,
+    ///     but also includes CommitterEmail (parts[6]).
+    /// </summary>
+    internal static GitShowResponse ParseShowOutput(string output)
+    {
+        if (string.IsNullOrEmpty(output))
+            return new GitShowResponse { NotFound = true };
+
+        var lines = output.Split('\n');
+
+        // Find the format line (contains unit-separator).
+        string? formatLine = null;
+        var fileStart = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].Trim();
+            if (trimmed.Contains('\x1F'))
+            {
+                formatLine = trimmed;
+                fileStart = i + 1;
+                break;
+            }
+        }
+
+        if (formatLine == null)
+            return new GitShowResponse { NotFound = true };
+
+        // %H %h %an %ae %aI %cn %ce %cI %s %b %P
+        var parts = formatLine.Split('\x1F');
+        if (parts.Length < 9)
+            return new GitShowResponse { NotFound = true };
+
+        var response = new GitShowResponse
+        {
+            Sha = parts[0].Trim(),
+            ShortSha = parts[1].Trim(),
+            AuthorName = parts[2].Trim(),
+            AuthorEmail = parts[3].Trim(),
+            CommitterName = parts.Length > 5 ? parts[5].Trim() : "",
+            CommitterEmail = parts.Length > 6 ? parts[6].Trim() : "",
+            Subject = parts.Length > 8 ? parts[8].Trim() : "",
+            Body = parts.Length > 9 ? parts[9].Trim() : ""
+        };
+
+        if (DateTimeOffset.TryParse(parts[4].Trim(), out var aDate)) response.AuthorDate = aDate;
+        if (parts.Length > 7 && DateTimeOffset.TryParse(parts[7].Trim(), out var cDate)) response.CommitterDate = cDate;
+
+        if (parts.Length > 10 && !string.IsNullOrWhiteSpace(parts[10]))
+            response.ParentShas = parts[10].Trim().Split(' ')
+                .Where(p => !string.IsNullOrEmpty(p)).ToList();
+
+        // Collect changed files (non-empty, non-format lines after the format line).
+        for (var i = fileStart; i < lines.Length; i++)
+        {
+            var fl = lines[i].Trim();
+            if (!string.IsNullOrEmpty(fl) && !fl.Contains('\x1F'))
+                response.ChangedFiles.Add(fl);
+        }
+
+        return response;
+    }
+
+    /// <summary>Returns true when <paramref name="sha" /> is a valid git ref (4-40 hex chars or HEAD/branch-like name).</summary>
+    private static bool IsValidSha(string sha)
+    {
+        if (string.IsNullOrWhiteSpace(sha)) return false;
+        // Allow abbreviated SHAs (minimum 4 chars), full SHAs (40), and symbolic refs (HEAD, branches).
+        // Reject anything containing characters that could escape the git argument quoting.
+        foreach (var c in sha)
+            if (c == '"' || c == '\'' || c == '\\' || c == '\0' || c == '\n' || c == '\r' || c == ';' || c == '|' ||
+                c == '&' || c == '`' || c == ' ')
+                return false;
+        return sha.Length >= 4 && sha.Length <= 256;
     }
 }

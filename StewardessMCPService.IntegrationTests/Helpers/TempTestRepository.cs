@@ -1,31 +1,34 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
-using System;
-using System.IO;
 
-namespace StewardessMCPService.IntegrationTests.Helpers
+namespace StewardessMCPService.IntegrationTests.Helpers;
+
+/// <summary>
+///     Creates a temporary directory that acts as the repository root during
+///     integration tests.  The directory is deleted automatically on disposal.
+/// </summary>
+internal sealed class TempTestRepository : IDisposable
 {
-    /// <summary>
-    /// Creates a temporary directory that acts as the repository root during
-    /// integration tests.  The directory is deleted automatically on disposal.
-    /// </summary>
-    internal sealed class TempTestRepository : IDisposable
+    /// <summary>Initialises the helper and creates the temporary directory.</summary>
+    public TempTestRepository()
     {
-        /// <summary>Absolute path of the temporary repository root.</summary>
-        public string Root { get; }
+        Root = Path.Combine(Path.GetTempPath(), "McpIntTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Root);
+    }
 
-        /// <summary>Initialises the helper and creates the temporary directory.</summary>
-        public TempTestRepository()
+    /// <summary>Absolute path of the temporary repository root.</summary>
+    public string Root { get; }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        try
         {
-            Root = Path.Combine(Path.GetTempPath(), "McpIntTest_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(Root);
+            Directory.Delete(Root, true);
         }
-
-        /// <inheritdoc />
-        public void Dispose()
+        catch
         {
-            try { Directory.Delete(Root, recursive: true); }
-            catch { /* best effort */ }
+            /* best effort */
         }
     }
 }

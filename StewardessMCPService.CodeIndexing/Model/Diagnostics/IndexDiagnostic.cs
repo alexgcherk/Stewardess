@@ -1,11 +1,12 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Model.Diagnostics;
 
 /// <summary>
-/// A diagnostic produced during indexing, associated with a file or pipeline stage.
+///     A diagnostic produced during indexing, associated with a file or pipeline stage.
 /// </summary>
 public sealed class IndexDiagnostic
 {

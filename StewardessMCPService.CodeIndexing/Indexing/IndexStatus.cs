@@ -1,11 +1,12 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 namespace StewardessMCPService.CodeIndexing.Indexing;
 
 /// <summary>
-/// Current indexing status for a repository root.
+///     Current indexing status for a repository root.
 /// </summary>
 public sealed class IndexStatus
 {

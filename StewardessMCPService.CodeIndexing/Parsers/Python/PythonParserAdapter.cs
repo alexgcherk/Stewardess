@@ -1,7 +1,7 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using System.Text.RegularExpressions;
-using StewardessMCPService.CodeIndexing.LanguageDetection;
 using StewardessMCPService.CodeIndexing.Model.Diagnostics;
 using StewardessMCPService.CodeIndexing.Model.References;
 using StewardessMCPService.CodeIndexing.Model.Structural;
@@ -10,13 +10,13 @@ using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 namespace StewardessMCPService.CodeIndexing.Parsers.Python;
 
 /// <summary>
-/// Heuristic parser adapter for Python files.
-/// Uses regex-based pattern matching to extract classes, functions, and methods.
-/// Extraction mode: <see cref="ExtractionMode.Heuristic"/> with reduced confidence.
+///     Heuristic parser adapter for Python files.
+///     Uses regex-based pattern matching to extract classes, functions, and methods.
+///     Extraction mode: <see cref="ExtractionMode.Heuristic" /> with reduced confidence.
 /// </summary>
 /// <remarks>
-/// This adapter does NOT execute Python code. It relies on indentation and keyword
-/// patterns to identify declarations.
+///     This adapter does NOT execute Python code. It relies on indentation and keyword
+///     patterns to identify declarations.
 /// </remarks>
 public sealed class PythonParserAdapter : IParserAdapter
 {
@@ -42,10 +42,10 @@ public sealed class PythonParserAdapter : IParserAdapter
         @"^(?<indent>[ \t]*)from\s+(?<module>\.+[A-Za-z0-9_.]*|[A-Za-z_][A-Za-z0-9_.]*)?\s+import\s+(?<names>.+?)\s*$",
         RegexOptions.Compiled | RegexOptions.Multiline);
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public string LanguageId => LanguageDetection.LanguageId.Python;
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public AdapterCapabilities Capabilities { get; } = new()
     {
         LanguageId = LanguageDetection.LanguageId.Python,
@@ -65,10 +65,10 @@ public sealed class PythonParserAdapter : IParserAdapter
         SupportsSyntaxErrorRecovery = true,
         SupportsDocumentTreeOnly = false,
         GuaranteeNotes = "Heuristic regex-based extraction. Reduced confidence. " +
-                         "Classes, functions, and methods are extracted by indentation and keyword patterns.",
+                         "Classes, functions, and methods are extracted by indentation and keyword patterns."
     };
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public Task<ParseResult> ParseAsync(ParseRequest request, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -88,7 +88,7 @@ public sealed class PythonParserAdapter : IParserAdapter
                 Imports = imports,
                 ReferenceHints = referenceHints,
                 ExtractionMode = ExtractionMode.Heuristic,
-                AdapterVersion = Version,
+                AdapterVersion = Version
             });
         }
         catch (OperationCanceledException)
@@ -110,11 +110,11 @@ public sealed class PythonParserAdapter : IParserAdapter
                         Source = DiagnosticSource.ParserAdapter,
                         Code = "PARSE_EXCEPTION",
                         Message = $"Python heuristic parser threw: {ex.Message}",
-                        FilePath = request.FilePath,
+                        FilePath = request.FilePath
                     }
                 ],
                 ExtractionMode = ExtractionMode.Heuristic,
-                AdapterVersion = Version,
+                AdapterVersion = Version
             });
         }
     }
@@ -123,26 +123,26 @@ public sealed class PythonParserAdapter : IParserAdapter
         string fileId, string[] lines, CancellationToken ct)
     {
         var nodes = new List<StructuralNode>();
-        int counter = 0;
+        var counter = 0;
 
         // Stack of (indentLevel, nodeId, qualifiedPath)
         var parentStack = new Stack<(int Indent, string NodeId, string QualPath)>();
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             ct.ThrowIfCancellationRequested();
 
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#')) continue;
 
-            int indent = MeasureIndent(line);
+            var indent = MeasureIndent(line);
 
             // Pop stack back to parent level
             while (parentStack.Count > 0 && parentStack.Peek().Indent >= indent)
                 parentStack.Pop();
 
-            string? parentNodeId = parentStack.Count > 0 ? parentStack.Peek().NodeId : null;
-            string parentPath = parentStack.Count > 0 ? parentStack.Peek().QualPath : "";
+            var parentNodeId = parentStack.Count > 0 ? parentStack.Peek().NodeId : null;
+            var parentPath = parentStack.Count > 0 ? parentStack.Peek().QualPath : "";
 
             // Class detection
             var classMatch = _classPattern.Match(line);
@@ -151,7 +151,7 @@ public sealed class PythonParserAdapter : IParserAdapter
                 var name = classMatch.Groups["name"].Value;
                 var nodeId = $"cls-{fileId}-{++counter}";
                 var qualPath = string.IsNullOrEmpty(parentPath) ? name : $"{parentPath}.{name}";
-                int endLine = EstimateBlockEnd(lines, i, indent);
+                var endLine = EstimateBlockEnd(lines, i, indent);
 
                 nodes.Add(BuildNode(nodeId, fileId, parentNodeId, NodeKind.Declaration,
                     "class", name, name, qualPath,
@@ -173,8 +173,9 @@ public sealed class PythonParserAdapter : IParserAdapter
                 var subkind = parentNodeId != null ? "method" : "function";
                 var nodeId = $"def-{fileId}-{++counter}";
                 var qualPath = string.IsNullOrEmpty(parentPath) ? name : $"{parentPath}.{name}";
-                var displayName = $"{(isAsync ? "async " : "")}{name}({paramSig}){(string.IsNullOrEmpty(retType) ? "" : $" -> {retType}")}";
-                int endLine = EstimateBlockEnd(lines, i, indent);
+                var displayName =
+                    $"{(isAsync ? "async " : "")}{name}({paramSig}){(string.IsNullOrEmpty(retType) ? "" : $" -> {retType}")}";
+                var endLine = EstimateBlockEnd(lines, i, indent);
                 List<string> mods = isAsync ? ["async"] : [];
 
                 nodes.Add(BuildNode(nodeId, fileId, parentNodeId, NodeKind.Callable,
@@ -182,7 +183,6 @@ public sealed class PythonParserAdapter : IParserAdapter
                     SourceSpan.FromLines(i + 1, endLine), mods, 0.80));
 
                 parentStack.Push((indent, nodeId, qualPath));
-                continue;
             }
         }
 
@@ -193,8 +193,9 @@ public sealed class PythonParserAdapter : IParserAdapter
     private static StructuralNode BuildNode(
         string nodeId, string fileId, string? parentNodeId,
         NodeKind kind, string subkind, string name, string displayName,
-        string qualPath, SourceSpan span, List<string> modifiers, double confidence) =>
-        new()
+        string qualPath, SourceSpan span, List<string> modifiers, double confidence)
+    {
+        return new StructuralNode
         {
             NodeId = nodeId,
             FileId = fileId,
@@ -209,27 +210,25 @@ public sealed class PythonParserAdapter : IParserAdapter
             Modifiers = modifiers,
             ExtractionMode = ExtractionMode.Heuristic,
             Confidence = confidence,
-            Children = [],
+            Children = []
         };
+    }
 
     private static void BuildChildrenLists(List<StructuralNode> nodes)
     {
         var childMap = new Dictionary<string, List<string>>();
         foreach (var node in nodes)
-        {
             if (node.ParentNodeId is not null)
             {
                 if (!childMap.TryGetValue(node.ParentNodeId, out var list))
                     childMap[node.ParentNodeId] = list = [];
                 list.Add(node.NodeId);
             }
-        }
 
-        for (int i = 0; i < nodes.Count; i++)
+        for (var i = 0; i < nodes.Count; i++)
         {
             var node = nodes[i];
             if (childMap.TryGetValue(node.NodeId, out var children))
-            {
                 nodes[i] = new StructuralNode
                 {
                     NodeId = node.NodeId, FileId = node.FileId,
@@ -238,40 +237,38 @@ public sealed class PythonParserAdapter : IParserAdapter
                     QualifiedPath = node.QualifiedPath, SourceSpan = node.SourceSpan,
                     Modifiers = node.Modifiers, Visibility = node.Visibility,
                     ExtractionMode = node.ExtractionMode, Confidence = node.Confidence,
-                    Children = children,
+                    Children = children
                 };
-            }
         }
     }
 
     private static int MeasureIndent(string line)
     {
-        int count = 0;
+        var count = 0;
         foreach (var ch in line)
-        {
             if (ch == ' ') count++;
             else if (ch == '\t') count += 4;
             else break;
-        }
         return count;
     }
 
     private static int EstimateBlockEnd(string[] lines, int startLine, int blockIndent)
     {
-        for (int i = startLine + 1; i < lines.Length; i++)
+        for (var i = startLine + 1; i < lines.Length; i++)
         {
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line)) continue;
             if (MeasureIndent(line) <= blockIndent)
                 return i;
         }
+
         return lines.Length;
     }
 
     private static IReadOnlyList<ImportEntry> ExtractImports(string[] lines)
     {
         var imports = new List<ImportEntry>();
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -285,7 +282,7 @@ public sealed class PythonParserAdapter : IParserAdapter
                     RawText = line.Trim(),
                     NormalizedTarget = importMatch.Groups["module"].Value,
                     Alias = importMatch.Groups["alias"].Success ? importMatch.Groups["alias"].Value : null,
-                    SourceSpan = SourceSpan.FromLines(i + 1, i + 1),
+                    SourceSpan = SourceSpan.FromLines(i + 1, i + 1)
                 });
                 continue;
             }
@@ -301,10 +298,11 @@ public sealed class PythonParserAdapter : IParserAdapter
                     RawText = line.Trim(),
                     NormalizedTarget = module.TrimStart('.'),
                     Alias = fromMatch.Groups["names"].Value.Trim(),
-                    SourceSpan = SourceSpan.FromLines(i + 1, i + 1),
+                    SourceSpan = SourceSpan.FromLines(i + 1, i + 1)
                 });
             }
         }
+
         return imports;
     }
 
@@ -313,7 +311,7 @@ public sealed class PythonParserAdapter : IParserAdapter
     {
         var hints = new List<ReferenceHint>();
 
-        for (int i = 0; i < lines.Length; i++)
+        for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -344,7 +342,7 @@ public sealed class PythonParserAdapter : IParserAdapter
                         Kind = IsLikelyInterface(simpleName) ? RelationshipKind.Implements : RelationshipKind.Inherits,
                         TargetName = simpleName,
                         Evidence = baseName,
-                        EvidenceSpan = SourceSpan.FromLines(i + 1, i + 1),
+                        EvidenceSpan = SourceSpan.FromLines(i + 1, i + 1)
                     });
                 }
             }
@@ -353,6 +351,8 @@ public sealed class PythonParserAdapter : IParserAdapter
         return hints;
     }
 
-    private static bool IsLikelyInterface(string name) =>
-        name.StartsWith("I", StringComparison.Ordinal) && name.Length > 1 && char.IsUpper(name[1]);
+    private static bool IsLikelyInterface(string name)
+    {
+        return name.StartsWith("I", StringComparison.Ordinal) && name.Length > 1 && char.IsUpper(name[1]);
+    }
 }

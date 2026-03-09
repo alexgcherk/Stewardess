@@ -1,55 +1,64 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
-namespace SampleNamespace
+namespace SampleNamespace;
+
+/// <summary>A sample person class for testing.</summary>
+public class Person
 {
-    /// <summary>A sample person class for testing.</summary>
-    public class Person
+    public Person(string name, int age)
     {
-        public string Name { get; set; }
-        public int Age { get; set; }
-
-        public Person(string name, int age)
-        {
-            Name = name;
-            Age = age;
-        }
-
-        public string Greet() => $"Hello, {Name}!";
-
-        public static Person FromString(string input)
-        {
-            var parts = input.Split(',');
-            return new Person(parts[0].Trim(), int.Parse(parts[1].Trim()));
-        }
+        Name = name;
+        Age = age;
     }
 
-    public interface IRepository<T>
+    public string Name { get; set; }
+    public int Age { get; set; }
+
+    public string Greet()
     {
-        Task<T?> GetByIdAsync(int id);
-        Task<IEnumerable<T>> GetAllAsync();
+        return $"Hello, {Name}!";
     }
 
-    public sealed class PersonRepository : IRepository<Person>
+    public static Person FromString(string input)
     {
-        private readonly Dictionary<int, Person> _store = new();
-
-        public Task<Person?> GetByIdAsync(int id)
-        {
-            _store.TryGetValue(id, out var p);
-            return Task.FromResult(p);
-        }
-
-        public Task<IEnumerable<Person>> GetAllAsync() =>
-            Task.FromResult<IEnumerable<Person>>(_store.Values);
-
-        public void Add(int id, Person person) => _store[id] = person;
+        var parts = input.Split(',');
+        return new Person(parts[0].Trim(), int.Parse(parts[1].Trim()));
     }
-
-    public enum Status { Active, Inactive, Archived }
-
-    public record struct Point(double X, double Y);
 }
+
+public interface IRepository<T>
+{
+    Task<T?> GetByIdAsync(int id);
+    Task<IEnumerable<T>> GetAllAsync();
+}
+
+public sealed class PersonRepository : IRepository<Person>
+{
+    private readonly Dictionary<int, Person> _store = new();
+
+    public Task<Person?> GetByIdAsync(int id)
+    {
+        _store.TryGetValue(id, out var p);
+        return Task.FromResult(p);
+    }
+
+    public Task<IEnumerable<Person>> GetAllAsync()
+    {
+        return Task.FromResult<IEnumerable<Person>>(_store.Values);
+    }
+
+    public void Add(int id, Person person)
+    {
+        _store[id] = person;
+    }
+}
+
+public enum Status
+{
+    Active,
+    Inactive,
+    Archived
+}
+
+public record struct Point(double X, double Y);

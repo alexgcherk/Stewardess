@@ -1,6 +1,8 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.References;
+using StewardessMCPService.CodeIndexing.Model.Structural;
 using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 using StewardessMCPService.CodeIndexing.Parsers.Python;
 using Xunit;
@@ -11,14 +13,17 @@ public class PythonReferenceExtractionTests
 {
     private readonly PythonParserAdapter _adapter = new();
 
-    private static ParseRequest MakeRequest(string content) => new()
+    private static ParseRequest MakeRequest(string content)
     {
-        FileId = "py-ref",
-        FilePath = "test.py",
-        Content = content,
-        LanguageId = "python",
-        Mode = StewardessMCPService.CodeIndexing.Model.Structural.ParseMode.Declarations,
-    };
+        return new ParseRequest
+        {
+            FileId = "py-ref",
+            FilePath = "test.py",
+            Content = content,
+            LanguageId = "python",
+            Mode = ParseMode.Declarations
+        };
+    }
 
     // ── Import extraction ──────────────────────────────────────────────────────
 

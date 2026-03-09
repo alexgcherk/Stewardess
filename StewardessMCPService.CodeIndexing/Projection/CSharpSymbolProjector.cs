@@ -1,30 +1,31 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Semantic;
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Projection;
 
 /// <summary>
-/// Projects C# structural nodes into logical symbols and occurrences.
+///     Projects C# structural nodes into logical symbols and occurrences.
 /// </summary>
 /// <remarks>
-/// Handles the following C# constructs:
-/// <list type="bullet">
-///   <item>Namespaces → <see cref="SymbolKind.Namespace"/></item>
-///   <item>Classes, structs, interfaces, enums, records, delegates → type symbols</item>
-///   <item>Methods, constructors → callable symbols</item>
-///   <item>Properties, fields, events, indexers → member symbols</item>
-/// </list>
-/// One <see cref="SymbolOccurrence"/> with role <see cref="OccurrenceRole.Declaration"/>
-/// is produced for each projected symbol.
+///     Handles the following C# constructs:
+///     <list type="bullet">
+///         <item>Namespaces → <see cref="SymbolKind.Namespace" /></item>
+///         <item>Classes, structs, interfaces, enums, records, delegates → type symbols</item>
+///         <item>Methods, constructors → callable symbols</item>
+///         <item>Properties, fields, events, indexers → member symbols</item>
+///     </list>
+///     One <see cref="SymbolOccurrence" /> with role <see cref="OccurrenceRole.Declaration" />
+///     is produced for each projected symbol.
 /// </remarks>
 public sealed class CSharpSymbolProjector : ISymbolProjector
 {
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public string LanguageId => LanguageDetection.LanguageId.CSharp;
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public SymbolProjectionResult Project(
         string fileId,
         string repoScope,
@@ -90,7 +91,7 @@ public sealed class CSharpSymbolProjector : ISymbolProjector
                 SignatureDisplay = node.DisplayName,
                 ExtractionMode = node.ExtractionMode,
                 Confidence = node.Confidence,
-                CapabilityFlags = capFlags,
+                CapabilityFlags = capFlags
             });
 
             occurrences.Add(new SymbolOccurrence
@@ -102,7 +103,7 @@ public sealed class CSharpSymbolProjector : ISymbolProjector
                 SourceSpan = node.SourceSpan,
                 IsPrimary = true,
                 ExtractionMode = node.ExtractionMode,
-                Confidence = node.Confidence,
+                Confidence = node.Confidence
             });
         }
 
@@ -110,41 +111,44 @@ public sealed class CSharpSymbolProjector : ISymbolProjector
     }
 
     /// <summary>
-    /// Maps a structural node to the appropriate <see cref="SymbolKind"/>,
-    /// or returns <see langword="null"/> for nodes that should not be projected.
+    ///     Maps a structural node to the appropriate <see cref="SymbolKind" />,
+    ///     or returns <see langword="null" /> for nodes that should not be projected.
     /// </summary>
-    private static SymbolKind? MapToSymbolKind(StructuralNode node) => node.Kind switch
+    private static SymbolKind? MapToSymbolKind(StructuralNode node)
     {
-        NodeKind.Container when node.Subkind == "namespace" => SymbolKind.Namespace,
-        NodeKind.Declaration => node.Subkind switch
+        return node.Kind switch
         {
-            "class" => SymbolKind.Class,
-            "struct" => SymbolKind.Struct,
-            "interface" => SymbolKind.Interface,
-            "enum" => SymbolKind.Enum,
-            "record" or "record class" => SymbolKind.Record,
-            "record struct" => SymbolKind.Record,
-            "delegate" => SymbolKind.TypeAlias,
-            _ => null,
-        },
-        NodeKind.Callable => node.Subkind switch
-        {
-            "method" => SymbolKind.Method,
-            "constructor" => SymbolKind.Constructor,
-            _ => null,
-        },
-        NodeKind.Member => node.Subkind switch
-        {
-            "property" or "indexer" => SymbolKind.Property,
-            "field" => SymbolKind.Field,
-            "event" => SymbolKind.Event,
-            _ => null,
-        },
-        _ => null,
-    };
+            NodeKind.Container when node.Subkind == "namespace" => SymbolKind.Namespace,
+            NodeKind.Declaration => node.Subkind switch
+            {
+                "class" => SymbolKind.Class,
+                "struct" => SymbolKind.Struct,
+                "interface" => SymbolKind.Interface,
+                "enum" => SymbolKind.Enum,
+                "record" or "record class" => SymbolKind.Record,
+                "record struct" => SymbolKind.Record,
+                "delegate" => SymbolKind.TypeAlias,
+                _ => null
+            },
+            NodeKind.Callable => node.Subkind switch
+            {
+                "method" => SymbolKind.Method,
+                "constructor" => SymbolKind.Constructor,
+                _ => null
+            },
+            NodeKind.Member => node.Subkind switch
+            {
+                "property" or "indexer" => SymbolKind.Property,
+                "field" => SymbolKind.Field,
+                "event" => SymbolKind.Event,
+                _ => null
+            },
+            _ => null
+        };
+    }
 
     /// <summary>
-    /// Extracts generic type parameter names from a display name (e.g., "List&lt;T&gt;" → ["T"]).
+    ///     Extracts generic type parameter names from a display name (e.g., "List&lt;T&gt;" → ["T"]).
     /// </summary>
     private static IReadOnlyList<string> ExtractGenericParameters(string displayName)
     {
@@ -156,8 +160,8 @@ public sealed class CSharpSymbolProjector : ISymbolProjector
     }
 
     /// <summary>
-    /// Orders nodes breadth-first from root to leaves, ensuring parents are
-    /// visited before their children so <c>nodeToSymbolId</c> lookups succeed.
+    ///     Orders nodes breadth-first from root to leaves, ensuring parents are
+    ///     visited before their children so <c>nodeToSymbolId</c> lookups succeed.
     /// </summary>
     private static IReadOnlyList<StructuralNode> TopologicalOrder(
         IReadOnlyDictionary<string, StructuralNode> nodes)
@@ -171,10 +175,8 @@ public sealed class CSharpSymbolProjector : ISymbolProjector
             var node = queue.Dequeue();
             result.Add(node);
             foreach (var childId in node.Children)
-            {
                 if (nodes.TryGetValue(childId, out var child))
                     queue.Enqueue(child);
-            }
         }
 
         return result;

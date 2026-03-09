@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Structural;
 
 /// <summary>
-/// Identifies the extraction method used to produce a structural node or symbol.
+///     Identifies the extraction method used to produce a structural node or symbol.
 /// </summary>
 public enum ExtractionMode
 {
@@ -17,5 +18,5 @@ public enum ExtractionMode
     ParserStructural,
 
     /// <summary>Regex or heuristic-based extraction. Inherently low confidence.</summary>
-    Heuristic,
+    Heuristic
 }

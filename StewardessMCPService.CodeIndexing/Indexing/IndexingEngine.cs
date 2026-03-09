@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Eligibility;
 using StewardessMCPService.CodeIndexing.LanguageDetection;
 using StewardessMCPService.CodeIndexing.Model.Diagnostics;
@@ -15,30 +16,49 @@ using StewardessMCPService.CodeIndexing.Source;
 namespace StewardessMCPService.CodeIndexing.Indexing;
 
 /// <summary>
-/// Orchestrates the indexing pipeline: enumerate → detect → parse → build snapshot.
+///     Orchestrates the indexing pipeline: enumerate → detect → parse → build snapshot.
 /// </summary>
 public sealed class IndexingEngine : IIndexingEngine
 {
-    private readonly ISourceProvider _source;
+    private static readonly HashSet<string> s_externalTypeNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "string", "int", "long", "bool", "double", "float", "decimal", "byte",
+        "object", "void", "char", "short", "uint", "ulong", "sbyte", "ushort",
+        "IEnumerable", "IList", "ICollection", "IDictionary", "IReadOnlyList",
+        "IReadOnlyDictionary", "IReadOnlyCollection", "IComparable", "IEquatable",
+        "IDisposable", "ICloneable", "Nullable", "List", "Dictionary", "HashSet",
+        "Queue", "Stack", "SortedList", "SortedDictionary", "LinkedList",
+        "Array", "Exception", "ArgumentException", "ArgumentNullException",
+        "InvalidOperationException", "NotImplementedException", "NotSupportedException",
+        "Task", "ValueTask", "CancellationToken", "Stream", "TextWriter", "TextReader",
+        "StringBuilder", "Guid", "DateTime", "DateTimeOffset", "TimeSpan",
+        "Console", "Math", "String", "Int32", "Boolean", "Object",
+        "Action", "Func", "Predicate", "EventHandler", "EventArgs",
+        // Python builtins
+        "list", "dict", "tuple", "set", "frozenset", "str", "bytes",
+        "bytearray", "memoryview", "complex", "type"
+    };
+
+    private readonly IReadOnlyDictionary<string, IParserAdapter> _adapters;
     private readonly IEligibilityPolicy _eligibility;
     private readonly ILanguageDetector _languageDetector;
-    private readonly IReadOnlyDictionary<string, IParserAdapter> _adapters;
-    private readonly ISnapshotStore _store;
+    private readonly Dictionary<string, DateTimeOffset> _lastCompletedAt = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _lastErrors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SnapshotDelta?> _latestDeltas = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _latestFileCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _latestReferenceCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string?> _latestSnapshotIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _latestSymbolCounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly IReadOnlyDictionary<string, ISymbolProjector> _projectors;
+    private readonly ISourceProvider _source;
+    private readonly object _stateLock = new();
 
     // Per-root state tracking
     private readonly Dictionary<string, IndexState> _states = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string?> _latestSnapshotIds = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string?> _lastErrors = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, DateTimeOffset> _lastCompletedAt = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int> _latestFileCounts = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int> _latestSymbolCounts = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int> _latestReferenceCounts = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, SnapshotDelta?> _latestDeltas = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object _stateLock = new();
+    private readonly ISnapshotStore _store;
 
     /// <summary>
-    /// Initializes a new instance of <see cref="IndexingEngine"/>.
+    ///     Initializes a new instance of <see cref="IndexingEngine" />.
     /// </summary>
     /// <param name="source">Source provider for file enumeration and content reading.</param>
     /// <param name="eligibility">Eligibility policy for filtering files.</param>
@@ -60,10 +80,10 @@ public sealed class IndexingEngine : IIndexingEngine
         _adapters = adapters.ToDictionary(a => a.LanguageId, StringComparer.OrdinalIgnoreCase);
         _store = store;
         _projectors = projectors?.ToDictionary(p => p.LanguageId, StringComparer.OrdinalIgnoreCase)
-            ?? new Dictionary<string, ISymbolProjector>(StringComparer.OrdinalIgnoreCase);
+                      ?? new Dictionary<string, ISymbolProjector>(StringComparer.OrdinalIgnoreCase);
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<IndexBuildResult> BuildAsync(IndexBuildRequest request, CancellationToken ct = default)
     {
         var rootPath = request.RootPath;
@@ -83,7 +103,7 @@ public sealed class IndexingEngine : IIndexingEngine
         var allHintsByFileId = new Dictionary<string, IReadOnlyList<ReferenceHint>>();
 
         int filesScanned = 0, filesEligible = 0, filesIndexed = 0, filesSkipped = 0, filesFailed = 0;
-        int counter = 0;
+        var counter = 0;
 
         try
         {
@@ -115,7 +135,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         ContentHash = "",
                         SizeBytes = fileInfo.SizeBytes,
                         EligibilityStatus = EligibilityStatus.Eligible,
-                        ParseStatus = ParseStatus.Skipped,
+                        ParseStatus = ParseStatus.Skipped
                     };
                     pathToFileId[relativePath.ToLowerInvariant()] = fileId;
                     fileIdToTopNodeIds[fileId] = [];
@@ -139,7 +159,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         Source = DiagnosticSource.Indexing,
                         Code = "FILE_READ_ERROR",
                         Message = $"Could not read file: {ex.Message}",
-                        FilePath = relativePath,
+                        FilePath = relativePath
                     };
                     allFiles[fileId] = new FileRecord
                     {
@@ -149,7 +169,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         ContentHash = "",
                         SizeBytes = fileInfo.SizeBytes,
                         ParseStatus = ParseStatus.Failed,
-                        DiagnosticIds = [diagId],
+                        DiagnosticIds = [diagId]
                     };
                     pathToFileId[relativePath.ToLowerInvariant()] = fileId;
                     fileIdToTopNodeIds[fileId] = [];
@@ -165,7 +185,7 @@ public sealed class IndexingEngine : IIndexingEngine
                     Content = content.Content,
                     LanguageId = langResult.LanguageId,
                     Mode = request.ParseMode,
-                    MaxFileSizeBytes = request.MaxFileSizeBytes ?? _eligibility.MaxFileSizeBytes,
+                    MaxFileSizeBytes = request.MaxFileSizeBytes ?? _eligibility.MaxFileSizeBytes
                 };
 
                 ParseResult parseResult;
@@ -188,7 +208,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         Source = DiagnosticSource.ParserAdapter,
                         Code = "ADAPTER_EXCEPTION",
                         Message = ex.Message,
-                        FilePath = relativePath,
+                        FilePath = relativePath
                     };
                     allFiles[fileId] = new FileRecord
                     {
@@ -199,7 +219,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         SizeBytes = fileInfo.SizeBytes,
                         Encoding = content.Encoding,
                         ParseStatus = ParseStatus.Failed,
-                        DiagnosticIds = [diagId],
+                        DiagnosticIds = [diagId]
                     };
                     pathToFileId[relativePath.ToLowerInvariant()] = fileId;
                     fileIdToTopNodeIds[fileId] = [];
@@ -244,13 +264,13 @@ public sealed class IndexingEngine : IIndexingEngine
                     EligibilityStatus = EligibilityStatus.Eligible,
                     ParseStatus = parseResult.Status,
                     TopLevelNodeIds = topNodeIds,
-                    DiagnosticIds = diagIds,
+                    DiagnosticIds = diagIds
                 };
 
                 pathToFileId[relativePath.ToLowerInvariant()] = fileId;
                 fileIdToTopNodeIds[fileId] = topNodeIds;
 
-                languageBreakdown.TryGetValue(langResult.LanguageId, out int langCount);
+                languageBreakdown.TryGetValue(langResult.LanguageId, out var langCount);
                 languageBreakdown[langResult.LanguageId] = langCount + 1;
 
                 adapterVersions[langResult.LanguageId] = parseResult.AdapterVersion;
@@ -263,7 +283,7 @@ public sealed class IndexingEngine : IIndexingEngine
                     SkippedFiles = filesSkipped,
                     FailedFiles = filesFailed,
                     CurrentFile = relativePath,
-                    ElapsedMs = (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
+                    ElapsedMs = (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds
                 });
             }
 
@@ -301,7 +321,7 @@ public sealed class IndexingEngine : IIndexingEngine
 
             // --- Phase 3: Reference resolution ---
             var allReferences = new Dictionary<string, ReferenceEdge>();
-            int edgeCounter = 0;
+            var edgeCounter = 0;
 
             foreach (var (fid, hints) in allHintsByFileId)
             {
@@ -310,13 +330,14 @@ public sealed class IndexingEngine : IIndexingEngine
                 foreach (var hint in hints)
                 {
                     // Resolve source symbol by qualified name
-                    string? sourceSymId = symbolsByQualifiedName.TryGetValue(hint.SourceQualifiedPath, out var srcId)
-                        ? srcId : null;
+                    var sourceSymId = symbolsByQualifiedName.TryGetValue(hint.SourceQualifiedPath, out var srcId)
+                        ? srcId
+                        : null;
 
                     // Resolve target symbol
                     string? targetSymId = null;
                     var resClass = ResolutionClass.Unknown;
-                    double confidence = sourceSymId != null ? 0.85 : 0.6;
+                    var confidence = sourceSymId != null ? 0.85 : 0.6;
 
                     if (symbolsByQualifiedName.TryGetValue(hint.TargetName, out var exactId))
                     {
@@ -335,7 +356,8 @@ public sealed class IndexingEngine : IIndexingEngine
                         else
                         {
                             // Ambiguous by simple name — try import-based disambiguation
-                            var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId, symbolsByQualifiedName);
+                            var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId,
+                                symbolsByQualifiedName);
                             if (importId is not null)
                             {
                                 targetSymId = importId;
@@ -352,7 +374,8 @@ public sealed class IndexingEngine : IIndexingEngine
                     else
                     {
                         // Not found by simple name — try import-based resolution
-                        var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId, symbolsByQualifiedName);
+                        var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId,
+                            symbolsByQualifiedName);
                         if (importId is not null)
                         {
                             targetSymId = importId;
@@ -378,7 +401,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         EvidenceSpan = hint.EvidenceSpan,
                         LanguageId = file.LanguageId,
                         ExtractionMode = ExtractionMode.CompilerSyntax,
-                        Confidence = confidence,
+                        Confidence = confidence
                     };
                 }
             }
@@ -392,7 +415,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 SnapshotId = snapshotId,
                 CreatedAt = completedAt,
                 RootPath = rootPath,
-                IndexMode = Model.Snapshots.IndexMode.Full,
+                IndexMode = IndexMode.Full,
                 FileCount = allFiles.Count,
                 StructuralNodeCount = allNodes.Count,
                 SymbolCount = allSymbols.Count,
@@ -401,7 +424,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 ImportCount = allImportsByFileId.Values.Sum(list => list.Count),
                 DiagnosticCount = allDiagnostics.Count,
                 LanguageBreakdown = languageBreakdown,
-                AdapterVersions = adapterVersions,
+                AdapterVersions = adapterVersions
             };
 
             var snapshot = new IndexSnapshot
@@ -423,7 +446,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 SymbolsByQualifiedName = symbolsByQualifiedName,
                 SymbolsByFileId = symbolsByFileId,
                 OccurrencesBySymbolId = occurrencesBySymbolId,
-                ChildSymbolsByParentId = childSymbolsByParentId,
+                ChildSymbolsByParentId = childSymbolsByParentId
             };
 
             if (request.PersistSnapshot)
@@ -456,7 +479,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 DiagnosticCount = allDiagnostics.Count,
                 LanguageBreakdown = languageBreakdown,
                 Status = overallStatus,
-                Warnings = warnings,
+                Warnings = warnings
             };
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -466,7 +489,7 @@ public sealed class IndexingEngine : IIndexingEngine
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public Task<IndexStatus> GetStatusAsync(string rootPath, CancellationToken ct = default)
     {
         var key = NormalizeRootPath(rootPath);
@@ -491,33 +514,12 @@ public sealed class IndexingEngine : IIndexingEngine
                 FileCount = fileCount,
                 SymbolCount = symbolCount,
                 ReferenceCount = referenceCount,
-                LastDelta = delta,
+                LastDelta = delta
             });
         }
     }
 
-    private void SetState(string rootPath, IndexState state,
-        string? snapshotId = null, DateTimeOffset completedAt = default, string? errorMessage = null,
-        int fileCount = 0, int symbolCount = 0, int referenceCount = 0, SnapshotDelta? delta = null)
-    {
-        var key = NormalizeRootPath(rootPath);
-        lock (_stateLock)
-        {
-            _states[key] = state;
-            if (snapshotId != null) _latestSnapshotIds[key] = snapshotId;
-            if (completedAt != default) _lastCompletedAt[key] = completedAt;
-            if (errorMessage != null) _lastErrors[key] = errorMessage;
-            if (fileCount > 0) _latestFileCounts[key] = fileCount;
-            if (symbolCount > 0) _latestSymbolCounts[key] = symbolCount;
-            if (referenceCount > 0) _latestReferenceCounts[key] = referenceCount;
-            if (delta != null) _latestDeltas[key] = delta;
-        }
-    }
-
-    private static string NormalizeRootPath(string rootPath) =>
-        rootPath.Replace('\\', '/').TrimEnd('/');
-
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<IndexUpdateResult> UpdateAsync(IndexUpdateRequest request, CancellationToken ct = default)
     {
         var rootPath = request.RootPath;
@@ -534,7 +536,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 {
                     RootPath = rootPath,
                     PersistSnapshot = true,
-                    ProgressCallback = request.ProgressCallback,
+                    ProgressCallback = request.ProgressCallback
                 }, ct).ConfigureAwait(false);
 
                 var completedAt = DateTimeOffset.UtcNow;
@@ -549,7 +551,7 @@ public sealed class IndexingEngine : IIndexingEngine
                     FilesAdded = buildResult.FilesIndexed,
                     FilesModified = 0,
                     FilesDeleted = 0,
-                    FilesUnchanged = 0,
+                    FilesUnchanged = 0
                 };
             }
             catch (Exception ex)
@@ -562,7 +564,7 @@ public sealed class IndexingEngine : IIndexingEngine
                     StartedAt = startedAt,
                     CompletedAt = DateTimeOffset.UtcNow,
                     DurationMs = (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
-                    Error = ex.Message,
+                    Error = ex.Message
                 };
             }
         }
@@ -599,8 +601,15 @@ public sealed class IndexingEngine : IIndexingEngine
                 else
                 {
                     SourceFileContent content;
-                    try { content = await _source.ReadFileAsync(fileInfo.FilePath, ct).ConfigureAwait(false); }
-                    catch { addedFiles.Add(fileInfo); continue; }
+                    try
+                    {
+                        content = await _source.ReadFileAsync(fileInfo.FilePath, ct).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        addedFiles.Add(fileInfo);
+                        continue;
+                    }
 
                     if (!string.Equals(content.ContentHash, oldRecord.ContentHash, StringComparison.OrdinalIgnoreCase))
                         modifiedFiles.Add(fileInfo);
@@ -626,7 +635,7 @@ public sealed class IndexingEngine : IIndexingEngine
             var languageBreakdown = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             var adapterVersions = new Dictionary<string, string>();
 
-            int unchangedCount = 0;
+            var unchangedCount = 0;
             foreach (var normalizedPath in unchangedPaths)
             {
                 var oldRecord = oldFileMap[normalizedPath];
@@ -652,22 +661,16 @@ public sealed class IndexingEngine : IIndexingEngine
                     allHintsByFileId[oldFileId] = hints;
 
                 if (previousSnapshot.SymbolsByFileId.TryGetValue(oldFileId, out var symIds))
-                {
                     foreach (var symId in symIds)
                     {
                         if (!previousSnapshot.Symbols.TryGetValue(symId, out var sym)) continue;
                         allSymbols[symId] = sym;
 
                         if (previousSnapshot.OccurrencesBySymbolId.TryGetValue(symId, out var occIds))
-                        {
                             foreach (var occId in occIds)
-                            {
                                 if (previousSnapshot.Occurrences.TryGetValue(occId, out var occ))
                                     allOccurrences[occId] = occ;
-                            }
-                        }
                     }
-                }
 
                 if (!languageBreakdown.ContainsKey(oldRecord.LanguageId))
                     languageBreakdown[oldRecord.LanguageId] = 0;
@@ -677,7 +680,7 @@ public sealed class IndexingEngine : IIndexingEngine
             }
 
             // ── Step 5: Re-parse added and modified files ─────────────────────────────
-            int counter = allFiles.Count;
+            var counter = allFiles.Count;
             var modifiedNormalizedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var f in modifiedFiles)
             {
@@ -702,7 +705,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 else
                     fileId = $"file-{++counter}";
 
-                var langResult = _languageDetector.Detect(fileInfo.FilePath, null);
+                var langResult = _languageDetector.Detect(fileInfo.FilePath);
 
                 if (!langResult.IsKnown || !_adapters.ContainsKey(langResult.LanguageId))
                 {
@@ -714,7 +717,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         ContentHash = "",
                         SizeBytes = fileInfo.SizeBytes,
                         EligibilityStatus = EligibilityStatus.Eligible,
-                        ParseStatus = ParseStatus.Skipped,
+                        ParseStatus = ParseStatus.Skipped
                     };
                     pathToFileId[normalizedPath] = fileId;
                     fileIdToTopNodeIds[fileId] = [];
@@ -722,7 +725,10 @@ public sealed class IndexingEngine : IIndexingEngine
                 }
 
                 SourceFileContent content;
-                try { content = await _source.ReadFileAsync(fileInfo.FilePath, ct).ConfigureAwait(false); }
+                try
+                {
+                    content = await _source.ReadFileAsync(fileInfo.FilePath, ct).ConfigureAwait(false);
+                }
                 catch (Exception ex)
                 {
                     var diagId = $"diag-{fileId}-read";
@@ -733,7 +739,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         Source = DiagnosticSource.Indexing,
                         Code = "FILE_READ_ERROR",
                         Message = $"Could not read file: {ex.Message}",
-                        FilePath = relativePath,
+                        FilePath = relativePath
                     };
                     allFiles[fileId] = new FileRecord
                     {
@@ -743,7 +749,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         ContentHash = "",
                         SizeBytes = fileInfo.SizeBytes,
                         ParseStatus = ParseStatus.Failed,
-                        DiagnosticIds = [diagId],
+                        DiagnosticIds = [diagId]
                     };
                     pathToFileId[normalizedPath] = fileId;
                     fileIdToTopNodeIds[fileId] = [];
@@ -758,12 +764,18 @@ public sealed class IndexingEngine : IIndexingEngine
                     Content = content.Content,
                     LanguageId = langResult.LanguageId,
                     Mode = ParseMode.Declarations,
-                    MaxFileSizeBytes = _eligibility.MaxFileSizeBytes,
+                    MaxFileSizeBytes = _eligibility.MaxFileSizeBytes
                 };
 
                 ParseResult parseResult;
-                try { parseResult = await adapter.ParseAsync(parseRequest, ct).ConfigureAwait(false); }
-                catch (OperationCanceledException) { throw; }
+                try
+                {
+                    parseResult = await adapter.ParseAsync(parseRequest, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     var diagId = $"diag-{fileId}-parse";
@@ -774,7 +786,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         Source = DiagnosticSource.Indexing,
                         Code = "PARSE_ERROR",
                         Message = $"Parse failed: {ex.Message}",
-                        FilePath = relativePath,
+                        FilePath = relativePath
                     };
                     allFiles[fileId] = new FileRecord
                     {
@@ -784,7 +796,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         ContentHash = content.ContentHash,
                         SizeBytes = fileInfo.SizeBytes,
                         ParseStatus = ParseStatus.Failed,
-                        DiagnosticIds = [diagId],
+                        DiagnosticIds = [diagId]
                     };
                     pathToFileId[normalizedPath] = fileId;
                     fileIdToTopNodeIds[fileId] = [];
@@ -813,7 +825,7 @@ public sealed class IndexingEngine : IIndexingEngine
                     EligibilityStatus = EligibilityStatus.Eligible,
                     ParseStatus = parseResult.Status,
                     TopLevelNodeIds = topNodeIds2,
-                    DiagnosticIds = diagIds,
+                    DiagnosticIds = diagIds
                 };
                 pathToFileId[normalizedPath] = fileId;
                 fileIdToTopNodeIds[fileId] = topNodeIds2;
@@ -850,7 +862,7 @@ public sealed class IndexingEngine : IIndexingEngine
             var childSymbolsByParentId = BuildChildIndex(allSymbols.Values);
 
             var allReferences = new Dictionary<string, ReferenceEdge>();
-            int edgeCounter = 0;
+            var edgeCounter = 0;
 
             foreach (var (fid, hints) in allHintsByFileId)
             {
@@ -858,12 +870,13 @@ public sealed class IndexingEngine : IIndexingEngine
 
                 foreach (var hint in hints)
                 {
-                    string? sourceSymId = symbolsByQualifiedName.TryGetValue(hint.SourceQualifiedPath, out var srcId)
-                        ? srcId : null;
+                    var sourceSymId = symbolsByQualifiedName.TryGetValue(hint.SourceQualifiedPath, out var srcId)
+                        ? srcId
+                        : null;
 
                     string? targetSymId = null;
                     var resClass = ResolutionClass.Unknown;
-                    double confidence = sourceSymId != null ? 0.85 : 0.6;
+                    var confidence = sourceSymId != null ? 0.85 : 0.6;
 
                     if (symbolsByQualifiedName.TryGetValue(hint.TargetName, out var exactId))
                     {
@@ -881,7 +894,8 @@ public sealed class IndexingEngine : IIndexingEngine
                         }
                         else
                         {
-                            var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId, symbolsByQualifiedName);
+                            var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId,
+                                symbolsByQualifiedName);
                             if (importId is not null)
                             {
                                 targetSymId = importId;
@@ -897,7 +911,8 @@ public sealed class IndexingEngine : IIndexingEngine
                     }
                     else
                     {
-                        var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId, symbolsByQualifiedName);
+                        var importId = TryResolveViaImports(hint.TargetName, fid, allImportsByFileId,
+                            symbolsByQualifiedName);
                         if (importId is not null)
                         {
                             targetSymId = importId;
@@ -923,7 +938,7 @@ public sealed class IndexingEngine : IIndexingEngine
                         EvidenceSpan = hint.EvidenceSpan,
                         LanguageId = file.LanguageId,
                         ExtractionMode = ExtractionMode.CompilerSyntax,
-                        Confidence = confidence,
+                        Confidence = confidence
                     };
                 }
             }
@@ -937,61 +952,61 @@ public sealed class IndexingEngine : IIndexingEngine
 
             var delta = new SnapshotDelta
             {
-                AddedFilePaths    = addedFiles.Select(f => GetRelativePath(rootPath, f.FilePath)).ToList(),
+                AddedFilePaths = addedFiles.Select(f => GetRelativePath(rootPath, f.FilePath)).ToList(),
                 ModifiedFilePaths = modifiedFiles.Select(f => GetRelativePath(rootPath, f.FilePath)).ToList(),
-                DeletedFilePaths  = deletedPaths.Select(p => oldFileMap[p].Path).ToList(),
+                DeletedFilePaths = deletedPaths.Select(p => oldFileMap[p].Path).ToList(),
                 UnchangedFileCount = unchangedCount,
-                SymbolCountDelta  = allSymbols.Count - previousSnapshot.Metadata.SymbolCount,
+                SymbolCountDelta = allSymbols.Count - previousSnapshot.Metadata.SymbolCount,
                 ReferenceCountDelta = allReferences.Count - previousSnapshot.Metadata.ReferenceCount,
-                DurationMs        = (long)(completedAtUpdate - startedAt).TotalMilliseconds,
-                PreviousSnapshotId = prevSnapshotId,
+                DurationMs = (long)(completedAtUpdate - startedAt).TotalMilliseconds,
+                PreviousSnapshotId = prevSnapshotId
             };
 
             var metadata = new SnapshotMetadata
             {
-                SnapshotId        = snapshotId,
-                CreatedAt         = completedAtUpdate,
-                RootPath          = rootPath,
-                IndexMode         = IndexMode.Incremental,
-                FileCount         = allFiles.Count,
+                SnapshotId = snapshotId,
+                CreatedAt = completedAtUpdate,
+                RootPath = rootPath,
+                IndexMode = IndexMode.Incremental,
+                FileCount = allFiles.Count,
                 StructuralNodeCount = allNodes.Count,
-                SymbolCount       = allSymbols.Count,
-                OccurrenceCount   = allOccurrences.Count,
-                ReferenceCount    = allReferences.Count,
-                ImportCount       = allImportsByFileId.Values.Sum(l => l.Count),
-                DiagnosticCount   = allDiagnostics.Count,
+                SymbolCount = allSymbols.Count,
+                OccurrenceCount = allOccurrences.Count,
+                ReferenceCount = allReferences.Count,
+                ImportCount = allImportsByFileId.Values.Sum(l => l.Count),
+                DiagnosticCount = allDiagnostics.Count,
                 LanguageBreakdown = languageBreakdown,
-                AdapterVersions   = adapterVersions,
+                AdapterVersions = adapterVersions
             };
 
             var newSnapshot = new IndexSnapshot
             {
-                Metadata                  = metadata,
-                Files                     = allFiles,
-                Nodes                     = allNodes,
-                Symbols                   = allSymbols,
-                Occurrences               = allOccurrences,
-                References                = allReferences,
-                ImportsByFileId           = allImportsByFileId,
-                HintsByFileId             = allHintsByFileId,
+                Metadata = metadata,
+                Files = allFiles,
+                Nodes = allNodes,
+                Symbols = allSymbols,
+                Occurrences = allOccurrences,
+                References = allReferences,
+                ImportsByFileId = allImportsByFileId,
+                HintsByFileId = allHintsByFileId,
                 ReferencesBySourceSymbolId = referencesBySourceSymbolId,
-                ReferencesByFileId        = referencesByFileId,
-                Diagnostics               = allDiagnostics,
-                PathToFileId              = pathToFileId,
-                FileIdToTopNodeIds        = fileIdToTopNodeIds,
-                SymbolsByName             = symbolsByName,
-                SymbolsByQualifiedName    = symbolsByQualifiedName,
-                SymbolsByFileId           = symbolsByFileId,
-                OccurrencesBySymbolId     = occurrencesBySymbolId,
-                ChildSymbolsByParentId    = childSymbolsByParentId,
-                Delta                     = delta,
+                ReferencesByFileId = referencesByFileId,
+                Diagnostics = allDiagnostics,
+                PathToFileId = pathToFileId,
+                FileIdToTopNodeIds = fileIdToTopNodeIds,
+                SymbolsByName = symbolsByName,
+                SymbolsByQualifiedName = symbolsByQualifiedName,
+                SymbolsByFileId = symbolsByFileId,
+                OccurrencesBySymbolId = occurrencesBySymbolId,
+                ChildSymbolsByParentId = childSymbolsByParentId,
+                Delta = delta
             };
 
             await _store.SaveSnapshotAsync(newSnapshot, ct).ConfigureAwait(false);
 
             SetState(rootPath, IndexState.Ready,
-                snapshotId: snapshotId,
-                completedAt: completedAtUpdate,
+                snapshotId,
+                completedAtUpdate,
                 fileCount: allFiles.Count,
                 symbolCount: allSymbols.Count,
                 referenceCount: allReferences.Count,
@@ -999,35 +1014,38 @@ public sealed class IndexingEngine : IIndexingEngine
 
             return new IndexUpdateResult
             {
-                SnapshotId         = snapshotId,
+                SnapshotId = snapshotId,
                 PreviousSnapshotId = prevSnapshotId,
-                RootPath           = rootPath,
-                StartedAt          = startedAt,
-                CompletedAt        = completedAtUpdate,
-                DurationMs         = (long)(completedAtUpdate - startedAt).TotalMilliseconds,
-                FilesAdded         = addedFiles.Count,
-                FilesModified      = modifiedFiles.Count,
-                FilesDeleted       = deletedPaths.Count,
-                FilesUnchanged     = unchangedCount,
+                RootPath = rootPath,
+                StartedAt = startedAt,
+                CompletedAt = completedAtUpdate,
+                DurationMs = (long)(completedAtUpdate - startedAt).TotalMilliseconds,
+                FilesAdded = addedFiles.Count,
+                FilesModified = modifiedFiles.Count,
+                FilesDeleted = deletedPaths.Count,
+                FilesUnchanged = unchangedCount
             };
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             SetState(rootPath, IndexState.Failed, errorMessage: ex.Message);
             return new IndexUpdateResult
             {
-                SnapshotId  = "(none)",
-                RootPath    = rootPath,
-                StartedAt   = startedAt,
+                SnapshotId = "(none)",
+                RootPath = rootPath,
+                StartedAt = startedAt,
                 CompletedAt = DateTimeOffset.UtcNow,
-                DurationMs  = (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
-                Error       = ex.Message,
+                DurationMs = (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds,
+                Error = ex.Message
             };
         }
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
     public async Task<int> ClearRepositoryAsync(string rootPath, CancellationToken ct = default)
     {
         var removed = await _store.ClearRepositoryAsync(rootPath, ct).ConfigureAwait(false);
@@ -1043,7 +1061,31 @@ public sealed class IndexingEngine : IIndexingEngine
             _latestReferenceCounts.Remove(key);
             _latestDeltas.Remove(key);
         }
+
         return removed;
+    }
+
+    private void SetState(string rootPath, IndexState state,
+        string? snapshotId = null, DateTimeOffset completedAt = default, string? errorMessage = null,
+        int fileCount = 0, int symbolCount = 0, int referenceCount = 0, SnapshotDelta? delta = null)
+    {
+        var key = NormalizeRootPath(rootPath);
+        lock (_stateLock)
+        {
+            _states[key] = state;
+            if (snapshotId != null) _latestSnapshotIds[key] = snapshotId;
+            if (completedAt != default) _lastCompletedAt[key] = completedAt;
+            if (errorMessage != null) _lastErrors[key] = errorMessage;
+            if (fileCount > 0) _latestFileCounts[key] = fileCount;
+            if (symbolCount > 0) _latestSymbolCounts[key] = symbolCount;
+            if (referenceCount > 0) _latestReferenceCounts[key] = referenceCount;
+            if (delta != null) _latestDeltas[key] = delta;
+        }
+    }
+
+    private static string NormalizeRootPath(string rootPath)
+    {
+        return rootPath.Replace('\\', '/').TrimEnd('/');
     }
 
     private static string GetRelativePath(string rootPath, string absolutePath)
@@ -1062,7 +1104,7 @@ public sealed class IndexingEngine : IIndexingEngine
     }
 
     /// <summary>
-    /// Recursively collects a node and all its descendants into <paramref name="result"/>.
+    ///     Recursively collects a node and all its descendants into <paramref name="result" />.
     /// </summary>
     private static void CollectNodeSubtree(
         string nodeId,
@@ -1076,10 +1118,11 @@ public sealed class IndexingEngine : IIndexingEngine
     }
 
     /// <summary>
-    /// Copies all structural nodes reachable from a file's top-level nodes
-    /// from an existing snapshot into the target dictionary.
+    ///     Copies all structural nodes reachable from a file's top-level nodes
+    ///     from an existing snapshot into the target dictionary.
     /// </summary>
-    private static void CopyNodesRecursive(string fileId, IndexSnapshot snapshot, Dictionary<string, StructuralNode> target)
+    private static void CopyNodesRecursive(string fileId, IndexSnapshot snapshot,
+        Dictionary<string, StructuralNode> target)
     {
         if (!snapshot.FileIdToTopNodeIds.TryGetValue(fileId, out var topIds)) return;
         var queue = new Queue<string>(topIds);
@@ -1104,6 +1147,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 dict[sym.Name] = list = new List<string>();
             list.Add(sym.SymbolId);
         }
+
         return dict.ToDictionary(
             kv => kv.Key,
             kv => (IReadOnlyList<string>)kv.Value,
@@ -1131,6 +1175,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 dict[sym.PrimaryFileId] = list = new List<string>();
             list.Add(sym.SymbolId);
         }
+
         return dict.ToDictionary(
             kv => kv.Key,
             kv => (IReadOnlyList<string>)kv.Value);
@@ -1147,6 +1192,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 dict[occ.SymbolId] = list = new List<string>();
             list.Add(occ.OccurrenceId);
         }
+
         return dict.ToDictionary(
             kv => kv.Key,
             kv => (IReadOnlyList<string>)kv.Value);
@@ -1164,6 +1210,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 dict[sym.ParentSymbolId] = list = new List<string>();
             list.Add(sym.SymbolId);
         }
+
         return dict.ToDictionary(
             kv => kv.Key,
             kv => (IReadOnlyList<string>)kv.Value);
@@ -1181,6 +1228,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 dict[edge.SourceSymbolId] = list = [];
             list.Add(edge.EdgeId);
         }
+
         return dict.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -1202,18 +1250,21 @@ public sealed class IndexingEngine : IIndexingEngine
                 dict[fileId] = list = [];
             list.Add(edgeId);
         }
+
         return dict.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<string>)kv.Value);
     }
 
     /// <summary>
-    /// Returns true if a type name is likely from an external library (BCL or well-known packages).
+    ///     Returns true if a type name is likely from an external library (BCL or well-known packages).
     /// </summary>
-    private static bool IsLikelyExternalType(string typeName) =>
-        s_externalTypeNames.Contains(typeName);
+    private static bool IsLikelyExternalType(string typeName)
+    {
+        return s_externalTypeNames.Contains(typeName);
+    }
 
     /// <summary>
-    /// Attempts to resolve <paramref name="targetName"/> via import/using directives in <paramref name="fileId"/>.
-    /// Returns a unique symbol ID if exactly one match is found, or null if zero or multiple matches exist.
+    ///     Attempts to resolve <paramref name="targetName" /> via import/using directives in <paramref name="fileId" />.
+    ///     Returns a unique symbol ID if exactly one match is found, or null if zero or multiple matches exist.
     /// </summary>
     private static string? TryResolveViaImports(
         string targetName,
@@ -1226,7 +1277,6 @@ public sealed class IndexingEngine : IIndexingEngine
 
         var matches = new HashSet<string>(StringComparer.Ordinal);
         foreach (var imp in imports)
-        {
             // Only consider plain namespace/module imports (not static or alias imports)
             if (imp.Kind is "using" or "import" or "from-import")
             {
@@ -1235,27 +1285,7 @@ public sealed class IndexingEngine : IIndexingEngine
                 if (symbolsByQualifiedName.TryGetValue(candidate, out var candId))
                     matches.Add(candId);
             }
-        }
 
         return matches.Count == 1 ? matches.First() : null;
     }
-
-    private static readonly HashSet<string> s_externalTypeNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "string", "int", "long", "bool", "double", "float", "decimal", "byte",
-        "object", "void", "char", "short", "uint", "ulong", "sbyte", "ushort",
-        "IEnumerable", "IList", "ICollection", "IDictionary", "IReadOnlyList",
-        "IReadOnlyDictionary", "IReadOnlyCollection", "IComparable", "IEquatable",
-        "IDisposable", "ICloneable", "Nullable", "List", "Dictionary", "HashSet",
-        "Queue", "Stack", "SortedList", "SortedDictionary", "LinkedList",
-        "Array", "Exception", "ArgumentException", "ArgumentNullException",
-        "InvalidOperationException", "NotImplementedException", "NotSupportedException",
-        "Task", "ValueTask", "CancellationToken", "Stream", "TextWriter", "TextReader",
-        "StringBuilder", "Guid", "DateTime", "DateTimeOffset", "TimeSpan",
-        "Console", "Math", "String", "Int32", "Boolean", "Object",
-        "Action", "Func", "Predicate", "EventHandler", "EventArgs",
-        // Python builtins
-        "list", "dict", "tuple", "set", "frozenset", "str", "bytes",
-        "bytearray", "memoryview", "complex", "type",
-    };
 }

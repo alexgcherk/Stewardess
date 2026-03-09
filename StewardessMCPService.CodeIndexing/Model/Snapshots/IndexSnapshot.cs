@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Diagnostics;
 using StewardessMCPService.CodeIndexing.Model.References;
 using StewardessMCPService.CodeIndexing.Model.Semantic;
@@ -9,12 +10,12 @@ using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 namespace StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 /// <summary>
-/// An immutable, consistent snapshot of the index for a repository root.
-/// All read queries MUST execute against a single published snapshot.
+///     An immutable, consistent snapshot of the index for a repository root.
+///     All read queries MUST execute against a single published snapshot.
 /// </summary>
 /// <remarks>
-/// Snapshots are published atomically. In-progress builds MUST NOT affect
-/// queries against the previous published snapshot.
+///     Snapshots are published atomically. In-progress builds MUST NOT affect
+///     queries against the previous published snapshot.
 /// </remarks>
 public sealed class IndexSnapshot
 {
@@ -44,32 +45,32 @@ public sealed class IndexSnapshot
     // --- Reference reverse indexes (Phase 3+) ---
 
     /// <summary>
-    /// Maps FileId to a list of import entries in that file (Phase 3+).
+    ///     Maps FileId to a list of import entries in that file (Phase 3+).
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ImportEntry>> ImportsByFileId { get; init; } =
         new Dictionary<string, IReadOnlyList<ImportEntry>>();
 
     /// <summary>
-    /// Unresolved reference hints per file, keyed by file ID.
-    /// Retained to enable efficient incremental re-resolution in subsequent updates.
+    ///     Unresolved reference hints per file, keyed by file ID.
+    ///     Retained to enable efficient incremental re-resolution in subsequent updates.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<ReferenceHint>> HintsByFileId { get; init; } =
         new Dictionary<string, IReadOnlyList<ReferenceHint>>();
 
     /// <summary>
-    /// Delta information describing what changed relative to the previous snapshot.
-    /// Null for full builds.
+    ///     Delta information describing what changed relative to the previous snapshot.
+    ///     Null for full builds.
     /// </summary>
     public SnapshotDelta? Delta { get; init; }
 
     /// <summary>
-    /// Maps SourceSymbolId to a list of EdgeIds where that symbol is the reference source (Phase 3+).
+    ///     Maps SourceSymbolId to a list of EdgeIds where that symbol is the reference source (Phase 3+).
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ReferencesBySourceSymbolId { get; init; } =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Maps FileId to a list of EdgeIds for reference edges originating in that file (Phase 3+).
+    ///     Maps FileId to a list of EdgeIds for reference edges originating in that file (Phase 3+).
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ReferencesByFileId { get; init; } =
         new Dictionary<string, IReadOnlyList<string>>();
@@ -91,15 +92,15 @@ public sealed class IndexSnapshot
     // --- Symbol reverse indexes (Phase 2+) ---
 
     /// <summary>
-    /// Maps lower-case symbol simple name to a list of SymbolIds with that name.
-    /// Supports case-insensitive symbol name search.
+    ///     Maps lower-case symbol simple name to a list of SymbolIds with that name.
+    ///     Supports case-insensitive symbol name search.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> SymbolsByName { get; init; } =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Maps lower-case fully qualified name to a single SymbolId.
-    /// Used for exact qualified-name lookups.
+    ///     Maps lower-case fully qualified name to a single SymbolId.
+    ///     Used for exact qualified-name lookups.
     /// </summary>
     public IReadOnlyDictionary<string, string> SymbolsByQualifiedName { get; init; } =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -109,15 +110,15 @@ public sealed class IndexSnapshot
         new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>
-    /// Maps SymbolId to a list of OccurrenceIds for that symbol.
-    /// Supports the get_symbol_occurrences query.
+    ///     Maps SymbolId to a list of OccurrenceIds for that symbol.
+    ///     Supports the get_symbol_occurrences query.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> OccurrencesBySymbolId { get; init; } =
         new Dictionary<string, IReadOnlyList<string>>();
 
     /// <summary>
-    /// Maps parent SymbolId to a list of direct child SymbolIds.
-    /// Supports the get_symbol_children and namespace-tree queries.
+    ///     Maps parent SymbolId to a list of direct child SymbolIds.
+    ///     Supports the get_symbol_children and namespace-tree queries.
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<string>> ChildSymbolsByParentId { get; init; } =
         new Dictionary<string, IReadOnlyList<string>>();

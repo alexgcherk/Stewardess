@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Eligibility;
 using StewardessMCPService.CodeIndexing.Model.Structural;
 using Xunit;
@@ -13,7 +14,7 @@ public class DefaultEligibilityPolicyTests
     [Fact]
     public void Evaluate_NormalSourceFile_IsEligible()
     {
-        var result = _policy.Evaluate("src/MyClass.cs", 1024, isBinary: false);
+        var result = _policy.Evaluate("src/MyClass.cs", 1024, false);
         Assert.Equal(EligibilityStatus.Eligible, result.Status);
         Assert.True(result.IsEligible);
     }
@@ -21,7 +22,7 @@ public class DefaultEligibilityPolicyTests
     [Fact]
     public void Evaluate_BinaryFile_IsExcluded()
     {
-        var result = _policy.Evaluate("image.png", 1024, isBinary: true);
+        var result = _policy.Evaluate("image.png", 1024, true);
         Assert.Equal(EligibilityStatus.Binary, result.Status);
         Assert.False(result.IsEligible);
     }
@@ -36,7 +37,7 @@ public class DefaultEligibilityPolicyTests
     [InlineData("file.pdf")]
     public void Evaluate_BinaryExtension_IsNotEligible(string filename)
     {
-        var result = _policy.Evaluate(filename, 100, isBinary: false);
+        var result = _policy.Evaluate(filename, 100, false);
         // Policy returns Excluded for known-binary extensions
         Assert.False(result.IsEligible);
     }
@@ -48,7 +49,7 @@ public class DefaultEligibilityPolicyTests
     [InlineData(".git/config")]
     public void Evaluate_IgnoredFolder_IsIgnored(string path)
     {
-        var result = _policy.Evaluate(path, 100, isBinary: false);
+        var result = _policy.Evaluate(path, 100, false);
         Assert.Equal(EligibilityStatus.Ignored, result.Status);
     }
 
@@ -56,7 +57,7 @@ public class DefaultEligibilityPolicyTests
     public void Evaluate_FileTooLarge_IsTooLarge()
     {
         var bigSize = _policy.MaxFileSizeBytes + 1;
-        var result = _policy.Evaluate("huge.cs", bigSize, isBinary: false);
+        var result = _policy.Evaluate("huge.cs", bigSize, false);
         Assert.Equal(EligibilityStatus.TooLarge, result.Status);
     }
 
@@ -67,7 +68,7 @@ public class DefaultEligibilityPolicyTests
     [InlineData("backup.bak")]
     public void Evaluate_HiddenOrSystemFile_IsNotEligible(string filename)
     {
-        var result = _policy.Evaluate(filename, 100, isBinary: false);
+        var result = _policy.Evaluate(filename, 100, false);
         Assert.False(result.IsEligible);
     }
 
@@ -80,7 +81,7 @@ public class DefaultEligibilityPolicyTests
     [Fact]
     public void Evaluate_GeneratedFile_IsGenerated()
     {
-        var result = _policy.Evaluate("MyService.Designer.cs", 500, isBinary: false);
+        var result = _policy.Evaluate("MyService.Designer.cs", 500, false);
         Assert.Equal(EligibilityStatus.Generated, result.Status);
     }
 }

@@ -1,7 +1,7 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using StewardessMCPService.CodeIndexing.Model.References;
 using StewardessMCPService.CodeIndexing.Model.Structural;
@@ -10,13 +10,13 @@ using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 namespace StewardessMCPService.Parsers.CSharp;
 
 /// <summary>
-/// Extracts reference hints from a C# syntax tree using Roslyn (CompilerSyntax mode).
-/// Produces unresolved hints that the indexing engine resolves post-projection.
+///     Extracts reference hints from a C# syntax tree using Roslyn (CompilerSyntax mode).
+///     Produces unresolved hints that the indexing engine resolves post-projection.
 /// </summary>
 internal static class CSharpReferenceHintExtractor
 {
     /// <summary>
-    /// Walks the Roslyn syntax root and returns a flat list of reference hints.
+    ///     Walks the Roslyn syntax root and returns a flat list of reference hints.
     /// </summary>
     internal static IReadOnlyList<ReferenceHint> ExtractHints(SyntaxNode root, CancellationToken ct = default)
     {
@@ -93,7 +93,7 @@ internal static class CSharpReferenceHintExtractor
             {
                 InterfaceDeclarationSyntax => RelationshipKind.Implements,
                 StructDeclarationSyntax => RelationshipKind.Implements,
-                _ => IsLikelyInterface(typeName) ? RelationshipKind.Implements : RelationshipKind.Inherits,
+                _ => IsLikelyInterface(typeName) ? RelationshipKind.Implements : RelationshipKind.Inherits
             };
 
             hints.Add(new ReferenceHint
@@ -102,7 +102,7 @@ internal static class CSharpReferenceHintExtractor
                 Kind = kind,
                 TargetName = typeName,
                 Evidence = baseType.Type.ToString(),
-                EvidenceSpan = ToSourceSpan(baseType.Type.GetLocation().GetLineSpan()),
+                EvidenceSpan = ToSourceSpan(baseType.Type.GetLocation().GetLineSpan())
             });
         }
     }
@@ -123,7 +123,7 @@ internal static class CSharpReferenceHintExtractor
             Kind = RelationshipKind.ContainsFieldOfType,
             TargetName = typeName,
             Evidence = fieldDecl.Declaration.Type.ToString(),
-            EvidenceSpan = ToSourceSpan(fieldDecl.Declaration.Type.GetLocation().GetLineSpan()),
+            EvidenceSpan = ToSourceSpan(fieldDecl.Declaration.Type.GetLocation().GetLineSpan())
         });
     }
 
@@ -143,7 +143,7 @@ internal static class CSharpReferenceHintExtractor
             Kind = RelationshipKind.ContainsPropertyOfType,
             TargetName = typeName,
             Evidence = propDecl.Type.ToString(),
-            EvidenceSpan = ToSourceSpan(propDecl.Type.GetLocation().GetLineSpan()),
+            EvidenceSpan = ToSourceSpan(propDecl.Type.GetLocation().GetLineSpan())
         });
     }
 
@@ -156,16 +156,14 @@ internal static class CSharpReferenceHintExtractor
         // Return type
         var returnTypeName = GetSimpleTypeName(methodDecl.ReturnType);
         if (returnTypeName != null)
-        {
             hints.Add(new ReferenceHint
             {
                 SourceQualifiedPath = methodPath,
                 Kind = RelationshipKind.ReturnsType,
                 TargetName = returnTypeName,
                 Evidence = methodDecl.ReturnType.ToString(),
-                EvidenceSpan = ToSourceSpan(methodDecl.ReturnType.GetLocation().GetLineSpan()),
+                EvidenceSpan = ToSourceSpan(methodDecl.ReturnType.GetLocation().GetLineSpan())
             });
-        }
 
         // Parameter types
         foreach (var param in methodDecl.ParameterList.Parameters)
@@ -180,7 +178,7 @@ internal static class CSharpReferenceHintExtractor
                 Kind = RelationshipKind.AcceptsParameterType,
                 TargetName = paramTypeName,
                 Evidence = param.Type.ToString(),
-                EvidenceSpan = ToSourceSpan(param.Type.GetLocation().GetLineSpan()),
+                EvidenceSpan = ToSourceSpan(param.Type.GetLocation().GetLineSpan())
             });
         }
     }
@@ -203,7 +201,7 @@ internal static class CSharpReferenceHintExtractor
                 Kind = RelationshipKind.AcceptsParameterType,
                 TargetName = paramTypeName,
                 Evidence = param.Type.ToString(),
-                EvidenceSpan = ToSourceSpan(param.Type.GetLocation().GetLineSpan()),
+                EvidenceSpan = ToSourceSpan(param.Type.GetLocation().GetLineSpan())
             });
         }
     }
@@ -224,7 +222,7 @@ internal static class CSharpReferenceHintExtractor
             Kind = RelationshipKind.CreatesInstanceOf,
             TargetName = typeName,
             Evidence = creation.Type.ToString(),
-            EvidenceSpan = ToSourceSpan(creation.Type.GetLocation().GetLineSpan()),
+            EvidenceSpan = ToSourceSpan(creation.Type.GetLocation().GetLineSpan())
         });
     }
 
@@ -240,7 +238,8 @@ internal static class CSharpReferenceHintExtractor
 
         // Normalize: C# allows omitting "Attribute" suffix in usage
         var normalizedName = attrName.EndsWith("Attribute", StringComparison.OrdinalIgnoreCase)
-            ? attrName : attrName + "Attribute";
+            ? attrName
+            : attrName + "Attribute";
 
         hints.Add(new ReferenceHint
         {
@@ -248,19 +247,19 @@ internal static class CSharpReferenceHintExtractor
             Kind = RelationshipKind.UsesAttributeOrAnnotation,
             TargetName = normalizedName,
             Evidence = attr.Name.ToString(),
-            EvidenceSpan = ToSourceSpan(attr.Name.GetLocation().GetLineSpan()),
+            EvidenceSpan = ToSourceSpan(attr.Name.GetLocation().GetLineSpan())
         });
     }
 
     // ── Path computation helpers ──────────────────────────────────────────────
 
     /// <summary>
-    /// Computes the fully qualified path of a type declaration by walking up the syntax tree.
+    ///     Computes the fully qualified path of a type declaration by walking up the syntax tree.
     /// </summary>
     internal static string ComputeTypePath(TypeDeclarationSyntax typDecl)
     {
         var parts = new List<string> { typDecl.Identifier.Text };
-        SyntaxNode? current = typDecl.Parent;
+        var current = typDecl.Parent;
         while (current != null)
         {
             switch (current)
@@ -270,22 +269,24 @@ internal static class CSharpReferenceHintExtractor
                     break;
                 case NamespaceDeclarationSyntax ns:
                     var nsParts = ns.Name.ToString().Split('.');
-                    for (int i = nsParts.Length - 1; i >= 0; i--)
+                    for (var i = nsParts.Length - 1; i >= 0; i--)
                         parts.Insert(0, nsParts[i]);
                     break;
                 case FileScopedNamespaceDeclarationSyntax fsns:
                     var fsnsParts = fsns.Name.ToString().Split('.');
-                    for (int i = fsnsParts.Length - 1; i >= 0; i--)
+                    for (var i = fsnsParts.Length - 1; i >= 0; i--)
                         parts.Insert(0, fsnsParts[i]);
                     break;
             }
+
             current = current.Parent;
         }
+
         return string.Join(".", parts);
     }
 
     /// <summary>
-    /// Computes the qualified path of a method or constructor.
+    ///     Computes the qualified path of a method or constructor.
     /// </summary>
     private static string ComputeMethodPath(SyntaxNode methodNode, string memberName)
     {
@@ -295,7 +296,7 @@ internal static class CSharpReferenceHintExtractor
     }
 
     /// <summary>
-    /// Returns the qualified path of the innermost method, constructor, or type containing <paramref name="node"/>.
+    ///     Returns the qualified path of the innermost method, constructor, or type containing <paramref name="node" />.
     /// </summary>
     private static string? GetContainingMemberPath(SyntaxNode node)
     {
@@ -308,54 +309,63 @@ internal static class CSharpReferenceHintExtractor
             if (ancestor is TypeDeclarationSyntax t)
                 return ComputeTypePath(t);
         }
+
         return null;
     }
 
     // ── Type name extraction ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Extracts the simple (unqualified, non-generic) type name from a TypeSyntax.
-    /// Returns null for primitive/predefined types (int, string, void, etc.).
+    ///     Extracts the simple (unqualified, non-generic) type name from a TypeSyntax.
+    ///     Returns null for primitive/predefined types (int, string, void, etc.).
     /// </summary>
-    private static string? GetSimpleTypeName(TypeSyntax? typeSyntax) => typeSyntax switch
+    private static string? GetSimpleTypeName(TypeSyntax? typeSyntax)
     {
-        null => null,
-        PredefinedTypeSyntax => null,
-        IdentifierNameSyntax id => id.Identifier.Text,
-        GenericNameSyntax gen => gen.Identifier.Text,
-        QualifiedNameSyntax qual => GetQualifiedRightName(qual),
-        NullableTypeSyntax nullable => GetSimpleTypeName(nullable.ElementType),
-        ArrayTypeSyntax array => GetSimpleTypeName(array.ElementType),
-        _ => null,
-    };
+        return typeSyntax switch
+        {
+            null => null,
+            PredefinedTypeSyntax => null,
+            IdentifierNameSyntax id => id.Identifier.Text,
+            GenericNameSyntax gen => gen.Identifier.Text,
+            QualifiedNameSyntax qual => GetQualifiedRightName(qual),
+            NullableTypeSyntax nullable => GetSimpleTypeName(nullable.ElementType),
+            ArrayTypeSyntax array => GetSimpleTypeName(array.ElementType),
+            _ => null
+        };
+    }
 
     private static string GetQualifiedRightName(QualifiedNameSyntax qual)
     {
         // Walk to the rightmost identifier: A.B.C → "C"
-        SimpleNameSyntax right = qual.Right;
+        var right = qual.Right;
         return right switch
         {
             GenericNameSyntax gen => gen.Identifier.Text,
             IdentifierNameSyntax id => id.Identifier.Text,
-            _ => right.Identifier.Text,
+            _ => right.Identifier.Text
         };
     }
 
-    private static string? GetAttributeName(NameSyntax name) => name switch
+    private static string? GetAttributeName(NameSyntax name)
     {
-        IdentifierNameSyntax id => id.Identifier.Text,
-        QualifiedNameSyntax qual => GetQualifiedRightName(qual),
-        GenericNameSyntax gen => gen.Identifier.Text,
-        _ => null,
-    };
+        return name switch
+        {
+            IdentifierNameSyntax id => id.Identifier.Text,
+            QualifiedNameSyntax qual => GetQualifiedRightName(qual),
+            GenericNameSyntax gen => gen.Identifier.Text,
+            _ => null
+        };
+    }
 
     // ── Heuristics ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Returns true if the type name follows the C# interface naming convention (starts with I+uppercase).
+    ///     Returns true if the type name follows the C# interface naming convention (starts with I+uppercase).
     /// </summary>
-    private static bool IsLikelyInterface(string name) =>
-        name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1]);
+    private static bool IsLikelyInterface(string name)
+    {
+        return name.Length > 1 && name[0] == 'I' && char.IsUpper(name[1]);
+    }
 
     // ── SourceSpan helpers ────────────────────────────────────────────────────
 
@@ -367,7 +377,7 @@ internal static class CSharpReferenceHintExtractor
             StartLine = span.StartLinePosition.Line + 1,
             StartColumn = span.StartLinePosition.Character + 1,
             EndLine = span.EndLinePosition.Line + 1,
-            EndColumn = span.EndLinePosition.Character + 1,
+            EndColumn = span.EndLinePosition.Character + 1
         };
     }
 }

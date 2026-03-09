@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Indexing;
 
 /// <summary>
-/// Result of a completed incremental index update operation.
+///     Result of a completed incremental index update operation.
 /// </summary>
 public sealed class IndexUpdateResult
 {

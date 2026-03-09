@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 using StewardessMCPService.CodeIndexing.Parsers.Python;
@@ -11,8 +12,10 @@ public class PythonParserAdapterTests
 {
     private readonly PythonParserAdapter _adapter = new();
 
-    private static string GoldenFile(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "Python", name);
+    private static string GoldenFile(string name)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "Python", name);
+    }
 
     [Fact]
     public void LanguageId_IsPython()
@@ -131,8 +134,8 @@ public class PythonParserAdapterTests
 
         var nodeIds = result.Nodes.Select(n => n.NodeId).ToHashSet();
         foreach (var node in result.Nodes)
-            foreach (var childId in node.Children)
-                Assert.Contains(childId, nodeIds);
+        foreach (var childId in node.Children)
+            Assert.Contains(childId, nodeIds);
     }
 
     [Fact]
@@ -144,7 +147,7 @@ public class PythonParserAdapterTests
             FilePath = "empty.py",
             Content = "",
             LanguageId = "python",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
 
         var result = await _adapter.ParseAsync(req);
@@ -170,7 +173,7 @@ class Outer:
             FilePath = "nested.py",
             Content = code,
             LanguageId = "python",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
 
         var result = await _adapter.ParseAsync(req);
@@ -182,12 +185,15 @@ class Outer:
         Assert.Equal(outer!.NodeId, inner!.ParentNodeId);
     }
 
-    private static ParseRequest MakeRequest(string content) => new()
+    private static ParseRequest MakeRequest(string content)
     {
-        FileId = "test-py-1",
-        FilePath = "GoldenFiles/Python/SampleModule.py",
-        Content = content,
-        LanguageId = "python",
-        Mode = ParseMode.Declarations,
-    };
+        return new ParseRequest
+        {
+            FileId = "test-py-1",
+            FilePath = "GoldenFiles/Python/SampleModule.py",
+            Content = content,
+            LanguageId = "python",
+            Mode = ParseMode.Declarations
+        };
+    }
 }

@@ -1,14 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+
+using System.Reflection;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-using NLog;
 using NLog.Web;
 using StewardessMCPService.CodeIndexing.Eligibility;
 using StewardessMCPService.CodeIndexing.Indexing;
@@ -22,11 +18,8 @@ using StewardessMCPService.CodeIndexing.Source;
 using StewardessMCPService.Configuration;
 using StewardessMCPService.Infrastructure;
 using StewardessMCPService.Mcp;
-using StewardessMCPService.Services;
 using StewardessMCPService.Parsers.CSharp;
-using System;
-using System.IO;
-using System.Reflection;
+using StewardessMCPService.Services;
 
 // ── 1. Logging — initialise NLog before anything else ───────────────────────
 LoggingBootstrap.EnsureConfigured();
@@ -105,13 +98,13 @@ builder.Services.AddSingleton<ISnapshotStore>(_ => new InMemorySnapshotStore());
 builder.Services.AddSingleton<IEnumerable<IParserAdapter>>(sp => new IParserAdapter[]
 {
     new CSharpParserAdapter(),
-    new PythonParserAdapter(),
+    new PythonParserAdapter()
 });
 
 builder.Services.AddSingleton<IEnumerable<ISymbolProjector>>(sp => new ISymbolProjector[]
 {
     new CSharpSymbolProjector(),
-    new PythonSymbolProjector(),
+    new PythonSymbolProjector()
 });
 
 builder.Services.AddSingleton<IIndexingEngine>(sp =>
@@ -157,10 +150,10 @@ builder.Services
     })
     .AddNewtonsoftJson(o =>
     {
-        o.SerializerSettings.ContractResolver     = new CamelCasePropertyNamesContractResolver();
-        o.SerializerSettings.NullValueHandling    = NullValueHandling.Ignore;
+        o.SerializerSettings.ContractResolver = new CamelCasePropertyNamesContractResolver();
+        o.SerializerSettings.NullValueHandling = NullValueHandling.Ignore;
         o.SerializerSettings.DateTimeZoneHandling = DateTimeZoneHandling.Utc;
-        o.SerializerSettings.Formatting           = Formatting.None;
+        o.SerializerSettings.Formatting = Formatting.None;
     });
 
 // ── 6. Swagger / OpenAPI 3.0 ────────────────────────────────────────────────
@@ -169,16 +162,16 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title       = "StewardessMCPService — Local Repository MCP API",
-        Version     = "v1",
+        Title = "StewardessMCPService — Local Repository MCP API",
+        Version = "v1",
         Description = "MCP-compatible HTTP API that exposes a local source-code repository to AI agents."
     });
 
     c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
     {
-        Type        = SecuritySchemeType.ApiKey,
-        In          = ParameterLocation.Header,
-        Name        = "X-API-Key",
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Name = "X-API-Key",
         Description = "API key for authentication"
     });
 
@@ -190,7 +183,7 @@ builder.Services.AddSwaggerGen(c =>
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id   = "ApiKey"
+                    Id = "ApiKey"
                 }
             },
             Array.Empty<string>()
@@ -201,11 +194,12 @@ builder.Services.AddSwaggerGen(c =>
     c.CustomOperationIds(apiDesc =>
     {
         var controller = apiDesc.ActionDescriptor.RouteValues["controller"];
-        var action     = apiDesc.ActionDescriptor.RouteValues["action"];
+        var action = apiDesc.ActionDescriptor.RouteValues["action"];
         return string.IsNullOrEmpty(controller) ? null : $"{controller}_{action}";
     });
 
-    var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name ?? "StewardessMCPService.Core", ".xml");
+    var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name ?? "StewardessMCPService.Core",
+        ".xml");
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
         c.IncludeXmlComments(xmlPath);
@@ -251,7 +245,7 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "StewardessMCPService v1");
-    c.RoutePrefix  = "swagger";
+    c.RoutePrefix = "swagger";
     c.DocumentTitle = "StewardessMCPService API";
 });
 

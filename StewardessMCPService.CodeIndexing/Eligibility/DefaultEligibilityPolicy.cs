@@ -1,15 +1,18 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Eligibility;
 
 /// <summary>
-/// Default eligibility policy that applies the standard file filtering rules:
-/// binary files, oversized files, build outputs, vendor directories, generated/minified files, and hidden files.
+///     Default eligibility policy that applies the standard file filtering rules:
+///     binary files, oversized files, build outputs, vendor directories, generated/minified files, and hidden files.
 /// </summary>
 public sealed class DefaultEligibilityPolicy : IEligibilityPolicy
 {
+    private const long DefaultMaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
+
     // Folders that are always excluded (lower-case, path segment matching)
     private static readonly HashSet<string> _ignoredFolders = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -21,8 +24,8 @@ public sealed class DefaultEligibilityPolicy : IEligibilityPolicy
         "testresults", ".testresults",
         "coverage",
         "__pycache__", ".pytest_cache",
-        "target",        // Rust / Maven
-        ".gradle",
+        "target", // Rust / Maven
+        ".gradle"
     };
 
     // Extensions always excluded
@@ -35,21 +38,18 @@ public sealed class DefaultEligibilityPolicy : IEligibilityPolicy
         ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp",
         ".pdf", ".doc", ".docx", ".xls", ".xlsx",
         ".mp3", ".mp4", ".avi", ".mov",
-        ".ttf", ".woff", ".woff2", ".eot",
+        ".ttf", ".woff", ".woff2", ".eot"
     };
 
-    private const long DefaultMaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
-
-    /// <inheritdoc/>
-    public long MaxFileSizeBytes { get; }
-
     /// <summary>
-    /// Creates a policy with the default 5 MB file size limit.
+    ///     Creates a policy with the default 5 MB file size limit.
     /// </summary>
-    public DefaultEligibilityPolicy() : this(DefaultMaxFileSizeBytes) { }
+    public DefaultEligibilityPolicy() : this(DefaultMaxFileSizeBytes)
+    {
+    }
 
     /// <summary>
-    /// Creates a policy with a custom file size limit.
+    ///     Creates a policy with a custom file size limit.
     /// </summary>
     public DefaultEligibilityPolicy(long maxFileSizeBytes)
     {
@@ -58,7 +58,10 @@ public sealed class DefaultEligibilityPolicy : IEligibilityPolicy
             : DefaultMaxFileSizeBytes;
     }
 
-    /// <inheritdoc/>
+    /// <inheritdoc />
+    public long MaxFileSizeBytes { get; }
+
+    /// <inheritdoc />
     public EligibilityResult Evaluate(string filePath, long sizeBytes, bool isBinary)
     {
         // 1. Binary content
@@ -105,11 +108,9 @@ public sealed class DefaultEligibilityPolicy : IEligibilityPolicy
         var normalized = filePath.Replace('\\', '/');
         var parts = normalized.Split('/', StringSplitOptions.RemoveEmptyEntries);
         // Check all segments except the last (which is the file name)
-        for (int i = 0; i < parts.Length - 1; i++)
-        {
+        for (var i = 0; i < parts.Length - 1; i++)
             if (_ignoredFolders.Contains(parts[i]))
                 return true;
-        }
         return false;
     }
 

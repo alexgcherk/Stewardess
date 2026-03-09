@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 /// <summary>
-/// Current operational state of the indexing engine for a repository root.
+///     Current operational state of the indexing engine for a repository root.
 /// </summary>
 public enum IndexState
 {
@@ -20,5 +21,5 @@ public enum IndexState
     Ready,
 
     /// <summary>The last build or update failed.</summary>
-    Failed,
+    Failed
 }

@@ -1,10 +1,11 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Structural;
 
 /// <summary>
-/// Represents a half-open source location span within a file.
-/// Line and column numbers are 1-based.
+///     Represents a half-open source location span within a file.
+///     Line and column numbers are 1-based.
 /// </summary>
 public sealed class SourceSpan
 {
@@ -26,11 +27,15 @@ public sealed class SourceSpan
     /// <summary>Optional absolute byte offset of the end position.</summary>
     public int? EndOffset { get; init; }
 
-    /// <summary>Creates a <see cref="SourceSpan"/> covering the given line range.</summary>
-    public static SourceSpan FromLines(int startLine, int endLine) =>
-        new() { StartLine = startLine, StartColumn = 1, EndLine = endLine, EndColumn = int.MaxValue };
+    /// <summary>Creates a <see cref="SourceSpan" /> covering the given line range.</summary>
+    public static SourceSpan FromLines(int startLine, int endLine)
+    {
+        return new SourceSpan { StartLine = startLine, StartColumn = 1, EndLine = endLine, EndColumn = int.MaxValue };
+    }
 
-    /// <inheritdoc/>
-    public override string ToString() =>
-        $"[{StartLine}:{StartColumn}-{EndLine}:{EndColumn}]";
+    /// <inheritdoc />
+    public override string ToString()
+    {
+        return $"[{StartLine}:{StartColumn}-{EndLine}:{EndColumn}]";
+    }
 }

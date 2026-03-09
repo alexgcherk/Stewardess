@@ -1,16 +1,17 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Model.Semantic;
 
 /// <summary>
-/// Represents one concrete declaration, definition, implementation, or partial
-/// occurrence of a <see cref="LogicalSymbol"/> in a specific file.
+///     Represents one concrete declaration, definition, implementation, or partial
+///     occurrence of a <see cref="LogicalSymbol" /> in a specific file.
 /// </summary>
 /// <remarks>
-/// Multiple occurrences can map to a single logical symbol (e.g., partial classes,
-/// header/source separation, distributed declarations across files).
+///     Multiple occurrences can map to a single logical symbol (e.g., partial classes,
+///     header/source separation, distributed declarations across files).
 /// </remarks>
 public sealed class SymbolOccurrence
 {

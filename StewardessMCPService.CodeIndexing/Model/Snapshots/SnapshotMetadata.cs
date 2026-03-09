@@ -1,16 +1,17 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 /// <summary>
-/// Immutable metadata for a published index snapshot.
-/// A snapshot captures a consistent view of the entire indexed repository at a point in time.
+///     Immutable metadata for a published index snapshot.
+///     A snapshot captures a consistent view of the entire indexed repository at a point in time.
 /// </summary>
 public sealed class SnapshotMetadata
 {
     /// <summary>
-    /// Unique snapshot identifier.
-    /// Format: snap-{rootHashPrefix}-{timestamp:yyyyMMddHHmmss}-{revision}.
+    ///     Unique snapshot identifier.
+    ///     Format: snap-{rootHashPrefix}-{timestamp:yyyyMMddHHmmss}-{revision}.
     /// </summary>
     public required string SnapshotId { get; init; }
 
@@ -50,7 +51,7 @@ public sealed class SnapshotMetadata
     /// <summary>Number of diagnostics emitted.</summary>
     public int DiagnosticCount { get; init; }
 
-    /// <summary>Per-language file counts. Key is a <see cref="LanguageDetection.LanguageId"/> constant.</summary>
+    /// <summary>Per-language file counts. Key is a <see cref="LanguageDetection.LanguageId" /> constant.</summary>
     public IReadOnlyDictionary<string, int> LanguageBreakdown { get; init; } =
         new Dictionary<string, int>();
 

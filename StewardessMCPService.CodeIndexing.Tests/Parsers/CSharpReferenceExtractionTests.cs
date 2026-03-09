@@ -1,6 +1,8 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.References;
+using StewardessMCPService.CodeIndexing.Model.Structural;
 using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 using StewardessMCPService.Parsers.CSharp;
 using Xunit;
@@ -11,14 +13,17 @@ public class CSharpReferenceExtractionTests
 {
     private readonly CSharpParserAdapter _adapter = new();
 
-    private static ParseRequest MakeRequest(string content) => new()
+    private static ParseRequest MakeRequest(string content)
     {
-        FileId = "test-ref",
-        FilePath = "Test.cs",
-        Content = content,
-        LanguageId = "csharp",
-        Mode = StewardessMCPService.CodeIndexing.Model.Structural.ParseMode.Declarations,
-    };
+        return new ParseRequest
+        {
+            FileId = "test-ref",
+            FilePath = "Test.cs",
+            Content = content,
+            LanguageId = "csharp",
+            Mode = ParseMode.Declarations
+        };
+    }
 
     // ── Base class / Inherits ──────────────────────────────────────────────────
 
@@ -26,10 +31,10 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_ClassWithBaseClass_ReturnsInheritsHint()
     {
         var content = """
-            namespace MyApp;
-            public class Child : Base { }
-            public class Base { }
-            """;
+                      namespace MyApp;
+                      public class Child : Base { }
+                      public class Base { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -40,9 +45,9 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_ClassInheritsQualifiedBase_ReturnsInheritsHint()
     {
         var content = """
-            namespace MyApp;
-            public class Child : MyApp.Base { }
-            """;
+                      namespace MyApp;
+                      public class Child : MyApp.Base { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -55,10 +60,10 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_ClassImplementsInterface_ReturnsImplementsHint()
     {
         var content = """
-            namespace MyApp;
-            public class MyService : IService { }
-            public interface IService { }
-            """;
+                      namespace MyApp;
+                      public class MyService : IService { }
+                      public interface IService { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -69,10 +74,10 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_InterfaceExtendsInterface_ReturnsImplementsHint()
     {
         var content = """
-            namespace MyApp;
-            public interface IChild : IParent { }
-            public interface IParent { }
-            """;
+                      namespace MyApp;
+                      public interface IChild : IParent { }
+                      public interface IParent { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -85,12 +90,12 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_ClassWithFieldOfCustomType_ReturnsContainsFieldHint()
     {
         var content = """
-            namespace MyApp;
-            public class Order {
-                private Customer _customer;
-            }
-            public class Customer { }
-            """;
+                      namespace MyApp;
+                      public class Order {
+                          private Customer _customer;
+                      }
+                      public class Customer { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -101,11 +106,11 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_FieldOfPrimitiveType_DoesNotReturnHint()
     {
         var content = """
-            namespace MyApp;
-            public class Counter {
-                private int _count;
-            }
-            """;
+                      namespace MyApp;
+                      public class Counter {
+                          private int _count;
+                      }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.DoesNotContain(result.ReferenceHints,
@@ -118,12 +123,12 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_PropertyOfCustomType_ReturnsContainsPropertyHint()
     {
         var content = """
-            namespace MyApp;
-            public class OrderLine {
-                public Product Product { get; set; }
-            }
-            public class Product { }
-            """;
+                      namespace MyApp;
+                      public class OrderLine {
+                          public Product Product { get; set; }
+                      }
+                      public class Product { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -136,12 +141,12 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_MethodReturningCustomType_ReturnsTypeHint()
     {
         var content = """
-            namespace MyApp;
-            public class Factory {
-                public Product Create() => default!;
-            }
-            public class Product { }
-            """;
+                      namespace MyApp;
+                      public class Factory {
+                          public Product Create() => default!;
+                      }
+                      public class Product { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -152,11 +157,11 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_MethodWithVoidReturn_DoesNotReturnHint()
     {
         var content = """
-            namespace MyApp;
-            public class Logger {
-                public void Log(string message) { }
-            }
-            """;
+                      namespace MyApp;
+                      public class Logger {
+                          public void Log(string message) { }
+                      }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.DoesNotContain(result.ReferenceHints,
@@ -169,12 +174,12 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_MethodAcceptingCustomParameter_ReturnsAcceptsParamHint()
     {
         var content = """
-            namespace MyApp;
-            public class OrderService {
-                public void Process(Order order) { }
-            }
-            public class Order { }
-            """;
+                      namespace MyApp;
+                      public class OrderService {
+                          public void Process(Order order) { }
+                      }
+                      public class Order { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.ReferenceHints,
@@ -187,10 +192,10 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_UsingDirective_ProducesImportWithKindUsing()
     {
         var content = """
-            using System.Collections.Generic;
-            namespace MyApp;
-            public class Foo { }
-            """;
+                      using System.Collections.Generic;
+                      namespace MyApp;
+                      public class Foo { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.Imports,
@@ -201,10 +206,10 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_UsingAliasDirective_ProducesImportWithKindUsingAlias()
     {
         var content = """
-            using MyList = System.Collections.Generic.List<string>;
-            namespace MyApp;
-            public class Foo { }
-            """;
+                      using MyList = System.Collections.Generic.List<string>;
+                      namespace MyApp;
+                      public class Foo { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.Imports,
@@ -215,10 +220,10 @@ public class CSharpReferenceExtractionTests
     public async Task ParseAsync_UsingStaticDirective_ProducesImportWithKindUsingStatic()
     {
         var content = """
-            using static System.Math;
-            namespace MyApp;
-            public class Calc { }
-            """;
+                      using static System.Math;
+                      namespace MyApp;
+                      public class Calc { }
+                      """;
         var result = await _adapter.ParseAsync(MakeRequest(content));
 
         Assert.Contains(result.Imports,

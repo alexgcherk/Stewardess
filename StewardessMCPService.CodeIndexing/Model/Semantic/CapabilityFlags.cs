@@ -1,10 +1,11 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Semantic;
 
 /// <summary>
-/// Bitmask of capabilities that were exercised when projecting a <see cref="LogicalSymbol"/>.
-/// Consumers can use these flags to understand what information is available.
+///     Bitmask of capabilities that were exercised when projecting a <see cref="LogicalSymbol" />.
+///     Consumers can use these flags to understand what information is available.
 /// </summary>
 [Flags]
 public enum CapabilityFlags
@@ -31,5 +32,5 @@ public enum CapabilityFlags
     HasMembers = 1 << 5,
 
     /// <summary>Symbol documentation summary was extracted.</summary>
-    HasDocumentation = 1 << 6,
+    HasDocumentation = 1 << 6
 }

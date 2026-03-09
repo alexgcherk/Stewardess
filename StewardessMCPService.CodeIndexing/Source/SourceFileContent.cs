@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Source;
 
 /// <summary>
-/// Full content payload for a source file, including encoding and hash.
+///     Full content payload for a source file, including encoding and hash.
 /// </summary>
 public sealed class SourceFileContent
 {

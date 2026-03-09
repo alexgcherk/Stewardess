@@ -1,13 +1,14 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.References;
 
 /// <summary>
-/// Classifies how confidently a reference was resolved to a target symbol.
+///     Classifies how confidently a reference was resolved to a target symbol.
 /// </summary>
 /// <remarks>
-/// Only <see cref="ExactBound"/>, <see cref="ScopedBound"/>, <see cref="ImportBound"/>,
-/// and <see cref="AliasBound"/> produce hard dependency edges by default.
+///     Only <see cref="ExactBound" />, <see cref="ScopedBound" />, <see cref="ImportBound" />,
+///     and <see cref="AliasBound" /> produce hard dependency edges by default.
 /// </remarks>
 public enum ResolutionClass
 {
@@ -30,5 +31,5 @@ public enum ResolutionClass
     External,
 
     /// <summary>Could not resolve target symbol.</summary>
-    Unknown,
+    Unknown
 }

@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 /// <summary>
-/// Records the set of file-level changes captured in an incremental snapshot update.
+///     Records the set of file-level changes captured in an incremental snapshot update.
 /// </summary>
 public sealed class SnapshotDelta
 {

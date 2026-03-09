@@ -1,5 +1,6 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.Structural;
 using StewardessMCPService.CodeIndexing.Parsers.Abstractions;
 using StewardessMCPService.Parsers.CSharp;
@@ -11,8 +12,10 @@ public class CSharpParserAdapterTests
 {
     private readonly CSharpParserAdapter _adapter = new();
 
-    private static string GoldenFile(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "CSharp", name);
+    private static string GoldenFile(string name)
+    {
+        return Path.Combine(AppContext.BaseDirectory, "GoldenFiles", "CSharp", name);
+    }
 
     [Fact]
     public void LanguageId_IsCSharp()
@@ -37,7 +40,7 @@ public class CSharpParserAdapterTests
             FilePath = "GoldenFiles/CSharp/SampleClass.cs",
             Content = content,
             LanguageId = "csharp",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
 
         var result = await _adapter.ParseAsync(req);
@@ -151,7 +154,7 @@ public class CSharpParserAdapterTests
             FilePath = "bad.cs",
             Content = "public class Broken { void Method( { } }",
             LanguageId = "csharp",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
 
         var result = await _adapter.ParseAsync(req);
@@ -170,7 +173,7 @@ public class CSharpParserAdapterTests
             FilePath = "empty.cs",
             Content = "",
             LanguageId = "csharp",
-            Mode = ParseMode.Declarations,
+            Mode = ParseMode.Declarations
         };
 
         var result = await _adapter.ParseAsync(req);
@@ -189,16 +192,19 @@ public class CSharpParserAdapterTests
 
         var nodeIds = result.Nodes.Select(n => n.NodeId).ToHashSet();
         foreach (var node in result.Nodes)
-            foreach (var childId in node.Children)
-                Assert.Contains(childId, nodeIds);
+        foreach (var childId in node.Children)
+            Assert.Contains(childId, nodeIds);
     }
 
-    private static ParseRequest MakeRequest(string content) => new()
+    private static ParseRequest MakeRequest(string content)
     {
-        FileId = "test-1",
-        FilePath = "GoldenFiles/CSharp/SampleClass.cs",
-        Content = content,
-        LanguageId = "csharp",
-        Mode = ParseMode.Declarations,
-    };
+        return new ParseRequest
+        {
+            FileId = "test-1",
+            FilePath = "GoldenFiles/CSharp/SampleClass.cs",
+            Content = content,
+            LanguageId = "csharp",
+            Mode = ParseMode.Declarations
+        };
+    }
 }

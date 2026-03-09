@@ -1,50 +1,63 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 using StewardessMCPService.CodeIndexing.Model.References;
 using StewardessMCPService.CodeIndexing.Model.Semantic;
-using StewardessMCPService.CodeIndexing.Model.Snapshots;
 using StewardessMCPService.CodeIndexing.Model.Structural;
 
 namespace StewardessMCPService.CodeIndexing.Query;
 
 // ── Request types ─────────────────────────────────────────────────────────────
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.ListFilesAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.ListFilesAsync" />.</summary>
 public sealed class ListFilesRequest
 {
     /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+
     /// <summary>Optional repository root path used to identify the snapshot.</summary>
     public string? RootPath { get; init; }
+
     /// <summary>Restricts results to files with one of these language IDs.</summary>
     public IReadOnlyList<string>? LanguageFilter { get; init; }
+
     /// <summary>Restricts results to files with one of these eligibility statuses.</summary>
     public IReadOnlyList<EligibilityStatus>? EligibilityFilter { get; init; }
+
     /// <summary>Restricts results to files with one of these parse statuses.</summary>
     public IReadOnlyList<ParseStatus>? ParseStatusFilter { get; init; }
+
     /// <summary>Restricts results to files whose path starts with this prefix.</summary>
     public string? PathPrefix { get; init; }
+
     /// <summary>Whether to include a diagnostic count summary per file.</summary>
     public bool IncludeDiagnosticsSummary { get; init; }
+
     /// <summary>One-based page number.</summary>
     public int Page { get; init; } = 1;
+
     /// <summary>Page size (default 50).</summary>
     public int PageSize { get; init; } = 50;
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileOutlineAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileOutlineAsync" />.</summary>
 public sealed class GetFileOutlineRequest
 {
     /// <summary>Relative file path whose outline should be returned.</summary>
     public required string FilePath { get; init; }
+
     /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+
     /// <summary>Maximum tree depth to traverse. Null means unlimited.</summary>
     public int? MaxDepth { get; init; }
+
     /// <summary>Whether to include non-semantic (structural) nodes in the outline.</summary>
     public bool IncludeNonSemanticNodes { get; init; } = true;
+
     /// <summary>Whether to include source span information on each node.</summary>
     public bool IncludeSourceSpans { get; init; } = true;
+
     /// <summary>Whether to include extraction confidence scores on each node.</summary>
     public bool IncludeConfidence { get; init; }
 }
@@ -56,18 +69,25 @@ public sealed class FileListItem
 {
     /// <summary>Unique file identifier within the snapshot.</summary>
     public required string FileId { get; init; }
+
     /// <summary>Relative file path.</summary>
     public required string Path { get; init; }
+
     /// <summary>Language identifier for this file.</summary>
     public required string LanguageId { get; init; }
+
     /// <summary>Hash of the file content at index time.</summary>
     public required string ContentHash { get; init; }
+
     /// <summary>Eligibility status assigned to this file.</summary>
     public EligibilityStatus EligibilityStatus { get; init; }
+
     /// <summary>Parse status for this file.</summary>
     public ParseStatus ParseStatus { get; init; }
+
     /// <summary>Number of top-level structural nodes in this file.</summary>
     public int TopLevelNodeCount { get; init; }
+
     /// <summary>Number of diagnostics recorded for this file.</summary>
     public int DiagnosticCount { get; init; }
 }
@@ -77,14 +97,19 @@ public sealed class ListFilesResponse
 {
     /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+
     /// <summary>File entries for this page.</summary>
     public IReadOnlyList<FileListItem> Items { get; init; } = [];
+
     /// <summary>Current page (one-based).</summary>
     public int Page { get; init; }
+
     /// <summary>Page size used.</summary>
     public int PageSize { get; init; }
+
     /// <summary>Total matching files across all pages.</summary>
     public int TotalItems { get; init; }
+
     /// <summary>Whether additional pages are available.</summary>
     public bool HasMore { get; init; }
 }
@@ -94,18 +119,25 @@ public sealed class OutlineNode
 {
     /// <summary>Unique node identifier within the snapshot.</summary>
     public required string NodeId { get; init; }
+
     /// <summary>Structural kind of this node.</summary>
     public NodeKind Kind { get; init; }
+
     /// <summary>Language-specific sub-kind string, if available.</summary>
     public string? Subkind { get; init; }
+
     /// <summary>Simple unqualified name of this node.</summary>
     public required string Name { get; init; }
+
     /// <summary>Human-readable display name (e.g., including parameter list).</summary>
     public string DisplayName { get; init; } = string.Empty;
+
     /// <summary>Source span of this node, included when requested.</summary>
     public SourceSpan? SourceSpan { get; init; }
+
     /// <summary>Extraction confidence score in [0.0, 1.0], included when requested.</summary>
     public double? Confidence { get; init; }
+
     /// <summary>Direct child nodes.</summary>
     public IReadOnlyList<OutlineNode> Children { get; init; } = [];
 }
@@ -115,21 +147,26 @@ public sealed class FileOutlineResponse
 {
     /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+
     /// <summary>Unique file identifier within the snapshot.</summary>
     public required string FileId { get; init; }
+
     /// <summary>Relative file path.</summary>
     public required string Path { get; init; }
+
     /// <summary>Language identifier for this file.</summary>
     public required string LanguageId { get; init; }
+
     /// <summary>Parse status for this file.</summary>
     public ParseStatus ParseStatus { get; init; }
+
     /// <summary>Top-level structural nodes of the file outline.</summary>
     public IReadOnlyList<OutlineNode> RootNodes { get; init; } = [];
 }
 
 // ── Phase 2 — Symbol query request/response types ────────────────────────────
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.FindSymbolsAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.FindSymbolsAsync" />.</summary>
 public sealed class FindSymbolsRequest
 {
     /// <summary>Search text to match against symbol names or qualified names.</summary>
@@ -139,8 +176,8 @@ public sealed class FindSymbolsRequest
     public string? SnapshotId { get; init; }
 
     /// <summary>
-    /// Match mode: "exact" (name equality), "prefix" (starts-with), or "contains".
-    /// Defaults to "prefix".
+    ///     Match mode: "exact" (name equality), "prefix" (starts-with), or "contains".
+    ///     Defaults to "prefix".
     /// </summary>
     public string MatchMode { get; init; } = "prefix";
 
@@ -166,7 +203,7 @@ public sealed class FindSymbolsRequest
     public int PageSize { get; init; } = 50;
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolAsync" />.</summary>
 public sealed class GetSymbolRequest
 {
     /// <summary>Symbol ID to look up.</summary>
@@ -182,7 +219,7 @@ public sealed class GetSymbolRequest
     public bool IncludeMembersSummary { get; init; } = true;
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolOccurrencesAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolOccurrencesAsync" />.</summary>
 public sealed class GetSymbolOccurrencesRequest
 {
     /// <summary>Symbol ID whose occurrences should be returned.</summary>
@@ -195,7 +232,7 @@ public sealed class GetSymbolOccurrencesRequest
     public IReadOnlyList<OccurrenceRole>? RoleFilter { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolChildrenAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolChildrenAsync" />.</summary>
 public sealed class GetSymbolChildrenRequest
 {
     /// <summary>Parent symbol ID.</summary>
@@ -211,7 +248,7 @@ public sealed class GetSymbolChildrenRequest
     public bool IncludeNestedTypes { get; init; } = true;
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetTypeMembersAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetTypeMembersAsync" />.</summary>
 public sealed class GetTypeMembersRequest
 {
     /// <summary>Symbol ID of the type to inspect.</summary>
@@ -227,20 +264,20 @@ public sealed class GetTypeMembersRequest
     public bool IncludeNestedTypes { get; init; } = true;
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.ResolveLocationAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.ResolveLocationAsync" />.</summary>
 public sealed class ResolveLocationRequest
 {
-    /// <summary>Symbol ID to resolve (exclusive with <see cref="OccurrenceId"/>).</summary>
+    /// <summary>Symbol ID to resolve (exclusive with <see cref="OccurrenceId" />).</summary>
     public string? SymbolId { get; init; }
 
-    /// <summary>Occurrence ID to resolve (exclusive with <see cref="SymbolId"/>).</summary>
+    /// <summary>Occurrence ID to resolve (exclusive with <see cref="SymbolId" />).</summary>
     public string? OccurrenceId { get; init; }
 
     /// <summary>Optional snapshot ID.</summary>
     public string? SnapshotId { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetNamespaceTreeAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetNamespaceTreeAsync" />.</summary>
 public sealed class GetNamespaceTreeRequest
 {
     /// <summary>Optional snapshot ID.</summary>
@@ -250,7 +287,7 @@ public sealed class GetNamespaceTreeRequest
     public IReadOnlyList<string>? LanguageFilter { get; init; }
 
     /// <summary>
-    /// If set, returns only descendants of this container qualified name.
+    ///     If set, returns only descendants of this container qualified name.
     /// </summary>
     public string? RootContainer { get; init; }
 
@@ -544,19 +581,24 @@ public sealed class GetNamespaceTreeResponse
 
 // ── Phase 4 — Dependency projection query types ───────────────────────────────
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetDependenciesAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetDependenciesAsync" />.</summary>
 public sealed class GetDependenciesRequest
 {
     /// <summary>Symbol ID to query outgoing dependencies for.</summary>
     public required string SymbolId { get; init; }
+
     /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+
     /// <summary>Optional filter to restrict results to specific relationship kinds.</summary>
     public IReadOnlyList<RelationshipKind>? RelationshipKinds { get; init; }
+
     /// <summary>If true (default), only include hard-bound dependencies (ExactBound, ScopedBound, ImportBound, AliasBound).</summary>
     public bool HardOnly { get; init; } = true;
+
     /// <summary>Whether to include evidence text in results.</summary>
     public bool IncludeEvidence { get; init; } = true;
+
     /// <summary>Whether to include confidence scores in results.</summary>
     public bool IncludeConfidence { get; init; } = true;
 }
@@ -566,22 +608,31 @@ public sealed class DependencySummary
 {
     /// <summary>Target symbol ID, or null if unresolved.</summary>
     public string? TargetSymbolId { get; init; }
+
     /// <summary>Qualified name of the target symbol.</summary>
     public string? QualifiedName { get; init; }
+
     /// <summary>Semantic kind of the target symbol.</summary>
     public SymbolKind? Kind { get; init; }
+
     /// <summary>Language ID of the target symbol.</summary>
     public string? LanguageId { get; init; }
+
     /// <summary>Relationship kind for this edge.</summary>
     public RelationshipKind RelationshipKind { get; init; }
+
     /// <summary>How confidently this reference was resolved.</summary>
     public ResolutionClass ResolutionClass { get; init; }
+
     /// <summary>Source text evidence for this dependency.</summary>
     public string? Evidence { get; init; }
+
     /// <summary>Source location of the evidence text.</summary>
     public SourceSpan? EvidenceSpan { get; init; }
+
     /// <summary>Confidence in [0.0, 1.0].</summary>
     public double Confidence { get; init; }
+
     /// <summary>How the resolution was determined (e.g. "exact", "import-qualified", "scoped", "alias", "heuristic").</summary>
     public string ResolutionMethod { get; init; } = "exact";
 }
@@ -591,33 +642,44 @@ public sealed class GetDependenciesResponse
 {
     /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+
     /// <summary>The symbol ID that was queried.</summary>
     public required string SymbolId { get; init; }
+
     /// <summary>Outgoing dependency summaries for this page.</summary>
     public IReadOnlyList<DependencySummary> Dependencies { get; init; } = [];
+
     /// <summary>Error message if the symbol was not found.</summary>
     public string? Error { get; init; }
+
     /// <summary>Current page (one-based).</summary>
     public int Page { get; init; } = 1;
+
     /// <summary>Page size used.</summary>
     public int PageSize { get; init; } = 50;
+
     /// <summary>Total dependencies across all pages.</summary>
     public int TotalItems { get; init; }
+
     /// <summary>Whether additional pages are available.</summary>
     public bool HasMore { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetDependentsAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetDependentsAsync" />.</summary>
 public sealed class GetDependentsRequest
 {
     /// <summary>Symbol ID to query incoming dependents for.</summary>
     public required string SymbolId { get; init; }
+
     /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+
     /// <summary>Optional filter to restrict results to specific relationship kinds.</summary>
     public IReadOnlyList<RelationshipKind>? RelationshipKinds { get; init; }
+
     /// <summary>If true (default), only include hard-bound dependents (ExactBound, ScopedBound, ImportBound, AliasBound).</summary>
     public bool HardOnly { get; init; } = true;
+
     /// <summary>Whether to include evidence text in results.</summary>
     public bool IncludeEvidence { get; init; } = true;
 }
@@ -627,22 +689,31 @@ public sealed class DependentSummary
 {
     /// <summary>Source symbol ID.</summary>
     public string? SourceSymbolId { get; init; }
+
     /// <summary>Qualified name of the source symbol.</summary>
     public string? QualifiedName { get; init; }
+
     /// <summary>Semantic kind of the source symbol.</summary>
     public SymbolKind? Kind { get; init; }
+
     /// <summary>Language ID of the source symbol.</summary>
     public string? LanguageId { get; init; }
+
     /// <summary>Relationship kind for this edge.</summary>
     public RelationshipKind RelationshipKind { get; init; }
+
     /// <summary>How confidently this reference was resolved.</summary>
     public ResolutionClass ResolutionClass { get; init; }
+
     /// <summary>Source text evidence for this dependency.</summary>
     public string? Evidence { get; init; }
+
     /// <summary>Source location of the evidence text.</summary>
     public SourceSpan? EvidenceSpan { get; init; }
+
     /// <summary>Confidence in [0.0, 1.0].</summary>
     public double Confidence { get; init; }
+
     /// <summary>How the resolution was determined (e.g. "exact", "import-qualified", "scoped", "alias", "heuristic").</summary>
     public string ResolutionMethod { get; init; } = "exact";
 }
@@ -652,37 +723,50 @@ public sealed class GetDependentsResponse
 {
     /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+
     /// <summary>The symbol ID that was queried.</summary>
     public required string SymbolId { get; init; }
+
     /// <summary>Inbound dependent summaries for this page.</summary>
     public IReadOnlyList<DependentSummary> Dependents { get; init; } = [];
+
     /// <summary>Error message if the symbol was not found.</summary>
     public string? Error { get; init; }
+
     /// <summary>Current page (one-based).</summary>
     public int Page { get; init; } = 1;
+
     /// <summary>Page size used.</summary>
     public int PageSize { get; init; } = 50;
+
     /// <summary>Total dependents across all pages.</summary>
     public int TotalItems { get; init; }
+
     /// <summary>Whether additional pages are available.</summary>
     public bool HasMore { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolRelationshipsAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetSymbolRelationshipsAsync" />.</summary>
 public sealed class GetSymbolRelationshipsRequest
 {
     /// <summary>Symbol ID to query relationships for.</summary>
     public required string SymbolId { get; init; }
+
     /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+
     /// <summary>Whether to include raw reference edges. Default: true.</summary>
     public bool IncludeReferences { get; init; } = true;
+
     /// <summary>Whether to include outgoing dependency projections (hard-only). Default: true.</summary>
     public bool IncludeDependencies { get; init; } = true;
+
     /// <summary>Whether to include inbound dependent projections (hard-only). Default: true.</summary>
     public bool IncludeDependents { get; init; } = true;
+
     /// <summary>Whether to include direct child symbols. Default: true.</summary>
     public bool IncludeChildren { get; init; } = true;
+
     /// <summary>Maximum items to return per section. Null means unlimited.</summary>
     public int? MaxItemsPerSection { get; init; }
 }
@@ -692,29 +776,38 @@ public sealed class GetSymbolRelationshipsResponse
 {
     /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+
     /// <summary>The symbol ID that was queried.</summary>
     public required string SymbolId { get; init; }
+
     /// <summary>Direct child symbols, included when requested.</summary>
     public IReadOnlyList<SymbolSummary>? Children { get; init; }
+
     /// <summary>Raw reference edges (outgoing + incoming), included when requested.</summary>
     public IReadOnlyList<ReferenceSummary>? References { get; init; }
+
     /// <summary>Outgoing hard dependency projections, included when requested.</summary>
     public IReadOnlyList<DependencySummary>? Dependencies { get; init; }
+
     /// <summary>Inbound hard dependent projections, included when requested.</summary>
     public IReadOnlyList<DependentSummary>? Dependents { get; init; }
+
     /// <summary>Error message if the symbol was not found.</summary>
     public string? Error { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileDependenciesAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileDependenciesAsync" />.</summary>
 public sealed class GetFileDependenciesRequest
 {
     /// <summary>Relative file path to query file-level dependencies for.</summary>
     public required string FilePath { get; init; }
+
     /// <summary>Optional snapshot ID. If null, the latest snapshot is used.</summary>
     public string? SnapshotId { get; init; }
+
     /// <summary>Whether to collapse all edges to the same target file into one entry. Default: true.</summary>
     public bool CollapseByTargetFile { get; init; } = true;
+
     /// <summary>If true, only include hard-bound edges. If false, include all edges. Default: false.</summary>
     public bool HardOnly { get; init; } = false;
 }
@@ -724,10 +817,13 @@ public sealed class ReferenceExample
 {
     /// <summary>Source symbol ID.</summary>
     public string? SourceSymbolId { get; init; }
+
     /// <summary>Target symbol ID.</summary>
     public string? TargetSymbolId { get; init; }
+
     /// <summary>Relationship kind for this edge.</summary>
     public string? RelationshipKind { get; init; }
+
     /// <summary>Evidence text for this edge.</summary>
     public string? Evidence { get; init; }
 }
@@ -737,10 +833,13 @@ public sealed class FileDependencySummary
 {
     /// <summary>Relative file path of the target file.</summary>
     public required string TargetFilePath { get; init; }
+
     /// <summary>Distinct relationship kinds observed across all edges to this target file.</summary>
     public IReadOnlyList<string> RelationshipKinds { get; init; } = [];
+
     /// <summary>Total number of edges pointing to this target file.</summary>
     public int EvidenceCount { get; init; }
+
     /// <summary>Representative examples (up to 3).</summary>
     public IReadOnlyList<ReferenceExample> Examples { get; init; } = [];
 }
@@ -750,17 +849,20 @@ public sealed class GetFileDependenciesResponse
 {
     /// <summary>Snapshot ID the query ran against.</summary>
     public required string SnapshotId { get; init; }
+
     /// <summary>The file path that was queried.</summary>
     public required string FilePath { get; init; }
+
     /// <summary>File-level dependency summaries grouped by target file.</summary>
     public IReadOnlyList<FileDependencySummary> Dependencies { get; init; } = [];
+
     /// <summary>Error message if the file was not found.</summary>
     public string? Error { get; init; }
 }
 
 // ── Phase 3 — Reference and import query request/response types ──────────────
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetImportsAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetImportsAsync" />.</summary>
 public sealed class GetImportsRequest
 {
     /// <summary>Relative file path to query imports for.</summary>
@@ -826,7 +928,7 @@ public sealed class GetImportsResponse
     public bool HasMore { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetReferencesAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetReferencesAsync" />.</summary>
 public sealed class GetReferencesRequest
 {
     /// <summary>Symbol ID to query references for.</summary>
@@ -913,7 +1015,7 @@ public sealed class GetReferencesResponse
     public bool HasMore { get; init; }
 }
 
-/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileReferencesAsync"/>.</summary>
+/// <summary>Request parameters for <see cref="IIndexQueryService.GetFileReferencesAsync" />.</summary>
 public sealed class GetFileReferencesRequest
 {
     /// <summary>Relative file path to query references for.</summary>

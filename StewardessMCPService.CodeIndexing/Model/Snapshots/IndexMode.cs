@@ -1,9 +1,10 @@
 // Copyright 2026 Alex Cherkasov
 // SPDX-License-Identifier: Apache-2.0
+
 namespace StewardessMCPService.CodeIndexing.Model.Snapshots;
 
 /// <summary>
-/// Describes how the index was built for a snapshot.
+///     Describes how the index was built for a snapshot.
 /// </summary>
 public enum IndexMode
 {
@@ -17,5 +18,5 @@ public enum IndexMode
     OutlineOnly,
 
     /// <summary>Declarations extracted; references not resolved.</summary>
-    Declarations,
+    Declarations
 }
