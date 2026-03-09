@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -335,53 +334,43 @@ namespace StewardessMCPService.IntegrationTests.Scenarios
 
             Assert.NotNull(sessionId);
 
-            // Open the SSE channel in a background task so it doesn't block the test
-            // thread while the server is in its infinite channel-read loop.
-            // We read the raw stream directly (bypassing McpSseClient) so that the
-            // HttpRequest's cancellation token is independent of the stream reader.
-            string? firstEventLine = null;
-            using var requestCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            // The in-process WebApplicationFactory TestServer buffers the response body
+            // and only delivers it to the client when the action method returns.
+            // The GET /mcp action loops on channel.ReadAllAsync and never returns on its own.
+            // Strategy: open the GET in a background task, then DELETE the session from the
+            // foreground.  TerminateSession completes the notification channel which causes
+            // ReadAllAsync to exit and the action to return — flushing the buffered SSE body.
 
-            var readTask = Task.Run(async () =>
+            // Use a fresh client for the SSE GET to avoid sharing connection state.
+            var sseHttp = _server.HttpClient;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+            // Start the GET /mcp — will complete once the session is terminated.
+            var getTask = Task.Run(async () =>
             {
                 var req = new HttpRequestMessage(HttpMethod.Get, "mcp");
                 req.Headers.Add("Mcp-Session-Id", sessionId!);
                 req.Headers.Add("Accept", SseContentType);
+                return await sseHttp.SendAsync(req, cts.Token).ConfigureAwait(false);
+            }, cts.Token);
 
-                using var response = await _http.SendAsync(
-                    req, HttpCompletionOption.ResponseHeadersRead, requestCts.Token)
-                    .ConfigureAwait(false);
+            // Give the server a moment to start executing the GET action (write endpoint event).
+            await Task.Delay(300, cts.Token);
 
-                response.EnsureSuccessStatusCode();
+            // DELETE the session — closes the channel, unblocks ReadAllAsync, action returns.
+            using var delReq = new HttpRequestMessage(HttpMethod.Delete, "mcp");
+            delReq.Headers.Add("Mcp-Session-Id", sessionId!);
+            using var delResp = await _http.SendAsync(delReq, cts.Token);
+            Assert.Equal(HttpStatusCode.OK, delResp.StatusCode);
 
-                await using var stream = await response.Content
-                    .ReadAsStreamAsync(requestCts.Token).ConfigureAwait(false);
+            // Await the GET response (should complete now the action returned).
+            using var getResp = await getTask;
+            Assert.Equal(HttpStatusCode.OK, getResp.StatusCode);
 
-                using var reader = new StreamReader(stream, Encoding.UTF8);
+            var body = await getResp.Content.ReadAsStringAsync();
 
-                // Read lines until we find the first "event:" line (the endpoint event).
-                while (!requestCts.Token.IsCancellationRequested)
-                {
-                    string? line;
-                    try { line = await reader.ReadLineAsync(requestCts.Token).ConfigureAwait(false); }
-                    catch (OperationCanceledException) { break; }
-
-                    if (line == null) break;
-                    if (line.StartsWith("event:", StringComparison.Ordinal))
-                    {
-                        firstEventLine = line.Trim();
-                        break; // Got what we need; cancel the request.
-                    }
-                }
-            });
-
-            // Give the background reader up to 5 seconds to receive the endpoint event.
-            await Task.WhenAny(readTask, Task.Delay(TimeSpan.FromSeconds(5)));
-            await requestCts.CancelAsync(); // Cancel the long-lived SSE connection.
-            try { await readTask; } catch { /* OperationCanceledException is expected */ }
-
-            Assert.NotNull(firstEventLine);
-            Assert.Contains("endpoint", firstEventLine, StringComparison.OrdinalIgnoreCase);
+            // The response body must contain the initial "endpoint" SSE event.
+            Assert.Contains("event: endpoint", body, StringComparison.OrdinalIgnoreCase);
         }
 
         // ── Backward compatibility: POST /mcp/v1/ still works ───────────────────
