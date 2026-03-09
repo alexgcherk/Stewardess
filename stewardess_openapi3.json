@@ -818,6 +818,200 @@
         }
       }
     },
+    "/api/repo-browser/tree": {
+      "get": {
+        "tags": [
+          "RepoBrowser"
+        ],
+        "operationId": "RepoBrowser_PrintTree",
+        "parameters": [
+          {
+            "name": "relativePath",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "maxDepth",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 4
+            }
+          },
+          {
+            "name": "includeFiles",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "includeDirectories",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "maxEntries",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1000
+            }
+          },
+          {
+            "name": "showHidden",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/repo-browser/grep": {
+      "post": {
+        "tags": [
+          "RepoBrowser"
+        ],
+        "operationId": "RepoBrowser_Grep",
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserGrepRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserGrepRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserGrepRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserGrepRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/repo-browser/file": {
+      "get": {
+        "tags": [
+          "RepoBrowser"
+        ],
+        "operationId": "RepoBrowser_ReadFile",
+        "parameters": [
+          {
+            "name": "filePath",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startLine",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "endLine",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "maxBytes",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 65536
+            }
+          },
+          {
+            "name": "includeLineNumbers",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/repo-browser/find": {
+      "post": {
+        "tags": [
+          "RepoBrowser"
+        ],
+        "operationId": "RepoBrowser_FindPath",
+        "requestBody": {
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserFindPathRequest"
+              }
+            },
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserFindPathRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserFindPathRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RepoBrowserFindPathRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/repository": {
       "get": {
         "tags": [
@@ -1617,6 +1811,64 @@
           },
           "options": {
             "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RepoBrowserFindPathRequest": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "nullable": true
+          },
+          "matchMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "caseSensitive": {
+            "type": "boolean"
+          },
+          "maxResults": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RepoBrowserGrepRequest": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "nullable": true
+          },
+          "mode": {
+            "type": "string",
+            "nullable": true
+          },
+          "pathPrefix": {
+            "type": "string",
+            "nullable": true
+          },
+          "caseSensitive": {
+            "type": "boolean"
+          },
+          "maxResults": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxMatchesPerFile": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contextLines": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

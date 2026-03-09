@@ -114,6 +114,7 @@ namespace StewardessMCPService.Mcp
             RegisterGitTools();
             RegisterCommandTools();
             RegisterCodeIndexTools();
+            RegisterRepoBrowserTools();
             AnnotateAllTools();
         }
 
@@ -1658,6 +1659,404 @@ namespace StewardessMCPService.Mcp
                 });
         }
 
+        // ── Repo browser tools ───────────────────────────────────────────────────
+
+        private void RegisterRepoBrowserTools()
+        {
+            // ── repo_browser.print_tree ──────────────────────────────────────────
+            Add("repo_browser.print_tree",
+                category: "repo_browser",
+                description: "Returns a flat list of files and directories in the repository. " +
+                             "Use to inspect repository or directory structure when the exact file is not yet known. " +
+                             "Use before repo_browser.read_file or repo_browser.grep when discovering candidate paths.",
+                schema: Schema(
+                    Prop("relative_path",       "string",  "Subdirectory to inspect (empty = repo root)."),
+                    Prop("max_depth",           "integer", "Maximum directory depth to traverse (default 4).", def: 4),
+                    Prop("include_files",       "boolean", "Include files in output (default true).", def: true),
+                    Prop("include_directories", "boolean", "Include directories in output (default true).", def: true),
+                    PropWithItems("glob_include", "Include only entries whose paths match these glob patterns."),
+                    PropWithItems("glob_exclude", "Exclude entries whose paths match these glob patterns."),
+                    Prop("max_entries",         "integer", "Maximum number of entries to return (default 1000).", def: 1000),
+                    Prop("show_hidden",         "boolean", "Include hidden entries (names starting with '.') (default false).", def: false)),
+                handler: async (args, ct) =>
+                {
+                    var relPath      = Str(args, "relative_path", "");
+                    var maxDepth     = Int(args, "max_depth", 4);
+                    var inclFiles    = Bool(args, "include_files", true);
+                    var inclDirs     = Bool(args, "include_directories", true);
+                    var globInclude  = StrList(args, "glob_include");
+                    var globExclude  = StrList(args, "glob_exclude");
+                    var maxEntries   = Int(args, "max_entries", 1000);
+                    var showHidden   = Bool(args, "show_hidden", false);
+
+                    var treeReq = new ListTreeRequest
+                    {
+                        Path            = relPath,
+                        MaxDepth        = Math.Clamp(maxDepth, 1, 20),
+                        DirectoriesOnly = !inclFiles,
+                    };
+                    var treeResp = await _files.ListTreeAsync(treeReq, ct).ConfigureAwait(false);
+
+                    var items    = new List<RepoBrowserTreeItem>();
+                    bool trunc   = treeResp.Truncated;
+
+                    void WalkNode(TreeNode node, int depth)
+                    {
+                        if (items.Count >= maxEntries) { trunc = true; return; }
+                        if (node == null) return;
+
+                        var isDir = node.Type == "directory";
+                        if (!showHidden && node.Name.StartsWith(".")) return;
+                        if (isDir && !inclDirs)
+                        {
+                            if (node.Children != null)
+                                foreach (var c in node.Children) WalkNode(c, depth + 1);
+                            return;
+                        }
+                        if (!isDir && !inclFiles) return;
+
+                        var path = node.RelativePath ?? "";
+                        if (globInclude.Count > 0 && !globInclude.Any(g => MatchGlob(path, g))) goto recurse;
+                        if (globExclude.Any(g => MatchGlob(path, g))) goto recurse;
+
+                        items.Add(new RepoBrowserTreeItem
+                        {
+                            Path        = path,
+                            Name        = node.Name,
+                            Kind        = isDir ? "directory" : "file",
+                            Depth       = depth,
+                            HasChildren = isDir ? (bool?)(node.Children != null && node.Children.Count > 0) : null,
+                            SizeBytes   = node.SizeBytes,
+                        });
+
+                        recurse:
+                        if (isDir && node.Children != null)
+                            foreach (var c in node.Children) WalkNode(c, depth + 1);
+                    }
+
+                    if (treeResp.Root?.Children != null)
+                        foreach (var c in treeResp.Root.Children) WalkNode(c, 0);
+
+                    return ToResult(new RepoBrowserTreeResponse
+                    {
+                        RootPath     = _settings.RepositoryRoot,
+                        RelativePath = relPath,
+                        MaxDepth     = maxDepth,
+                        EntryCount   = items.Count,
+                        Truncated    = trunc,
+                        Items        = items,
+                    });
+                });
+
+            // ── repo_browser.grep ────────────────────────────────────────────────
+            Add("repo_browser.grep",
+                category: "repo_browser",
+                description: "Searches file contents for symbols, text, imports, or code fragments across the repository. " +
+                             "Use when you know what text you are looking for but do not know which file contains it. " +
+                             "Returns a flat match list with line numbers and surrounding context.",
+                schema: Schema(
+                    Prop("query",               "string",  "Text or pattern to search for.", required: true),
+                    Prop("mode",                "string",  "Search mode: literal (default), regex, word, symbol_hint.",
+                         def: "literal", enums: new[] { "literal", "regex", "word", "symbol_hint" }),
+                    Prop("path_prefix",         "string",  "Restrict search to this subdirectory (relative path)."),
+                    PropWithItems("glob_include", "Include only files whose paths match these glob patterns."),
+                    PropWithItems("glob_exclude", "Exclude files whose paths match these glob patterns."),
+                    Prop("case_sensitive",      "boolean", "Case-sensitive search (default false).", def: false),
+                    Prop("max_results",         "integer", "Maximum total match lines to return (default 100).", def: 100),
+                    Prop("max_matches_per_file","integer", "Maximum match lines per file (default 20).", def: 20),
+                    Prop("context_lines",       "integer", "Context lines before and after each match (default 2).", def: 2)),
+                handler: async (args, ct) =>
+                {
+                    var query       = Str(args, "query");
+                    var mode        = (Str(args, "mode", "literal") ?? "literal").ToLowerInvariant();
+                    var pathPrefix  = Str(args, "path_prefix", "");
+                    var globInclude = StrList(args, "glob_include");
+                    var globExclude = StrList(args, "glob_exclude");
+                    var caseSens    = Bool(args, "case_sensitive", false);
+                    var maxResults  = Int(args, "max_results", 100);
+                    var maxPerFile  = Int(args, "max_matches_per_file", 20);
+                    var ctxLines    = Int(args, "context_lines", 2);
+
+                    // Derive extension list from simple "*.ext" globs for faster service-side filtering
+                    List<string> extensions = null;
+                    if (globInclude.Count > 0)
+                    {
+                        var exts = globInclude
+                            .Where(g => g.StartsWith("*.") && !g.Contains('/') && !g.Contains('\\'))
+                            .Select(g => g.Substring(1))
+                            .ToList();
+                        if (exts.Count == globInclude.Count) extensions = exts;
+                    }
+
+                    SearchResponse sr;
+                    if (mode == "regex")
+                    {
+                        sr = await _search.SearchRegexAsync(new SearchRegexRequest
+                        {
+                            Pattern            = query,
+                            SearchPath         = pathPrefix ?? "",
+                            IgnoreCase         = !caseSens,
+                            MaxResults         = maxResults * 2,
+                            ContextLinesBefore = ctxLines,
+                            ContextLinesAfter  = ctxLines,
+                            Extensions         = extensions,
+                        }, ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        sr = await _search.SearchTextAsync(new SearchTextRequest
+                        {
+                            Query              = query,
+                            SearchPath         = pathPrefix ?? "",
+                            IgnoreCase         = !caseSens,
+                            WholeWord          = mode == "word" || mode == "symbol_hint",
+                            MaxResults         = maxResults * 2,
+                            ContextLinesBefore = ctxLines,
+                            ContextLinesAfter  = ctxLines,
+                            Extensions         = extensions,
+                        }, ct).ConfigureAwait(false);
+                    }
+
+                    var flat  = new List<RepoBrowserGrepMatch>();
+                    bool trunc = sr.Truncated;
+
+                    foreach (var file in sr.Files)
+                    {
+                        var rel = file.RelativePath;
+                        if (globInclude.Count > 0 && extensions == null && !globInclude.Any(g => MatchGlob(rel, g))) continue;
+                        if (globExclude.Any(g => MatchGlob(rel, g))) continue;
+
+                        int fileHits = 0;
+                        foreach (var m in file.Matches)
+                        {
+                            if (flat.Count >= maxResults) { trunc = true; break; }
+                            if (fileHits >= maxPerFile)   { trunc = true; break; }
+                            flat.Add(new RepoBrowserGrepMatch
+                            {
+                                FilePath      = rel,
+                                LineNumber    = m.LineNumber,
+                                ColumnStart   = m.Column > 0 ? (int?)m.Column : null,
+                                LineText      = m.LineText,
+                                BeforeContext = m.ContextBefore ?? new List<string>(),
+                                AfterContext  = m.ContextAfter  ?? new List<string>(),
+                            });
+                            fileHits++;
+                        }
+                        if (flat.Count >= maxResults) break;
+                    }
+
+                    return ToResult(new RepoBrowserGrepResponse
+                    {
+                        RootPath   = _settings.RepositoryRoot,
+                        Query      = query,
+                        Mode       = mode,
+                        MatchCount = flat.Count,
+                        Truncated  = trunc,
+                        Items      = flat,
+                    });
+                });
+
+            // ── repo_browser.read_file ───────────────────────────────────────────
+            Add("repo_browser.read_file",
+                category: "repo_browser",
+                description: "Opens a specific file and returns its contents. " +
+                             "Use only when you already know the exact file path, or after locating it with " +
+                             "repo_browser.find_path, repo_browser.print_tree, or repo_browser.grep. " +
+                             "Specify start_line and end_line to read a partial range for large files.",
+                schema: Schema(
+                    Prop("file_path",           "string",  "Repository-relative file path.", required: true),
+                    Prop("start_line",          "integer", "First line to read, inclusive (1-based). Omit to read from the beginning."),
+                    Prop("end_line",            "integer", "Last line to read, inclusive (1-based). -1 = end of file.", def: -1),
+                    Prop("max_bytes",           "integer", "Maximum bytes to return for full-file reads (default 65536).", def: 65536),
+                    Prop("include_line_numbers","boolean", "Prepend line numbers to each output line (default true).", def: true)),
+                handler: async (args, ct) =>
+                {
+                    var filePath      = Str(args, "file_path");
+                    var startLine     = NullableInt(args, "start_line");
+                    var endLine       = NullableInt(args, "end_line");
+                    var maxBytes      = Int(args, "max_bytes", 65536);
+                    var lineNums      = Bool(args, "include_line_numbers", true);
+
+                    var resp = new RepoBrowserReadFileResponse
+                    {
+                        RootPath = _settings.RepositoryRoot,
+                        FilePath = filePath,
+                    };
+
+                    try
+                    {
+                        if (startLine.HasValue)
+                        {
+                            var r = await _files.ReadFileRangeAsync(new ReadFileRangeRequest
+                            {
+                                Path               = filePath,
+                                StartLine          = startLine.Value,
+                                EndLine            = endLine ?? -1,
+                                IncludeLineNumbers = lineNums,
+                            }, ct).ConfigureAwait(false);
+                            resp.Exists    = true;
+                            resp.StartLine = r.StartLine;
+                            resp.EndLine   = r.EndLine;
+                            resp.Content   = r.Content;
+                        }
+                        else
+                        {
+                            var r = await _files.ReadFileAsync(new ReadFileRequest
+                            {
+                                Path     = filePath,
+                                MaxBytes = maxBytes,
+                            }, ct).ConfigureAwait(false);
+                            resp.Exists    = true;
+                            resp.Encoding  = r.Encoding;
+                            resp.SizeBytes = r.SizeBytes;
+                            resp.Truncated = r.Truncated;
+                            resp.Content   = lineNums ? AddLineNumbers(r.Content) : r.Content;
+                        }
+                    }
+                    catch (Exception ex) when (
+                        ex.Message.Contains("not found",    StringComparison.OrdinalIgnoreCase) ||
+                        ex.Message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+                        ex.Message.Contains("outside the repository", StringComparison.OrdinalIgnoreCase))
+                    {
+                        resp.Exists  = false;
+                        resp.Content = string.Empty;
+                    }
+
+                    return ToResult(resp);
+                });
+
+            // ── repo_browser.find_path ───────────────────────────────────────────
+            Add("repo_browser.find_path",
+                category: "repo_browser",
+                description: "Locates a file or directory when you know its name or part of its path but not its exact location. " +
+                             "Use before repo_browser.read_file when the path is uncertain. " +
+                             "Supports name match, path fragment, prefix, and exact path modes.",
+                schema: Schema(
+                    Prop("query",         "string",  "File name, directory name, or partial path to search for.", required: true),
+                    Prop("match_mode",    "string",  "Matching mode: name (default), path_fragment, exact_path, prefix.",
+                         def: "name", enums: new[] { "name", "path_fragment", "exact_path", "prefix" }),
+                    Prop("target_kind",   "string",  "What to find: file, directory, or any (default).",
+                         def: "any",  enums: new[] { "file", "directory", "any" }),
+                    Prop("case_sensitive","boolean", "Case-sensitive matching (default false).", def: false),
+                    PropWithItems("glob_include", "Include only results whose paths match these glob patterns."),
+                    PropWithItems("glob_exclude", "Exclude results whose paths match these glob patterns."),
+                    Prop("max_results",   "integer", "Maximum results to return (default 50).", def: 50)),
+                handler: async (args, ct) =>
+                {
+                    var query       = Str(args, "query");
+                    var matchMode   = (Str(args, "match_mode", "name") ?? "name").ToLowerInvariant();
+                    var targetKind  = (Str(args, "target_kind", "any") ?? "any").ToLowerInvariant();
+                    var caseSens    = Bool(args, "case_sensitive", false);
+                    var globInclude = StrList(args, "glob_include");
+                    var globExclude = StrList(args, "glob_exclude");
+                    var maxResults  = Int(args, "max_results", 50);
+                    var cmp         = caseSens ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    var items       = new List<RepoBrowserPathMatch>();
+                    bool trunc      = false;
+
+                    // ── Files ────────────────────────────────────────────────────
+                    if (targetKind == "file" || targetKind == "any")
+                    {
+                        var fileResp = await _search.SearchFileNamesAsync(new SearchFileNamesRequest
+                        {
+                            Pattern       = matchMode == "name" ? query : "*",
+                            MaxResults    = maxResults * 3,
+                            IgnoreCase    = !caseSens,
+                            MatchFullPath = matchMode != "name",
+                        }, ct).ConfigureAwait(false);
+
+                        foreach (var m in fileResp.Matches)
+                        {
+                            if (items.Count >= maxResults) { trunc = true; break; }
+                            var rel  = m.RelativePath ?? "";
+                            var norm = rel.Replace('\\', '/');
+                            var qn   = query.Replace('\\', '/');
+
+                            string reason = matchMode switch
+                            {
+                                "name"          => "file name match",
+                                "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
+                                "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
+                                "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
+                                _               => null,
+                            };
+                            if (reason == null) continue;
+                            if (globInclude.Count > 0 && !globInclude.Any(g => MatchGlob(rel, g))) continue;
+                            if (globExclude.Any(g => MatchGlob(rel, g))) continue;
+
+                            items.Add(new RepoBrowserPathMatch
+                            {
+                                Path        = rel,
+                                Name        = m.Name,
+                                Kind        = "file",
+                                MatchReason = reason,
+                            });
+                        }
+                    }
+
+                    // ── Directories ──────────────────────────────────────────────
+                    if ((targetKind == "directory" || targetKind == "any") && items.Count < maxResults)
+                    {
+                        var treeResp = await _files.ListTreeAsync(new ListTreeRequest
+                        {
+                            Path            = "",
+                            MaxDepth        = 15,
+                            DirectoriesOnly = true,
+                        }, ct).ConfigureAwait(false);
+
+                        void WalkDirs(TreeNode node)
+                        {
+                            if (node == null || items.Count >= maxResults) return;
+                            if (node.Type == "directory" && !string.IsNullOrEmpty(node.RelativePath))
+                            {
+                                var rel  = node.RelativePath;
+                                var norm = rel.Replace('\\', '/');
+                                var qn   = query.Replace('\\', '/');
+
+                                string reason = matchMode switch
+                                {
+                                    "name"          => node.Name.Contains(query, cmp) ? "directory name match" : null,
+                                    "path_fragment" => norm.Contains(qn, cmp) ? "path fragment match" : null,
+                                    "exact_path"    => string.Equals(norm, qn, cmp) ? "exact path match" : null,
+                                    "prefix"        => norm.StartsWith(qn, cmp) ? "path prefix match" : null,
+                                    _               => null,
+                                };
+
+                                if (reason != null &&
+                                    !(globInclude.Count > 0 && !globInclude.Any(g => MatchGlob(rel, g))) &&
+                                    !globExclude.Any(g => MatchGlob(rel, g)))
+                                {
+                                    items.Add(new RepoBrowserPathMatch
+                                    {
+                                        Path        = rel,
+                                        Name        = node.Name,
+                                        Kind        = "directory",
+                                        MatchReason = reason,
+                                    });
+                                }
+                            }
+                            if (node.Children != null)
+                                foreach (var c in node.Children) WalkDirs(c);
+                        }
+
+                        WalkDirs(treeResp.Root);
+                        if (treeResp.Truncated) trunc = true;
+                    }
+
+                    var capped = items.Take(maxResults).ToList();
+                    return ToResult(new RepoBrowserFindPathResponse
+                    {
+                        RootPath    = _settings.RepositoryRoot,
+                        Query       = query,
+                        MatchMode   = matchMode,
+                        TargetKind  = targetKind,
+                        ResultCount = capped.Count,
+                        Truncated   = trunc,
+                        Items       = capped,
+                    });
+                });
+        }
+
         // ── Tool annotations ─────────────────────────────────────────────────────
 
         private void AnnotateAllTools()
@@ -2447,6 +2846,59 @@ namespace StewardessMCPService.Mcp
                 d.Tags = new[] { "health" };
                 d.OutputSchema = new { type = "object", properties = new { status = new { type = "string" }, service = new { type = "string" }, version = new { type = "string" }, languages = new { type = "array", items = new { type = "string" } }, tool_chains = new { type = "array", items = new { type = "string" } } } };
             });
+
+            // ── Repo browser ─────────────────────────────────────────────────────
+            Annotate("repo_browser.print_tree", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "repo_browser", "navigation", "filesystem" };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, relativePath = new { type = "string" }, maxDepth = new { type = "integer" }, entryCount = new { type = "integer" }, truncated = new { type = "boolean" }, items = new { type = "array" } } };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use to inspect repository or directory structure when the exact file is not yet known.",
+                    DoNotUseWhen = "Do not use when you already know the exact file path or need file contents.",
+                    TypicalNextTools = new[] { "repo_browser.find_path", "repo_browser.grep", "repo_browser.read_file" },
+                };
+            });
+
+            Annotate("repo_browser.grep", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "repo_browser", "search", "content" };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, query = new { type = "string" }, mode = new { type = "string" }, matchCount = new { type = "integer" }, truncated = new { type = "boolean" }, items = new { type = "array" } } };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use when you know what text, symbol, or pattern to search for but do not know which file contains it.",
+                    DoNotUseWhen = "Do not use when you need file contents for a known file path or only need directory structure.",
+                    TypicalNextTools = new[] { "repo_browser.read_file", "repo_browser.find_path", "repo_browser.print_tree" },
+                };
+            });
+
+            Annotate("repo_browser.read_file", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "repo_browser", "file", "content" };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, filePath = new { type = "string" }, exists = new { type = "boolean" }, encoding = new { type = "string" }, sizeBytes = new { type = "integer" }, truncated = new { type = "boolean" }, startLine = new { type = "integer" }, endLine = new { type = "integer" }, content = new { type = "string" } } };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use when you already know the exact file path and need to inspect its contents. Read partial ranges first for large files.",
+                    DoNotUseWhen = "Do not use when the file path is still uncertain — use repo_browser.find_path or repo_browser.grep first.",
+                    TypicalNextTools = new[] { "repo_browser.grep", "repo_browser.print_tree", "repo_browser.find_path" },
+                };
+            });
+
+            Annotate("repo_browser.find_path", d =>
+            {
+                d.SideEffectClass = "read-only"; d.RiskLevel = "low";
+                d.Tags = new[] { "repo_browser", "navigation", "filesystem" };
+                d.OutputSchema = new { type = "object", properties = new { rootPath = new { type = "string" }, query = new { type = "string" }, matchMode = new { type = "string" }, targetKind = new { type = "string" }, resultCount = new { type = "integer" }, truncated = new { type = "boolean" }, items = new { type = "array" } } };
+                d.UsageGuidance = new McpUsageGuidance
+                {
+                    UseWhen      = "Use when you know the file or directory name (or part of its path) but not its exact location in the repository.",
+                    DoNotUseWhen = "Do not use when you need to search file contents or already know the exact path.",
+                    TypicalNextTools = new[] { "repo_browser.read_file", "repo_browser.print_tree", "repo_browser.grep" },
+                };
+            });
         }
 
         // ── Registration helper ──────────────────────────────────────────────────
@@ -2629,6 +3081,54 @@ namespace StewardessMCPService.Mcp
         {
             if (_tools.TryGetValue(name, out var entry))
                 configure(entry.Definition);
+        }
+
+        // ── Glob and line-number helpers ─────────────────────────────────────────
+
+        /// <summary>
+        /// Returns true when the repository-relative <paramref name="path"/>
+        /// matches the glob <paramref name="pattern"/>.
+        /// Supports <c>*</c> (any segment characters) and <c>?</c> (single character).
+        /// Matching is case-insensitive.
+        /// </summary>
+        private static bool MatchGlob(string path, string pattern)
+        {
+            path    = path.Replace('\\', '/');
+            pattern = pattern.Replace('\\', '/');
+            return GlobMatch(path, pattern, 0, 0);
+        }
+
+        private static bool GlobMatch(string str, string pat, int si, int pi)
+        {
+            while (pi < pat.Length)
+            {
+                if (pat[pi] == '*')
+                {
+                    while (pi < pat.Length && pat[pi] == '*') pi++;
+                    if (pi == pat.Length) return true;
+                    for (int i = si; i <= str.Length; i++)
+                        if (GlobMatch(str, pat, i, pi)) return true;
+                    return false;
+                }
+                if (si >= str.Length) return false;
+                if (pat[pi] != '?' && char.ToLowerInvariant(pat[pi]) != char.ToLowerInvariant(str[si])) return false;
+                si++; pi++;
+            }
+            return si == str.Length;
+        }
+
+        /// <summary>Prepends "N: " line numbers to each line of <paramref name="content"/>.</summary>
+        private static string AddLineNumbers(string content)
+        {
+            if (string.IsNullOrEmpty(content)) return content;
+            var lines = content.Split('\n');
+            var sb = new System.Text.StringBuilder(content.Length + lines.Length * 6);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                sb.Append(i + 1).Append(": ").Append(lines[i]);
+                if (i < lines.Length - 1) sb.Append('\n');
+            }
+            return sb.ToString();
         }
 
         // ── Result factory ───────────────────────────────────────────────────────
