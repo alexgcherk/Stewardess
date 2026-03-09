@@ -139,7 +139,11 @@ builder.Services.AddSingleton<McpToolHandler>(sp =>
         sp.GetRequiredService<McpServiceSettings>().ServiceVersion ?? "2.0.0",
         sp.GetRequiredService<IMcpSessionManager>()));
 
-// ── 4. MVC / Controllers ──────────────────────────────────────────────────────
+// ── 4. Open WebUI tools generator ────────────────────────────────────────────
+// Registered as transient so it always reads the freshest ISwaggerProvider state.
+builder.Services.AddTransient<StewardessMCPService.Services.OpenWebUiToolsGenerator>();
+
+// ── 5. MVC / Controllers ──────────────────────────────────────────────────────
 builder.Services
     .AddControllers(o =>
     {

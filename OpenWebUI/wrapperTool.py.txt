@@ -1,0 +1,1863 @@
+"""
+title: Stewardess MCP Tools
+author: Alex Cherkasov
+version: 1.1.0
+required_open_webui_version: 0.5.0
+license:  Apache-2.0
+"""
+
+from __future__ import annotations
+
+import json
+import traceback
+from typing import Any, Dict, List, Optional
+
+import requests
+from pydantic import BaseModel, Field
+
+
+class Tools:
+    class Valves(BaseModel):
+        base_url: str = Field(
+            default="http://127.0.0.1:55703",
+            description="Base URL of the Stewardess MCP service.",
+        )
+        api_key: Optional[str] = Field(
+            default=none,
+            description="Optional X-API-Key header value.",
+        )
+        timeout_seconds: int = Field(
+            default=120,
+            description="HTTP timeout in seconds.",
+        )
+        verify_ssl: bool = Field(
+            default=True,
+            description="Verify TLS certificates.",
+        )
+
+    def __init__(self) -> None:
+        self.valves = self.Valves()
+
+    # ============================================================
+    # Internal helpers
+    # ============================================================
+
+    def _trim(self, value: Any, limit: int = 1024) -> str:
+        try:
+            if isinstance(value, (dict, list)):
+                text = json.dumps(value, ensure_ascii=False, default=str)
+            else:
+                text = str(value)
+        except Exception as ex:
+            text = f"<unserializable: {ex}>"
+
+        if len(text) > limit:
+            return text[:limit] + "... [truncated]"
+        return text
+
+    def _log(self, message: str) -> None:
+        print(message, flush=True)
+
+    def _log_exception(self, context: str, ex: Any) -> None:
+        self._log("=" * 80)
+        self._log(f"EXCEPTION: {context}")
+        self._log(f"TYPE: {type(ex).__name__}")
+        self._log(f"MESSAGE: {ex}")
+        self._log("STACK TRACE:")
+        self._log(traceback.format_exc().rstrip())
+
+    def _error_result(self, prefix: str, ex: Any) -> str:
+        return f"{prefix}: {type(ex).__name__}: {ex}"
+
+    def _safe_json_loads(self, raw: str, field_name: str) -> Any:
+        try:
+            return json.loads(raw)
+        except Exception as ex:
+            self._log_exception(f"Invalid JSON in field '{field_name}'", ex)
+            return {
+                "__error__": self._error_result(f"Invalid JSON in {field_name}", ex)
+            }
+
+    def _headers(self) -> Dict[str, str]:
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+        if self.valves.api_key:
+            headers["X-API-Key"] = self.valves.api_key
+        return headers
+
+    def _normalize_base_url(self) -> str:
+        return self.valves.base_url.rstrip("/")
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        try:
+            url = f"{self._normalize_base_url()}{path}"
+
+            safe_params = {k: v for k, v in (params or {}).items() if v is not None}
+            safe_payload = {k: v for k, v in (payload or {}).items() if v is not None}
+
+            self._log("=" * 80)
+            self._log(f"HTTP REQUEST: {method.upper()} {url}")
+            if safe_params:
+                self._log(f"REQUEST PARAMS (1KB): {self._trim(safe_params)}")
+            if safe_payload:
+                self._log(f"REQUEST BODY   (1KB): {self._trim(safe_payload)}")
+
+            response = requests.request(
+                method=method.upper(),
+                url=url,
+                headers=self._headers(),
+                params=safe_params if safe_params else None,
+                json=safe_payload if safe_payload else None,
+                timeout=self.valves.timeout_seconds,
+                verify=self.valves.verify_ssl,
+            )
+
+            content_type = response.headers.get("Content-Type", "")
+            try:
+                if "application/json" in content_type.lower():
+                    response_preview = response.json()
+                else:
+                    response_preview = response.text
+            except Exception:
+                response_preview = response.text
+
+            self._log(f"HTTP RESPONSE: {response.status_code} {response.reason}")
+            self._log(f"RESPONSE BODY (1KB): {self._trim(response_preview)}")
+
+            response.raise_for_status()
+
+            if "application/json" in content_type.lower():
+                try:
+                    return json.dumps(response.json(), indent=2, ensure_ascii=False)
+                except Exception as ex:
+                    self._log_exception("Failed to decode JSON response", ex)
+                    return response.text
+
+            return response.text
+
+        except requests.RequestException as ex:
+            self._log_exception(f"HTTP request failed for {method.upper()} {path}", ex)
+            return self._error_result("Request failed", ex)
+        except Exception as ex:
+            self._log_exception(f"Unexpected error during {method.upper()} {path}", ex)
+            return self._error_result("Unexpected error", ex)
+
+    def _check_json_error(self, value: Any) -> Optional[str]:
+        if isinstance(value, dict) and "__error__" in value:
+            return str(value["__error__"])
+        return None
+
+    # ============================================================
+    # Health / capabilities / MCP
+    # ============================================================
+
+    def get_capabilities(self) -> str:
+        """
+        Get service capabilities.
+        """
+        return self._request("GET", "/api/capabilities")
+
+    def get_tools(self) -> str:
+        """
+        Get the list of tools exposed by the service.
+        """
+        return self._request("GET", "/api/tools")
+
+    def get_health(self) -> str:
+        """
+        Get basic service health.
+        """
+        return self._request("GET", "/api/health")
+
+    def get_detailed_health(self) -> str:
+        """
+        Get detailed service health.
+        """
+        return self._request("GET", "/api/health/detailed")
+
+    def get_version(self) -> str:
+        """
+        Get service version information.
+        """
+        return self._request("GET", "/api/version")
+
+    def mcp_dispatch(
+        self,
+        request_body: str = Field(
+            ...,
+            description="Raw JSON string to send to /mcp/v1.",
+        ),
+    ) -> str:
+        """
+        Dispatch a raw MCP request to /mcp/v1.
+        """
+        payload = self._safe_json_loads(request_body, "request_body")
+        error = self._check_json_error(payload)
+        if error:
+            return error
+        return self._request("POST", "/mcp/v1", payload=payload)
+
+    def mcp_list_tools(self) -> str:
+        """
+        List MCP tools from /mcp/v1/tools.
+        """
+        return self._request("GET", "/mcp/v1/tools")
+
+    def mcp_get_manifest(self) -> str:
+        """
+        Get MCP manifest from /mcp/v1/manifest.
+        """
+        return self._request("GET", "/mcp/v1/manifest")
+
+    def mcp_stream_post(
+        self,
+        request_body: str = Field(
+            ...,
+            description="Raw JSON string to send to /mcp.",
+        ),
+    ) -> str:
+        """
+        Post a raw MCP streamable request to /mcp.
+        """
+        payload = self._safe_json_loads(request_body, "request_body")
+        error = self._check_json_error(payload)
+        if error:
+            return error
+        return self._request("POST", "/mcp", payload=payload)
+
+    def mcp_stream_get_notifications(self) -> str:
+        """
+        Get MCP streamable notifications from /mcp.
+        """
+        return self._request("GET", "/mcp")
+
+    def mcp_stream_delete(self) -> str:
+        """
+        Delete/close MCP streamable session on /mcp.
+        """
+        return self._request("DELETE", "/mcp")
+
+    # ============================================================
+    # CodeManagement endpoints
+    # ============================================================
+
+    def get_repository_info(self) -> str:
+        """
+        Get high-level information about the current repository.
+        """
+        return self._request("GET", "/repository/info")
+
+    def get_repository_tree(
+        self,
+        path: str = Field("", description="Base repository path to list from."),
+        depth: int = Field(4, description="Maximum traversal depth."),
+        include_globs: Optional[List[str]] = Field(
+            default=None,
+            description="Optional include glob patterns.",
+        ),
+        exclude_globs: Optional[List[str]] = Field(
+            default=None,
+            description="Optional exclude glob patterns.",
+        ),
+        respect_ignore: bool = Field(
+            True,
+            description="Respect ignore files when true.",
+        ),
+        include_files: bool = Field(
+            True,
+            description="Include files in results.",
+        ),
+        include_directories: bool = Field(
+            True,
+            description="Include directories in results.",
+        ),
+        max_entries: int = Field(
+            1000,
+            description="Maximum number of entries to return.",
+        ),
+    ) -> str:
+        """
+        Get repository tree from /repository/tree.
+        """
+        payload = {
+            "path": path,
+            "depth": depth,
+            "includeGlobs": include_globs,
+            "excludeGlobs": exclude_globs,
+            "respectIgnore": respect_ignore,
+            "includeFiles": include_files,
+            "includeDirectories": include_directories,
+            "maxEntries": max_entries,
+        }
+        return self._request("POST", "/repository/tree", payload=payload)
+
+    def search_files(
+        self,
+        query: str = Field(..., description="File search query."),
+        match_mode: Optional[str] = Field(
+            default=None,
+            description="Match mode such as exact/fuzzy if supported by server.",
+        ),
+        base_path: str = Field(
+            "",
+            description="Optional base path to search under.",
+        ),
+        extensions: Optional[List[str]] = Field(
+            default=None,
+            description="Optional file extensions filter.",
+        ),
+        languages: Optional[List[str]] = Field(
+            default=None,
+            description="Optional programming language filter.",
+        ),
+        exclude_globs: Optional[List[str]] = Field(
+            default=None,
+            description="Optional exclude glob patterns.",
+        ),
+        respect_ignore: bool = Field(
+            True,
+            description="Respect ignore files when true.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum results to return.",
+        ),
+        include_metadata: bool = Field(
+            True,
+            description="Include file metadata in response.",
+        ),
+    ) -> str:
+        """
+        Search files using /search/files.
+        """
+        payload = {
+            "query": query,
+            "matchMode": match_mode,
+            "basePath": base_path,
+            "extensions": extensions,
+            "languages": languages,
+            "excludeGlobs": exclude_globs,
+            "respectIgnore": respect_ignore,
+            "maxResults": max_results,
+            "includeMetadata": include_metadata,
+        }
+        return self._request("POST", "/search/files", payload=payload)
+
+    def search_text(
+        self,
+        pattern: str = Field(..., description="Text pattern to search for."),
+        is_regex: bool = Field(False, description="Interpret pattern as regex."),
+        case_sensitive: bool = Field(False, description="Case-sensitive search."),
+        whole_word: bool = Field(False, description="Whole-word matching."),
+        base_path: str = Field("", description="Optional base path."),
+        include_globs: Optional[List[str]] = Field(
+            default=None,
+            description="Optional include glob patterns.",
+        ),
+        exclude_globs: Optional[List[str]] = Field(
+            default=None,
+            description="Optional exclude glob patterns.",
+        ),
+        languages: Optional[List[str]] = Field(
+            default=None,
+            description="Optional language filter.",
+        ),
+        context_before: int = Field(2, description="Lines of context before match."),
+        context_after: int = Field(2, description="Lines of context after match."),
+        respect_ignore: bool = Field(True, description="Respect ignore files."),
+        max_results: int = Field(100, description="Maximum results to return."),
+    ) -> str:
+        """
+        Search text using /search/text.
+        """
+        payload = {
+            "pattern": pattern,
+            "isRegex": is_regex,
+            "caseSensitive": case_sensitive,
+            "wholeWord": whole_word,
+            "basePath": base_path,
+            "includeGlobs": include_globs,
+            "excludeGlobs": exclude_globs,
+            "languages": languages,
+            "contextBefore": context_before,
+            "contextAfter": context_after,
+            "respectIgnore": respect_ignore,
+            "maxResults": max_results,
+        }
+        return self._request("POST", "/search/text", payload=payload)
+
+    def read_file(
+        self,
+        path: str = Field(..., description="Repository-relative file path."),
+        ranges_json: Optional[str] = Field(
+            default=None,
+            description='Optional JSON array of ranges like [{"startLine":1,"endLine":20}].',
+        ),
+        include_line_numbers: bool = Field(
+            True,
+            description="Include line numbers in response.",
+        ),
+        normalize_newlines: bool = Field(
+            True,
+            description="Normalize newline characters.",
+        ),
+        max_bytes: int = Field(
+            65536,
+            description="Maximum bytes to read.",
+        ),
+    ) -> str:
+        """
+        Read a file using /files/read.
+        """
+        ranges = None
+        if ranges_json:
+            ranges = self._safe_json_loads(ranges_json, "ranges_json")
+            error = self._check_json_error(ranges)
+            if error:
+                return error
+
+        payload = {
+            "path": path,
+            "ranges": ranges,
+            "includeLineNumbers": include_line_numbers,
+            "normalizeNewlines": normalize_newlines,
+            "maxBytes": max_bytes,
+        }
+        return self._request("POST", "/files/read", payload=payload)
+
+    def read_files_batch(
+        self,
+        items_json: str = Field(
+            ...,
+            description='JSON array of batch read items like [{"path":"a.cs","ranges":[{"startLine":1,"endLine":20}],"maxBytes":4096}].',
+        ),
+        include_line_numbers: bool = Field(
+            True,
+            description="Include line numbers in response.",
+        ),
+        normalize_newlines: bool = Field(
+            True,
+            description="Normalize newline characters.",
+        ),
+    ) -> str:
+        """
+        Read multiple files using /files/read-batch.
+        """
+        items = self._safe_json_loads(items_json, "items_json")
+        error = self._check_json_error(items)
+        if error:
+            return error
+
+        payload = {
+            "items": items,
+            "includeLineNumbers": include_line_numbers,
+            "normalizeNewlines": normalize_newlines,
+        }
+        return self._request("POST", "/files/read-batch", payload=payload)
+
+    def write_file(
+        self,
+        path: str = Field(..., description="Repository-relative path to write."),
+        content: str = Field(..., description="Full file content."),
+        if_match_etag: Optional[str] = Field(
+            default=None,
+            description="Optional ETag concurrency guard.",
+        ),
+        create_mode: Optional[str] = Field(
+            default=None,
+            description="Optional create mode if supported by server.",
+        ),
+        encoding: Optional[str] = Field(
+            default=None,
+            description="Optional file encoding.",
+        ),
+        newline: Optional[str] = Field(
+            default=None,
+            description="Optional newline mode such as lf or crlf.",
+        ),
+        make_backup: bool = Field(
+            True,
+            description="Create a backup before writing.",
+        ),
+        dry_run: bool = Field(
+            False,
+            description="Preview changes only.",
+        ),
+        reason: Optional[str] = Field(
+            default=None,
+            description="Audit reason for the change.",
+        ),
+        idempotency_key: Optional[str] = Field(
+            default=None,
+            description="Optional idempotency key.",
+        ),
+    ) -> str:
+        """
+        Write a file using /files/write.
+        """
+        payload = {
+            "path": path,
+            "content": content,
+            "ifMatchEtag": if_match_etag,
+            "createMode": create_mode,
+            "encoding": encoding,
+            "newline": newline,
+            "makeBackup": make_backup,
+            "dryRun": dry_run,
+            "reason": reason,
+            "idempotencyKey": idempotency_key,
+        }
+        return self._request("POST", "/files/write", payload=payload)
+
+    def delete_file(
+        self,
+        path: str = Field(..., description="Repository-relative path to delete."),
+        recursive: bool = Field(False, description="Delete recursively."),
+        soft_delete: bool = Field(True, description="Use soft delete if supported."),
+        dry_run: bool = Field(False, description="Preview only."),
+        confirm: Optional[str] = Field(
+            default=None,
+            description="Optional confirm token/string required by server.",
+        ),
+        reason: Optional[str] = Field(
+            default=None,
+            description="Audit reason for deletion.",
+        ),
+    ) -> str:
+        """
+        Delete a file or directory using /files/delete.
+        """
+        payload = {
+            "path": path,
+            "recursive": recursive,
+            "softDelete": soft_delete,
+            "dryRun": dry_run,
+            "confirm": confirm,
+            "reason": reason,
+        }
+        return self._request("POST", "/files/delete", payload=payload)
+
+    def move_file(
+        self,
+        source_path: str = Field(..., description="Source path."),
+        destination_path: str = Field(..., description="Destination path."),
+        overwrite: bool = Field(False, description="Overwrite destination if exists."),
+        update_references: bool = Field(
+            False,
+            description="Update references if supported by server.",
+        ),
+        dry_run: bool = Field(False, description="Preview only."),
+        reason: Optional[str] = Field(
+            default=None,
+            description="Audit reason for move.",
+        ),
+    ) -> str:
+        """
+        Move or rename a file using /files/move.
+        """
+        payload = {
+            "sourcePath": source_path,
+            "destinationPath": destination_path,
+            "overwrite": overwrite,
+            "updateReferences": update_references,
+            "dryRun": dry_run,
+            "reason": reason,
+        }
+        return self._request("POST", "/files/move", payload=payload)
+
+    def apply_patch(
+        self,
+        edits_json: str = Field(
+            ...,
+            description='JSON array of patch edits. Example: [{"path":"a.cs","patchType":"searchReplace","search":"old","replace":"new","isRegex":false,"replaceAll":false}].',
+        ),
+        transaction_mode: Optional[str] = Field(
+            default=None,
+            description="Optional transaction mode.",
+        ),
+        validate_syntax: bool = Field(
+            True,
+            description="Validate syntax after patch if supported.",
+        ),
+        make_backup: bool = Field(
+            True,
+            description="Create a backup before patching.",
+        ),
+        dry_run: bool = Field(
+            False,
+            description="Preview patch only.",
+        ),
+        reason: Optional[str] = Field(
+            default=None,
+            description="Audit reason for patch.",
+        ),
+        idempotency_key: Optional[str] = Field(
+            default=None,
+            description="Optional idempotency key.",
+        ),
+    ) -> str:
+        """
+        Apply one or more edits using /edits/apply-patch.
+        """
+        edits = self._safe_json_loads(edits_json, "edits_json")
+        error = self._check_json_error(edits)
+        if error:
+            return error
+
+        payload = {
+            "edits": edits,
+            "transactionMode": transaction_mode,
+            "validateSyntax": validate_syntax,
+            "makeBackup": make_backup,
+            "dryRun": dry_run,
+            "reason": reason,
+            "idempotencyKey": idempotency_key,
+        }
+        return self._request("POST", "/edits/apply-patch", payload=payload)
+
+    def find_symbols(
+        self,
+        query: str = Field(..., description="Symbol search query."),
+        kind: Optional[str] = Field(
+            default=None,
+            description="Optional symbol kind filter.",
+        ),
+        language: Optional[str] = Field(
+            default=None,
+            description="Optional language filter.",
+        ),
+        namespace: Optional[str] = Field(
+            default=None,
+            description="Optional namespace filter.",
+        ),
+        path: Optional[str] = Field(
+            default=None,
+            description="Optional path filter.",
+        ),
+        fuzzy: bool = Field(True, description="Fuzzy matching."),
+        include_declarations: bool = Field(
+            True,
+            description="Include declarations.",
+        ),
+        include_definitions: bool = Field(
+            True,
+            description="Include definitions.",
+        ),
+        max_results: int = Field(100, description="Maximum results."),
+    ) -> str:
+        """
+        Find symbols using /index/symbols/find.
+        """
+        payload = {
+            "query": query,
+            "kind": kind,
+            "language": language,
+            "namespace": namespace,
+            "path": path,
+            "fuzzy": fuzzy,
+            "includeDeclarations": include_declarations,
+            "includeDefinitions": include_definitions,
+            "maxResults": max_results,
+        }
+        return self._request("POST", "/index/symbols/find", payload=payload)
+
+    def find_references(
+        self,
+        symbol_id: Optional[str] = Field(
+            default=None,
+            description="Optional symbol ID.",
+        ),
+        name: Optional[str] = Field(
+            default=None,
+            description="Optional symbol name if symbol ID is unknown.",
+        ),
+        path: Optional[str] = Field(
+            default=None,
+            description="Optional path filter.",
+        ),
+        include_definitions: bool = Field(
+            False,
+            description="Include definitions in results.",
+        ),
+        include_declarations: bool = Field(
+            False,
+            description="Include declarations in results.",
+        ),
+        max_results: int = Field(100, description="Maximum results."),
+    ) -> str:
+        """
+        Find symbol references using /index/references/find.
+        """
+        payload = {
+            "symbolId": symbol_id,
+            "name": name,
+            "path": path,
+            "includeDefinitions": include_definitions,
+            "includeDeclarations": include_declarations,
+            "maxResults": max_results,
+        }
+        return self._request("POST", "/index/references/find", payload=payload)
+
+    def get_dependencies(
+        self,
+        path: Optional[str] = Field(
+            default=None,
+            description="Optional file or folder path.",
+        ),
+        symbol_id: Optional[str] = Field(
+            default=None,
+            description="Optional symbol ID.",
+        ),
+        direction: Optional[str] = Field(
+            default=None,
+            description="Dependency direction, if supported.",
+        ),
+        depth: int = Field(1, description="Traversal depth."),
+        include_transitive: bool = Field(
+            True,
+            description="Include transitive dependencies.",
+        ),
+        include_external: bool = Field(
+            False,
+            description="Include external dependencies.",
+        ),
+    ) -> str:
+        """
+        Get dependency information using /index/dependencies.
+        """
+        payload = {
+            "path": path,
+            "symbolId": symbol_id,
+            "direction": direction,
+            "depth": depth,
+            "includeTransitive": include_transitive,
+            "includeExternal": include_external,
+        }
+        return self._request("POST", "/index/dependencies", payload=payload)
+
+    def get_call_graph(
+        self,
+        symbol_id: Optional[str] = Field(
+            default=None,
+            description="Optional symbol ID.",
+        ),
+        name: Optional[str] = Field(
+            default=None,
+            description="Optional symbol name.",
+        ),
+        path: Optional[str] = Field(
+            default=None,
+            description="Optional path filter.",
+        ),
+        direction: Optional[str] = Field(
+            default=None,
+            description="Call graph direction.",
+        ),
+        depth: int = Field(1, description="Traversal depth."),
+        max_nodes: int = Field(100, description="Maximum nodes."),
+    ) -> str:
+        """
+        Get call graph using /index/call-graph.
+        """
+        payload = {
+            "symbolId": symbol_id,
+            "name": name,
+            "path": path,
+            "direction": direction,
+            "depth": depth,
+            "maxNodes": max_nodes,
+        }
+        return self._request("POST", "/index/call-graph", payload=payload)
+
+    def build_workspace(
+        self,
+        target: Optional[str] = Field(default=None, description="Build target."),
+        configuration: Optional[str] = Field(
+            default=None,
+            description="Build configuration.",
+        ),
+        framework: Optional[str] = Field(
+            default=None,
+            description="Target framework.",
+        ),
+        runtime: Optional[str] = Field(
+            default=None,
+            description="Target runtime.",
+        ),
+        no_restore: bool = Field(
+            False,
+            description="Skip restore when true.",
+        ),
+        timeout_seconds: int = Field(
+            600,
+            description="Build timeout in seconds.",
+        ),
+        env_json: Optional[str] = Field(
+            default=None,
+            description='Optional JSON object of environment variables, e.g. {"ASPNETCORE_ENVIRONMENT":"Development"}.',
+        ),
+    ) -> str:
+        """
+        Build workspace using /validation/build.
+        """
+        env = None
+        if env_json:
+            env = self._safe_json_loads(env_json, "env_json")
+            error = self._check_json_error(env)
+            if error:
+                return error
+
+        payload = {
+            "target": target,
+            "configuration": configuration,
+            "framework": framework,
+            "runtime": runtime,
+            "noRestore": no_restore,
+            "timeoutSeconds": timeout_seconds,
+            "env": env,
+        }
+        return self._request("POST", "/validation/build", payload=payload)
+
+    def format_files(
+        self,
+        paths_json: Optional[str] = Field(
+            default=None,
+            description='Optional JSON array of file paths, e.g. ["a.cs","b.cs"].',
+        ),
+        language: Optional[str] = Field(
+            default=None,
+            description="Optional language filter.",
+        ),
+        fix: bool = Field(
+            True,
+            description="Apply fixes if supported.",
+        ),
+        dry_run: bool = Field(
+            False,
+            description="Preview formatting only.",
+        ),
+        tool: Optional[str] = Field(
+            default=None,
+            description="Specific formatter tool if supported.",
+        ),
+        target: Optional[str] = Field(
+            default=None,
+            description="Optional target/project.",
+        ),
+        timeout_seconds: int = Field(
+            300,
+            description="Format timeout in seconds.",
+        ),
+    ) -> str:
+        """
+        Format files using /validation/format.
+        """
+        paths = None
+        if paths_json:
+            paths = self._safe_json_loads(paths_json, "paths_json")
+            error = self._check_json_error(paths)
+            if error:
+                return error
+
+        payload = {
+            "paths": paths,
+            "language": language,
+            "fix": fix,
+            "dryRun": dry_run,
+            "tool": tool,
+            "target": target,
+            "timeoutSeconds": timeout_seconds,
+        }
+        return self._request("POST", "/validation/format", payload=payload)
+
+    def run_validation_tests(
+        self,
+        target: Optional[str] = Field(default=None, description="Test target."),
+        filter: Optional[str] = Field(
+            default=None,
+            description="Optional test filter.",
+        ),
+        collect_coverage: bool = Field(
+            False,
+            description="Collect coverage if supported.",
+        ),
+        timeout_seconds: int = Field(
+            600,
+            description="Test timeout in seconds.",
+        ),
+        env_json: Optional[str] = Field(
+            default=None,
+            description="Optional JSON object of environment variables.",
+        ),
+    ) -> str:
+        """
+        Run tests using /validation/test.
+        """
+        env = None
+        if env_json:
+            env = self._safe_json_loads(env_json, "env_json")
+            error = self._check_json_error(env)
+            if error:
+                return error
+
+        payload = {
+            "target": target,
+            "filter": filter,
+            "collectCoverage": collect_coverage,
+            "timeoutSeconds": timeout_seconds,
+            "env": env,
+        }
+        return self._request("POST", "/validation/test", payload=payload)
+
+    def get_changes(
+        self,
+        base_ref: Optional[str] = Field(
+            default=None,
+            description="Base git ref/sha for comparison.",
+        ),
+        include_patch: bool = Field(
+            False,
+            description="Include patch content.",
+        ),
+        include_untracked: bool = Field(
+            True,
+            description="Include untracked files.",
+        ),
+        max_files: int = Field(
+            200,
+            description="Maximum changed files to return.",
+        ),
+    ) -> str:
+        """
+        Get repository changes using /history/changes.
+        """
+        payload = {
+            "baseRef": base_ref,
+            "includePatch": include_patch,
+            "includeUntracked": include_untracked,
+            "maxFiles": max_files,
+        }
+        return self._request("POST", "/history/changes", payload=payload)
+
+    # ============================================================
+    # Command endpoints
+    # ============================================================
+
+    def get_allowed_commands(self) -> str:
+        """
+        Get allowed command list from /api/command/allowed.
+        """
+        return self._request("GET", "/api/command/allowed")
+
+    def run_build_command(
+        self,
+        working_directory: Optional[str] = Field(
+            default=None,
+            description="Working directory.",
+        ),
+        build_command: Optional[str] = Field(
+            default=None,
+            description="Build executable or command.",
+        ),
+        arguments: Optional[str] = Field(
+            default=None,
+            description="Build arguments string.",
+        ),
+        configuration: Optional[str] = Field(
+            default=None,
+            description="Build configuration.",
+        ),
+        timeout_seconds: Optional[int] = Field(
+            default=None,
+            description="Timeout in seconds.",
+        ),
+    ) -> str:
+        """
+        Run a build command using /api/command/build.
+        """
+        payload = {
+            "workingDirectory": working_directory,
+            "buildCommand": build_command,
+            "arguments": arguments,
+            "configuration": configuration,
+            "timeoutSeconds": timeout_seconds,
+        }
+        return self._request("POST", "/api/command/build", payload=payload)
+
+    def run_test_command(
+        self,
+        working_directory: Optional[str] = Field(
+            default=None,
+            description="Working directory.",
+        ),
+        test_command: Optional[str] = Field(
+            default=None,
+            description="Test executable or command.",
+        ),
+        arguments: Optional[str] = Field(
+            default=None,
+            description="Test arguments string.",
+        ),
+        filter: Optional[str] = Field(
+            default=None,
+            description="Optional test filter.",
+        ),
+        configuration: Optional[str] = Field(
+            default=None,
+            description="Test configuration.",
+        ),
+        timeout_seconds: Optional[int] = Field(
+            default=None,
+            description="Timeout in seconds.",
+        ),
+    ) -> str:
+        """
+        Run test command using /api/command/test.
+        """
+        payload = {
+            "workingDirectory": working_directory,
+            "testCommand": test_command,
+            "arguments": arguments,
+            "filter": filter,
+            "configuration": configuration,
+            "timeoutSeconds": timeout_seconds,
+        }
+        return self._request("POST", "/api/command/test", payload=payload)
+
+    def run_custom_command(
+        self,
+        command: str = Field(..., description="Command to execute."),
+        working_directory: Optional[str] = Field(
+            default=None,
+            description="Working directory.",
+        ),
+        timeout_seconds: Optional[int] = Field(
+            default=None,
+            description="Timeout in seconds.",
+        ),
+    ) -> str:
+        """
+        Run a custom command using /api/command/run.
+        """
+        payload = {
+            "command": command,
+            "workingDirectory": working_directory,
+            "timeoutSeconds": timeout_seconds,
+        }
+        return self._request("POST", "/api/command/run", payload=payload)
+
+    # ============================================================
+    # RepoBrowser endpoints
+    # ============================================================
+
+    def repo_browser_tree(
+        self,
+        relative_path: str = Field(
+            "",
+            description="Relative path within repository.",
+        ),
+        max_depth: int = Field(
+            4,
+            description="Maximum depth.",
+        ),
+        include_files: bool = Field(
+            True,
+            description="Include files.",
+        ),
+        include_directories: bool = Field(
+            True,
+            description="Include directories.",
+        ),
+        max_entries: int = Field(
+            1000,
+            description="Maximum number of entries.",
+        ),
+        show_hidden: bool = Field(
+            False,
+            description="Show hidden files and folders.",
+        ),
+    ) -> str:
+        """
+        Print repository tree using /api/repo-browser/tree.
+        """
+        params = {
+            "relativePath": relative_path,
+            "maxDepth": max_depth,
+            "includeFiles": include_files,
+            "includeDirectories": include_directories,
+            "maxEntries": max_entries,
+            "showHidden": show_hidden,
+        }
+        return self._request("GET", "/api/repo-browser/tree", params=params)
+
+    def repo_browser_grep(
+        self,
+        query: str = Field(..., description="Text to grep for."),
+        mode: Optional[str] = Field(
+            default=None,
+            description="Optional grep mode.",
+        ),
+        path_prefix: Optional[str] = Field(
+            default=None,
+            description="Optional path prefix.",
+        ),
+        case_sensitive: bool = Field(
+            False,
+            description="Case-sensitive search.",
+        ),
+        max_results: int = Field(
+            50,
+            description="Maximum result count.",
+        ),
+        max_matches_per_file: int = Field(
+            20,
+            description="Maximum matches per file.",
+        ),
+        context_lines: int = Field(
+            2,
+            description="Context lines around matches.",
+        ),
+    ) -> str:
+        """
+        Grep repository content using /api/repo-browser/grep.
+        """
+        payload = {
+            "query": query,
+            "mode": mode,
+            "pathPrefix": path_prefix,
+            "caseSensitive": case_sensitive,
+            "maxResults": max_results,
+            "maxMatchesPerFile": max_matches_per_file,
+            "contextLines": context_lines,
+        }
+        return self._request("POST", "/api/repo-browser/grep", payload=payload)
+
+    def repo_browser_read_file(
+        self,
+        file_path: str = Field(..., description="File path to read."),
+        start_line: Optional[int] = Field(
+            default=None,
+            description="Optional start line.",
+        ),
+        end_line: Optional[int] = Field(
+            default=None,
+            description="Optional end line.",
+        ),
+        max_bytes: int = Field(
+            65536,
+            description="Maximum bytes to read.",
+        ),
+        include_line_numbers: bool = Field(
+            True,
+            description="Include line numbers.",
+        ),
+    ) -> str:
+        """
+        Read repository file using /api/repo-browser/file.
+        """
+        params = {
+            "filePath": file_path,
+            "startLine": start_line,
+            "endLine": end_line,
+            "maxBytes": max_bytes,
+            "includeLineNumbers": include_line_numbers,
+        }
+        return self._request("GET", "/api/repo-browser/file", params=params)
+
+    def repo_browser_find_path(
+        self,
+        query: str = Field(..., description="Path query."),
+        match_mode: Optional[str] = Field(
+            default=None,
+            description="Optional match mode.",
+        ),
+        target_kind: Optional[str] = Field(
+            default=None,
+            description="Optional target kind such as file or directory.",
+        ),
+        case_sensitive: bool = Field(
+            False,
+            description="Case-sensitive matching.",
+        ),
+        max_results: int = Field(
+            50,
+            description="Maximum results.",
+        ),
+    ) -> str:
+        """
+        Find repository paths using /api/repo-browser/find.
+        """
+        payload = {
+            "query": query,
+            "matchMode": match_mode,
+            "targetKind": target_kind,
+            "caseSensitive": case_sensitive,
+            "maxResults": max_results,
+        }
+        return self._request("POST", "/api/repo-browser/find", payload=payload)
+
+    def repo_browser_search(
+        self,
+        query: str = Field(..., description="Search query."),
+        path_prefix: str = Field(
+            "",
+            description="Optional path prefix.",
+        ),
+        case_sensitive: bool = Field(
+            False,
+            description="Case-sensitive matching.",
+        ),
+        max_results: int = Field(
+            50,
+            description="Maximum results.",
+        ),
+    ) -> str:
+        """
+        Search repository using /api/repo-browser/search.
+        """
+        params = {
+            "query": query,
+            "pathPrefix": path_prefix,
+            "caseSensitive": case_sensitive,
+            "maxResults": max_results,
+        }
+        return self._request("GET", "/api/repo-browser/search", params=params)
+
+    # ============================================================
+    # Search endpoints
+    # ============================================================
+
+    def search_text_get(
+        self,
+        q: str = Field(..., description="Search text."),
+        path: str = Field(
+            "",
+            description="Optional path prefix.",
+        ),
+        ignore_case: bool = Field(
+            True,
+            description="Ignore case.",
+        ),
+        whole_word: bool = Field(
+            False,
+            description="Whole-word search.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+        context_before: int = Field(
+            2,
+            description="Context lines before.",
+        ),
+        context_after: int = Field(
+            2,
+            description="Context lines after.",
+        ),
+    ) -> str:
+        """
+        Search text using GET /api/search/text.
+        """
+        params = {
+            "q": q,
+            "path": path,
+            "ignoreCase": ignore_case,
+            "wholeWord": whole_word,
+            "maxResults": max_results,
+            "contextBefore": context_before,
+            "contextAfter": context_after,
+        }
+        return self._request("GET", "/api/search/text", params=params)
+
+    def search_text_post(
+        self,
+        query: str = Field(..., description="Search text."),
+        search_path: Optional[str] = Field(
+            default=None,
+            description="Optional search path.",
+        ),
+        extensions: Optional[List[str]] = Field(
+            default=None,
+            description="Optional file extensions.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+        sort_by_path: bool = Field(
+            True,
+            description="Sort results by path.",
+        ),
+        context_lines_before: int = Field(
+            2,
+            description="Context lines before match.",
+        ),
+        context_lines_after: int = Field(
+            2,
+            description="Context lines after match.",
+        ),
+        ignore_case: bool = Field(
+            True,
+            description="Ignore case.",
+        ),
+        whole_word: bool = Field(
+            False,
+            description="Whole-word search.",
+        ),
+    ) -> str:
+        """
+        Search text using POST /api/search/text.
+        """
+        payload = {
+            "searchPath": search_path,
+            "extensions": extensions,
+            "maxResults": max_results,
+            "sortByPath": sort_by_path,
+            "contextLinesBefore": context_lines_before,
+            "contextLinesAfter": context_lines_after,
+            "query": query,
+            "ignoreCase": ignore_case,
+            "wholeWord": whole_word,
+        }
+        return self._request("POST", "/api/search/text", payload=payload)
+
+    def search_regex(
+        self,
+        pattern: str = Field(..., description="Regex pattern."),
+        search_path: Optional[str] = Field(
+            default=None,
+            description="Optional search path.",
+        ),
+        extensions: Optional[List[str]] = Field(
+            default=None,
+            description="Optional extensions.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+        sort_by_path: bool = Field(
+            True,
+            description="Sort results by path.",
+        ),
+        context_lines_before: int = Field(
+            2,
+            description="Context lines before match.",
+        ),
+        context_lines_after: int = Field(
+            2,
+            description="Context lines after match.",
+        ),
+        ignore_case: bool = Field(
+            True,
+            description="Ignore case.",
+        ),
+        multiline: bool = Field(
+            False,
+            description="Regex multiline mode.",
+        ),
+    ) -> str:
+        """
+        Search by regex using /api/search/regex.
+        """
+        payload = {
+            "searchPath": search_path,
+            "extensions": extensions,
+            "maxResults": max_results,
+            "sortByPath": sort_by_path,
+            "contextLinesBefore": context_lines_before,
+            "contextLinesAfter": context_lines_after,
+            "pattern": pattern,
+            "ignoreCase": ignore_case,
+            "multiline": multiline,
+        }
+        return self._request("POST", "/api/search/regex", payload=payload)
+
+    def search_files_get(
+        self,
+        q: str = Field(..., description="File search query."),
+        path: str = Field(
+            "",
+            description="Optional path prefix.",
+        ),
+        ignore_case: bool = Field(
+            True,
+            description="Ignore case.",
+        ),
+        full_path: bool = Field(
+            False,
+            description="Match against full path.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+    ) -> str:
+        """
+        Search files using GET /api/search/files.
+        """
+        params = {
+            "q": q,
+            "path": path,
+            "ignoreCase": ignore_case,
+            "fullPath": full_path,
+            "maxResults": max_results,
+        }
+        return self._request("GET", "/api/search/files", params=params)
+
+    def search_by_extension(
+        self,
+        extensions: List[str] = Field(
+            ...,
+            description="List of extensions to search for, e.g. ['.cs','.sql']",
+        ),
+        search_path: Optional[str] = Field(
+            default=None,
+            description="Optional search path.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+    ) -> str:
+        """
+        Search by extension using /api/search/extension.
+        """
+        payload = {
+            "extensions": extensions,
+            "searchPath": search_path,
+            "maxResults": max_results,
+        }
+        return self._request("POST", "/api/search/extension", payload=payload)
+
+    def search_symbol(
+        self,
+        symbol_name: str = Field(..., description="Symbol name to search for."),
+        search_path: Optional[str] = Field(
+            default=None,
+            description="Optional search path.",
+        ),
+        extensions: Optional[List[str]] = Field(
+            default=None,
+            description="Optional file extensions.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+        sort_by_path: bool = Field(
+            True,
+            description="Sort results by path.",
+        ),
+        context_lines_before: int = Field(
+            2,
+            description="Context lines before match.",
+        ),
+        context_lines_after: int = Field(
+            2,
+            description="Context lines after match.",
+        ),
+        symbol_kind: Optional[str] = Field(
+            default=None,
+            description="Optional symbol kind.",
+        ),
+        ignore_case: bool = Field(
+            True,
+            description="Ignore case.",
+        ),
+    ) -> str:
+        """
+        Search symbols using /api/search/symbol.
+        """
+        payload = {
+            "searchPath": search_path,
+            "extensions": extensions,
+            "maxResults": max_results,
+            "sortByPath": sort_by_path,
+            "contextLinesBefore": context_lines_before,
+            "contextLinesAfter": context_lines_after,
+            "symbolName": symbol_name,
+            "symbolKind": symbol_kind,
+            "ignoreCase": ignore_case,
+        }
+        return self._request("POST", "/api/search/symbol", payload=payload)
+
+    def search_references(
+        self,
+        identifier_name: str = Field(..., description="Identifier name."),
+        search_path: Optional[str] = Field(
+            default=None,
+            description="Optional search path.",
+        ),
+        extensions: Optional[List[str]] = Field(
+            default=None,
+            description="Optional file extensions.",
+        ),
+        max_results: int = Field(
+            100,
+            description="Maximum result count.",
+        ),
+        sort_by_path: bool = Field(
+            True,
+            description="Sort results by path.",
+        ),
+        context_lines_before: int = Field(
+            2,
+            description="Context lines before match.",
+        ),
+        context_lines_after: int = Field(
+            2,
+            description="Context lines after match.",
+        ),
+        ignore_case: bool = Field(
+            True,
+            description="Ignore case.",
+        ),
+    ) -> str:
+        """
+        Find references using /api/search/references.
+        """
+        payload = {
+            "searchPath": search_path,
+            "extensions": extensions,
+            "maxResults": max_results,
+            "sortByPath": sort_by_path,
+            "contextLinesBefore": context_lines_before,
+            "contextLinesAfter": context_lines_after,
+            "identifierName": identifier_name,
+            "ignoreCase": ignore_case,
+        }
+        return self._request("POST", "/api/search/references", payload=payload)
+
+    # ============================================================
+    # Repositories endpoints
+    # ============================================================
+
+    def list_repositories(self) -> str:
+        """
+        List repositories using /repositories.
+        """
+        return self._request("GET", "/repositories")
+
+    def create_repository(
+        self,
+        name: str = Field(..., description="Repository name."),
+        description: Optional[str] = Field(
+            default=None,
+            description="Repository description.",
+        ),
+        private: bool = Field(
+            True,
+            description="Create as private repository.",
+        ),
+    ) -> str:
+        """
+        Create a repository using /repositories.
+        """
+        payload = {
+            "name": name,
+            "description": description,
+            "private": private,
+        }
+        return self._request("POST", "/repositories", payload=payload)
+
+    def get_repository(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+    ) -> str:
+        """
+        Get repository details using /repositories/{repoId}.
+        """
+        return self._request("GET", f"/repositories/{repo_id}")
+
+    def delete_repository(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+    ) -> str:
+        """
+        Delete a repository using /repositories/{repoId}.
+        """
+        return self._request("DELETE", f"/repositories/{repo_id}")
+
+    def list_branches(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+    ) -> str:
+        """
+        List repository branches.
+        """
+        return self._request("GET", f"/repositories/{repo_id}/branches")
+
+    def create_branch(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        name: str = Field(..., description="New branch name."),
+        source_branch: Optional[str] = Field(
+            default=None,
+            description="Source branch name.",
+        ),
+    ) -> str:
+        """
+        Create a branch.
+        """
+        payload = {
+            "name": name,
+            "sourceBranch": source_branch,
+        }
+        return self._request(
+            "POST", f"/repositories/{repo_id}/branches", payload=payload
+        )
+
+    def find_files_in_repository(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        path: Optional[str] = Field(
+            default=None,
+            description="Optional path prefix.",
+        ),
+        pattern: Optional[str] = Field(
+            default=None,
+            description="Optional file pattern.",
+        ),
+        recursive: bool = Field(
+            True,
+            description="Search recursively.",
+        ),
+        include_hidden: bool = Field(
+            False,
+            description="Include hidden files.",
+        ),
+    ) -> str:
+        """
+        Find files within a repository.
+        """
+        payload = {
+            "path": path,
+            "pattern": pattern,
+            "recursive": recursive,
+            "includeHidden": include_hidden,
+        }
+        return self._request(
+            "POST", f"/repositories/{repo_id}/files/find", payload=payload
+        )
+
+    def get_repository_file(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        file_path: str = Field(..., description="Repository file path."),
+    ) -> str:
+        """
+        Get a repository file.
+        """
+        return self._request("GET", f"/repositories/{repo_id}/files/{file_path}")
+
+    def update_repository_file(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        file_path: str = Field(..., description="Repository file path."),
+        content: str = Field(..., description="Full file content."),
+        encoding: Optional[str] = Field(
+            default=None,
+            description="Optional file encoding.",
+        ),
+        mode: Optional[str] = Field(
+            default=None,
+            description="Optional file mode.",
+        ),
+    ) -> str:
+        """
+        Update a repository file.
+        """
+        payload = {
+            "path": file_path,
+            "content": content,
+            "encoding": encoding,
+            "mode": mode,
+        }
+        return self._request(
+            "PUT", f"/repositories/{repo_id}/files/{file_path}", payload=payload
+        )
+
+    def delete_repository_file(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        file_path: str = Field(..., description="Repository file path."),
+    ) -> str:
+        """
+        Delete a repository file.
+        """
+        return self._request("DELETE", f"/repositories/{repo_id}/files/{file_path}")
+
+    def diff_between_commits(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        base_sha: str = Field(..., description="Base commit SHA."),
+        target_sha: str = Field(..., description="Target commit SHA."),
+    ) -> str:
+        """
+        Diff between two commits.
+        """
+        payload = {
+            "baseSha": base_sha,
+            "targetSha": target_sha,
+        }
+        return self._request("POST", f"/repositories/{repo_id}/diff", payload=payload)
+
+    def create_commit(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        message: str = Field(..., description="Commit message."),
+        changes_json: Optional[str] = Field(
+            default=None,
+            description="Optional JSON array of file changes.",
+        ),
+        parents_json: Optional[str] = Field(
+            default=None,
+            description="Optional JSON array of parent commit SHAs.",
+        ),
+        author_id: Optional[str] = Field(default=None, description="Author ID."),
+        author_username: Optional[str] = Field(
+            default=None, description="Author username."
+        ),
+        author_email: Optional[str] = Field(default=None, description="Author email."),
+    ) -> str:
+        """
+        Create a commit in a repository.
+        """
+        changes = None
+        parents = None
+
+        if changes_json:
+            changes = self._safe_json_loads(changes_json, "changes_json")
+            error = self._check_json_error(changes)
+            if error:
+                return error
+
+        if parents_json:
+            parents = self._safe_json_loads(parents_json, "parents_json")
+            error = self._check_json_error(parents)
+            if error:
+                return error
+
+        payload = {
+            "message": message,
+            "author": {
+                "id": author_id,
+                "username": author_username,
+                "email": author_email,
+            },
+            "changes": changes,
+            "parents": parents,
+        }
+        return self._request(
+            "POST", f"/repositories/{repo_id}/commits", payload=payload
+        )
+
+    def merge_branches(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        source_branch: str = Field(..., description="Source branch."),
+        target_branch: str = Field(..., description="Target branch."),
+        strategy: Optional[str] = Field(
+            default=None,
+            description="Optional merge strategy.",
+        ),
+    ) -> str:
+        """
+        Merge branches in a repository.
+        """
+        payload = {
+            "sourceBranch": source_branch,
+            "targetBranch": target_branch,
+            "strategy": strategy,
+        }
+        return self._request("POST", f"/repositories/{repo_id}/merge", payload=payload)
+
+    def list_pull_requests(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+    ) -> str:
+        """
+        List pull requests.
+        """
+        return self._request("GET", f"/repositories/{repo_id}/pulls")
+
+    def create_pull_request(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        source_branch: str = Field(..., description="Source branch."),
+        target_branch: str = Field(..., description="Target branch."),
+        title: str = Field(..., description="Pull request title."),
+        body: Optional[str] = Field(
+            default=None,
+            description="Pull request body.",
+        ),
+    ) -> str:
+        """
+        Create a pull request.
+        """
+        payload = {
+            "sourceBranch": source_branch,
+            "targetBranch": target_branch,
+            "title": title,
+            "body": body,
+        }
+        return self._request("POST", f"/repositories/{repo_id}/pulls", payload=payload)
+
+    def get_pull_request(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        pr_id: str = Field(..., description="Pull request ID."),
+    ) -> str:
+        """
+        Get a pull request.
+        """
+        return self._request("GET", f"/repositories/{repo_id}/pulls/{pr_id}")
+
+    def update_pull_request(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+        pr_id: str = Field(..., description="Pull request ID."),
+        patch_json: str = Field(
+            ...,
+            description="Raw JSON object string to PATCH the pull request.",
+        ),
+    ) -> str:
+        """
+        Update a pull request.
+        """
+        payload = self._safe_json_loads(patch_json, "patch_json")
+        error = self._check_json_error(payload)
+        if error:
+            return error
+
+        return self._request(
+            "PATCH", f"/repositories/{repo_id}/pulls/{pr_id}", payload=payload
+        )
+
+    def push_repository(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+    ) -> str:
+        """
+        Push repository changes.
+        """
+        return self._request("POST", f"/repositories/{repo_id}/push")
+
+    def pull_repository(
+        self,
+        repo_id: str = Field(..., description="Repository ID."),
+    ) -> str:
+        """
+        Pull repository changes.
+        """
+        return self._request("POST", f"/repositories/{repo_id}/pull")
