@@ -1,72 +1,61 @@
 {
-  "openapi": "3.0.3",
+  "openapi": "3.0.1",
   "info": {
-    "title": "Stewardess MCP Service",
-    "description": "Local source-code repository tools for AI agents. Provides file reading, search, editing, git, and command execution.",
+    "title": "StewardessMCPService — Local Repository MCP API",
+    "description": "MCP-compatible HTTP API that exposes a local source-code repository to AI agents.",
     "version": "v1"
   },
-  "servers": [
-    {
-      "url": "http://office:55702"
-    }
-  ],
   "paths": {
     "/api/capabilities": {
       "get": {
-        "operationId": "Capabilities_GetCapabilities",
-        "summary": "Returns the full capability manifest including all tool schemas.",
-        "description": "Returns the full capability manifest including all tool schemas.",
         "tags": [
           "Capabilities"
         ],
+        "operationId": "Capabilities_GetCapabilities",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/command/allowed": {
       "get": {
-        "operationId": "Command_GetAllowedCommands",
-        "summary": "Lists the commands that are currently permitted by configuration.",
-        "description": "Lists the commands that are currently permitted by configuration.",
         "tags": [
           "Command"
         ],
+        "operationId": "Command_GetAllowedCommands",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/command/build": {
       "post": {
-        "operationId": "Command_RunBuild",
-        "summary": "Runs the configured build command (e.g. dotnet build or msbuild).",
-        "description": "Runs the configured build command (e.g. dotnet build or msbuild).",
         "tags": [
           "Command"
         ],
+        "operationId": "Command_RunBuild",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBuildRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBuildRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunBuildRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/RunBuildRequest"
               }
@@ -75,30 +64,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/command/test": {
       "post": {
-        "operationId": "Command_RunTests",
-        "summary": "Runs the configured test command (e.g. dotnet test).",
-        "description": "Runs the configured test command (e.g. dotnet test).",
         "tags": [
           "Command"
         ],
+        "operationId": "Command_RunTests",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTestsRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTestsRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunTestsRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/RunTestsRequest"
               }
@@ -107,30 +101,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/command/run": {
       "post": {
-        "operationId": "Command_RunCustomCommand",
-        "summary": "Runs a custom command that must appear in the AllowedCommands whitelist.",
-        "description": "Runs a custom command that must appear in the AllowedCommands whitelist.",
         "tags": [
           "Command"
         ],
+        "operationId": "Command_RunCustomCommand",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCustomCommandRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCustomCommandRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCustomCommandRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/RunCustomCommandRequest"
               }
@@ -139,30 +138,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/write": {
       "post": {
-        "operationId": "Edit_WriteFile",
-        "summary": "Overwrites (or creates) a file with the supplied content.",
-        "description": "Overwrites (or creates) a file with the supplied content.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_WriteFile",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteFileRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteFileRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteFileRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/WriteFileRequest"
               }
@@ -171,30 +175,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/create-file": {
       "post": {
-        "operationId": "Edit_CreateFile",
-        "summary": "Creates a new file; optionally fails if the file already exists.",
-        "description": "Creates a new file; optionally fails if the file already exists.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_CreateFile",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFileRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFileRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFileRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateFileRequest"
               }
@@ -203,30 +212,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/create-directory": {
       "post": {
-        "operationId": "Edit_CreateDirectory",
-        "summary": "Creates a directory (with optional parent creation).",
-        "description": "Creates a directory (with optional parent creation).",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_CreateDirectory",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDirectoryRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDirectoryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDirectoryRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateDirectoryRequest"
               }
@@ -235,30 +249,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/delete-file": {
       "post": {
-        "operationId": "Edit_DeleteFile",
-        "summary": "Deletes a single file. A backup is created (and a rollback token returned)\r\nunless options.createBackup is false.\r\nWhen ApprovalRequiredForDestructive is enabled an approval token is required.",
-        "description": "Deletes a single file. A backup is created (and a rollback token returned)\r\nunless options.createBackup is false.\r\nWhen ApprovalRequiredForDestructive is enabled an approval token is required.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_DeleteFile",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFileRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFileRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFileRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/DeleteFileRequest"
               }
@@ -267,30 +286,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/delete-directory": {
       "post": {
-        "operationId": "Edit_DeleteDirectory",
-        "summary": "Deletes a directory. Requires recursive=true for non-empty directories.",
-        "description": "Deletes a directory. Requires recursive=true for non-empty directories.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_DeleteDirectory",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteDirectoryRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteDirectoryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteDirectoryRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/DeleteDirectoryRequest"
               }
@@ -299,30 +323,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/append": {
       "post": {
-        "operationId": "Edit_AppendFile",
-        "summary": "Appends content to the end of an existing file.",
-        "description": "Appends content to the end of an existing file.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_AppendFile",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendFileRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendFileRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendFileRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/AppendFileRequest"
               }
@@ -331,30 +360,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/replace-text": {
       "post": {
-        "operationId": "Edit_ReplaceText",
-        "summary": "Replaces occurrences of a literal string within a file.",
-        "description": "Replaces occurrences of a literal string within a file.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_ReplaceText",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceTextRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceTextRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceTextRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/ReplaceTextRequest"
               }
@@ -363,30 +397,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/replace-lines": {
       "post": {
-        "operationId": "Edit_ReplaceLines",
-        "summary": "Replaces a range of lines in a file with new content.",
-        "description": "Replaces a range of lines in a file with new content.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_ReplaceLines",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceLinesRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceLinesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceLinesRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/ReplaceLinesRequest"
               }
@@ -395,30 +434,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/edit/patch": {
       "post": {
-        "operationId": "Edit_PatchFile",
-        "summary": "Applies a unified diff patch to a single file.",
-        "description": "Applies a unified diff patch to a single file.",
         "tags": [
           "Edit"
         ],
+        "operationId": "Edit_PatchFile",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchFileRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchFileRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchFileRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/PatchFileRequest"
               }
@@ -427,32 +471,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/files/read": {
       "get": {
-        "operationId": "File_ReadFile",
-        "summary": "Reads the full (or partial) content of a file.",
-        "description": "Reads the full (or partial) content of a file.",
         "tags": [
           "File"
         ],
+        "operationId": "File_ReadFile",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -460,50 +493,37 @@
           {
             "name": "maxBytes",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "format": "int64"
             }
           },
           {
             "name": "returnBase64",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/files/range": {
       "get": {
-        "operationId": "File_ReadRange",
-        "summary": "Reads a contiguous range of lines from a file.",
-        "description": "Reads a contiguous range of lines from a file.",
         "tags": [
           "File"
         ],
+        "operationId": "File_ReadRange",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -511,57 +531,61 @@
           {
             "name": "startLine",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "format": "int32",
+              "default": 1
             }
           },
           {
             "name": "endLine",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "format": "int32",
+              "default": -1
             }
           },
           {
             "name": "includeLineNumbers",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": true
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/files/read-multiple": {
       "post": {
-        "operationId": "File_ReadMultiple",
-        "summary": "Reads several files in a single POST call.",
-        "description": "Reads several files in a single POST call.",
         "tags": [
           "File"
         ],
+        "operationId": "File_ReadMultiple",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadMultipleFilesRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadMultipleFilesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadMultipleFilesRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/ReadMultipleFilesRequest"
               }
@@ -570,32 +594,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/files/structure": {
       "get": {
-        "operationId": "File_GetStructure",
-        "summary": "Returns a best-effort structural summary of a code file.",
-        "description": "Returns a best-effort structural summary of a code file.",
         "tags": [
           "File"
         ],
+        "operationId": "File_GetStructure",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -603,85 +616,71 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/git/repo": {
       "get": {
-        "operationId": "Git_IsGitRepository",
-        "summary": "Returns whether the repository root is a valid git repository.",
-        "description": "Returns whether the repository root is a valid git repository.",
         "tags": [
           "Git"
         ],
+        "operationId": "Git_IsGitRepository",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/git/status": {
       "get": {
-        "operationId": "Git_GetStatus",
-        "summary": "Returns the current git status of the repository.\r\nOptionally restrict to a sub-path via ?path=src/MyLib.",
-        "description": "Returns the current git status of the repository.\r\nOptionally restrict to a sub-path via ?path=src/MyLib.",
         "tags": [
           "Git"
         ],
+        "operationId": "Git_GetStatus",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": ""
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/git/diff": {
       "post": {
-        "operationId": "Git_GetDiff",
-        "summary": "Returns the unified diff for working-tree or staged changes.",
-        "description": "Returns the unified diff for working-tree or staged changes.",
         "tags": [
           "Git"
         ],
+        "operationId": "Git_GetDiff",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitDiffRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitDiffRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitDiffRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/GitDiffRequest"
               }
@@ -690,32 +689,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/git/diff/file": {
       "get": {
-        "operationId": "Git_GetFileDiff",
-        "summary": "Returns the unified diff for a single file.\r\nQuery params: path (required), scope (default: \"unstaged\").",
-        "description": "Returns the unified diff for a single file.\r\nQuery params: path (required), scope (default: \"unstaged\").",
         "tags": [
           "Git"
         ],
+        "operationId": "Git_GetFileDiff",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -723,41 +711,30 @@
           {
             "name": "scope",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": "unstaged"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/git/commits/{sha}": {
       "get": {
-        "operationId": "Git_GetCommit",
-        "summary": "Returns the full details of a single commit, including metadata, changed files,\r\nand optionally the diff patch.\r\nQuery params: includeDiff (default: true).",
-        "description": "Returns the full details of a single commit, including metadata, changed files,\r\nand optionally the diff patch.\r\nQuery params: includeDiff (default: true).",
         "tags": [
           "Git"
         ],
+        "operationId": "Git_GetCommit",
         "parameters": [
           {
             "name": "sha",
             "in": "path",
             "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -765,39 +742,43 @@
           {
             "name": "includeDiff",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": true
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/git/log": {
       "post": {
-        "operationId": "Git_GetLog",
-        "summary": "Returns the commit history for the repository or a sub-path.",
-        "description": "Returns the commit history for the repository or a sub-path.",
         "tags": [
           "Git"
         ],
+        "operationId": "Git_GetLog",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitLogRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitLogRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitLogRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/GitLogRequest"
               }
@@ -806,116 +787,76 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/health": {
       "get": {
-        "operationId": "Health_GetHealth",
-        "summary": "Basic liveness probe. Always returns 200 OK.  No authentication required.",
-        "description": "Basic liveness probe. Always returns 200 OK.  No authentication required.",
         "tags": [
           "Health"
         ],
+        "operationId": "Health_GetHealth",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/health/detailed": {
       "get": {
-        "operationId": "Health_GetDetailedHealth",
-        "summary": "Extended health including configuration summary.",
-        "description": "Extended health including configuration summary.",
         "tags": [
           "Health"
         ],
+        "operationId": "Health_GetDetailedHealth",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/repository": {
       "get": {
-        "operationId": "Repository_GetRepositoryInfo",
-        "summary": "Returns high-level repository information and active policy.",
-        "description": "Returns high-level repository information and active policy.",
         "tags": [
           "Repository"
         ],
+        "operationId": "Repository_GetRepositoryInfo",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/repository/directory": {
       "get": {
-        "operationId": "Repository_ListDirectory",
-        "summary": "Lists the immediate contents of a directory.",
-        "description": "Lists the immediate contents of a directory.",
         "tags": [
           "Repository"
         ],
+        "operationId": "Repository_ListDirectory",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": ""
             }
           },
           {
             "name": "includeBlocked",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             }
           },
           {
             "name": "namePattern",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -923,92 +864,69 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/repository/tree": {
       "get": {
-        "operationId": "Repository_ListTree",
-        "summary": "Returns a recursive directory tree.",
-        "description": "Returns a recursive directory tree.",
         "tags": [
           "Repository"
         ],
+        "operationId": "Repository_ListTree",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": ""
             }
           },
           {
             "name": "maxDepth",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "format": "int32",
+              "default": 3
             }
           },
           {
             "name": "includeBlocked",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             }
           },
           {
             "name": "directoriesOnly",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/repository/exists": {
       "get": {
-        "operationId": "Repository_PathExists",
-        "summary": "Checks whether a path exists inside the repository.",
-        "description": "Checks whether a path exists inside the repository.",
         "tags": [
           "Repository"
         ],
+        "operationId": "Repository_PathExists",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -1016,32 +934,21 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/repository/metadata": {
       "get": {
-        "operationId": "Repository_GetMetadata",
-        "summary": "Returns detailed metadata for a file or directory.",
-        "description": "Returns detailed metadata for a file or directory.",
         "tags": [
           "Repository"
         ],
+        "operationId": "Repository_GetMetadata",
         "parameters": [
           {
             "name": "path",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -1049,52 +956,48 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/repository/solution": {
       "get": {
-        "operationId": "Repository_GetSolutionInfo",
-        "summary": "Returns solution / project info discovered in the repository.",
-        "description": "Returns solution / project info discovered in the repository.",
         "tags": [
           "Repository"
         ],
+        "operationId": "Repository_GetSolutionInfo",
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/search/text": {
       "post": {
-        "operationId": "Search_SearchTextPost",
-        "summary": "Searches for a literal string (POST variant for full options).",
-        "description": "Searches for a literal string (POST variant for full options).",
         "tags": [
           "Search"
         ],
+        "operationId": "Search_SearchTextPost",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchTextRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchTextRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchTextRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/SearchTextRequest"
               }
@@ -1103,30 +1006,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/search/regex": {
       "post": {
-        "operationId": "Search_SearchRegex",
-        "summary": "Searches using a .NET regular expression pattern.",
-        "description": "Searches using a .NET regular expression pattern.",
         "tags": [
           "Search"
         ],
+        "operationId": "Search_SearchRegex",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRegexRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRegexRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRegexRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/SearchRegexRequest"
               }
@@ -1135,32 +1043,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/search/files": {
       "get": {
-        "operationId": "Search_SearchFiles",
-        "summary": "Finds files whose names match a wildcard or substring.",
-        "description": "Finds files whose names match a wildcard or substring.",
         "tags": [
           "Search"
         ],
+        "operationId": "Search_SearchFiles",
         "parameters": [
           {
             "name": "q",
             "in": "query",
-            "required": true,
-            "description": "",
             "schema": {
               "type": "string"
             }
@@ -1168,66 +1065,68 @@
           {
             "name": "path",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": ""
             }
           },
           {
             "name": "ignoreCase",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": true
             }
           },
           {
             "name": "fullPath",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "boolean"
+              "type": "boolean",
+              "default": false
             }
           },
           {
             "name": "maxResults",
             "in": "query",
-            "required": false,
-            "description": "",
             "schema": {
-              "type": "integer"
+              "type": "integer",
+              "format": "int32",
+              "default": 100
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/search/symbol": {
       "post": {
-        "operationId": "Search_SearchSymbol",
-        "summary": "Best-effort symbol search via text heuristics.",
-        "description": "Best-effort symbol search via text heuristics.",
         "tags": [
           "Search"
         ],
+        "operationId": "Search_SearchSymbol",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchSymbolRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchSymbolRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchSymbolRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/SearchSymbolRequest"
               }
@@ -1236,30 +1135,35 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
     },
     "/api/search/references": {
       "post": {
-        "operationId": "Search_FindReferences",
-        "summary": "Finds textual references to an identifier across the repository.",
-        "description": "Finds textual references to an identifier across the repository.",
         "tags": [
           "Search"
         ],
+        "operationId": "Search_FindReferences",
         "requestBody": {
-          "required": true,
           "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindReferencesRequest"
+              }
+            },
             "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindReferencesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FindReferencesRequest"
+              }
+            },
+            "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/FindReferencesRequest"
               }
@@ -1268,14 +1172,7 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": "OK"
           }
         }
       }
@@ -1283,797 +1180,725 @@
   },
   "components": {
     "schemas": {
-      "RunBuildRequest": {
-        "description": "Request to run the repository's build command.",
-        "type": "object",
-        "properties": {
-          "workingDirectory": {
-            "description": "Working directory relative to repository root.  Empty = root.\r\nTypically the directory containing a .sln or .csproj file.",
-            "type": "string"
-          },
-          "buildCommand": {
-            "description": "Build tool to use: \"dotnet build\", \"msbuild\", or another allowed command.\r\nDefaults to \"dotnet build\".",
-            "type": "string"
-          },
-          "arguments": {
-            "description": "Additional CLI arguments appended to the build command.",
-            "type": "string"
-          },
-          "configuration": {
-            "description": "Target configuration: \"Debug\" (default) or \"Release\".",
-            "type": "string"
-          },
-          "timeoutSeconds": {
-            "format": "int32",
-            "description": "Override the server's timeout (seconds); capped at MaxCommandExecutionSeconds.",
-            "type": "integer"
-          }
-        }
-      },
-      "CancellationToken": {
-        "type": "object",
-        "properties": {
-          "isCancellationRequested": {
-            "type": "boolean",
-            "readOnly": true
-          },
-          "canBeCanceled": {
-            "type": "boolean",
-            "readOnly": true
-          },
-          "waitHandle": {
-            "$ref": "#/components/schemas/WaitHandle",
-            "readOnly": true
-          }
-        }
-      },
-      "WaitHandle": {
-        "type": "object",
-        "properties": {
-          "handle": {
-            "type": "object"
-          },
-          "safeWaitHandle": {
-            "$ref": "#/components/schemas/SafeWaitHandle"
-          }
-        }
-      },
-      "SafeWaitHandle": {
-        "type": "object",
-        "properties": {
-          "isInvalid": {
-            "type": "boolean",
-            "readOnly": true
-          },
-          "isClosed": {
-            "type": "boolean",
-            "readOnly": true
-          }
-        }
-      },
-      "RunTestsRequest": {
-        "description": "Request to run the repository's test suite.",
-        "type": "object",
-        "properties": {
-          "workingDirectory": {
-            "description": "Working directory relative to repository root. Empty = root.",
-            "type": "string"
-          },
-          "testCommand": {
-            "description": "Test command: \"dotnet test\" (default) or another allowed command.",
-            "type": "string"
-          },
-          "arguments": {
-            "description": "Extra arguments appended to the test command.",
-            "type": "string"
-          },
-          "filter": {
-            "description": "Filter expression passed to the test runner (e.g. dotnet test --filter).",
-            "type": "string"
-          },
-          "configuration": {
-            "description": "Build configuration to use, e.g. \"Debug\" or \"Release\".",
-            "type": "string"
-          },
-          "timeoutSeconds": {
-            "format": "int32",
-            "description": "Optional override for the maximum allowed execution time in seconds.",
-            "type": "integer"
-          }
-        }
-      },
-      "RunCustomCommandRequest": {
-        "description": "Request to execute a custom command from the server's AllowedCommands whitelist.",
-        "type": "object",
-        "properties": {
-          "command": {
-            "description": "The full command line to execute.  Must start with an entry in AllowedCommands.",
-            "type": "string"
-          },
-          "workingDirectory": {
-            "description": "Working directory relative to repository root.  Empty = root.",
-            "type": "string"
-          },
-          "timeoutSeconds": {
-            "format": "int32",
-            "description": "Optional override for the maximum allowed execution time in seconds.",
-            "type": "integer"
-          }
-        }
-      },
-      "WriteFileRequest": {
-        "description": "Overwrites (or creates) a file with new content.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
-          },
-          "content": {
-            "description": "New full content of the file.",
-            "type": "string"
-          },
-          "encoding": {
-            "description": "Encoding to use when writing.  Supported values: \"utf-8\", \"utf-8-bom\",\r\n\"utf-16\", \"ascii\".  Defaults to \"utf-8\".",
-            "type": "string"
-          },
-          "lineEnding": {
-            "description": "Line ending style: \"lf\", \"crlf\", \"cr\", \"auto\" (preserve existing, default).",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "EditOptions": {
-        "description": "Common options applied to every mutating operation.",
-        "type": "object",
-        "properties": {
-          "dryRun": {
-            "description": "When true, the operation is simulated and no files are changed.\r\nThe response contains the full proposed diff.",
-            "type": "boolean"
-          },
-          "createBackup": {
-            "description": "When true (default), a backup copy is created before overwriting.\r\nThe backup path is returned in {StewardessMCPService.Models.EditResult.BackupPath}.",
-            "type": "boolean"
-          },
-          "changeReason": {
-            "description": "Optional agent-supplied reason for the change, recorded in the audit log.",
-            "type": "string"
-          },
-          "sessionId": {
-            "description": "Agent-level session/correlation identifier for grouping related operations.",
-            "type": "string"
-          }
-        }
-      },
-      "CreateFileRequest": {
-        "description": "Creates a new file. Fails if the file already exists unless Overwrite is true.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
-          },
-          "content": {
-            "description": "Initial content of the new file.",
-            "type": "string"
-          },
-          "encoding": {
-            "description": "Encoding to use when writing the file (e.g. \"utf-8\").",
-            "type": "string"
-          },
-          "overwrite": {
-            "description": "When true, overwrites an existing file.",
-            "type": "boolean"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "CreateDirectoryRequest": {
-        "description": "Creates a new directory at the given path.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "Directory path relative to repository root.",
-            "type": "string"
-          },
-          "createParents": {
-            "description": "When true, creates all missing parent directories.",
-            "type": "boolean"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "RenamePathRequest": {
-        "description": "Renames a file or directory within its current parent directory.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "Path of the file or directory to rename, relative to repository root.",
-            "type": "string"
-          },
-          "newName": {
-            "description": "New name only (not a full path). To move to another directory use move_path.",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "MovePathRequest": {
-        "description": "Moves a file or directory to a new location within the repository.",
-        "type": "object",
-        "properties": {
-          "sourcePath": {
-            "description": "Source path relative to repository root.",
-            "type": "string"
-          },
-          "destinationPath": {
-            "description": "Destination path relative to repository root.",
-            "type": "string"
-          },
-          "overwrite": {
-            "description": "When true, overwrites an existing path at the destination.",
-            "type": "boolean"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "DeleteFileRequest": {
-        "description": "Deletes a single file within the repository.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
-          },
-          "approvalToken": {
-            "description": "Confirmation token returned by a prior preview_changes call.\r\nRequired when ApprovalRequiredForDestructive is enabled.",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "DeleteDirectoryRequest": {
-        "description": "Deletes a directory, optionally recursively.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "Directory path relative to repository root.",
-            "type": "string"
-          },
-          "recursive": {
-            "description": "When false (default), deletion fails if the directory is non-empty.",
-            "type": "boolean"
-          },
-          "approvalToken": {
-            "description": "Approval token required when ApprovalRequiredForDestructive is enabled.",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
       "AppendFileRequest": {
-        "description": "Appends content to the end of an existing file.",
         "type": "object",
         "properties": {
           "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "content": {
-            "description": "Text to append.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "ensureNewLine": {
-            "description": "When true, ensures the content starts on a new line.",
             "type": "boolean"
           },
           "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
+            "$ref": "#/components/schemas/EditOptions"
           }
-        }
-      },
-      "ReplaceTextRequest": {
-        "description": "Replaces all occurrences of a literal string within a file.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
-          },
-          "oldText": {
-            "description": "The literal text to find.",
-            "type": "string"
-          },
-          "newText": {
-            "description": "The replacement text.",
-            "type": "string"
-          },
-          "ignoreCase": {
-            "description": "When true, performs a case-insensitive search.",
-            "type": "boolean"
-          },
-          "maxReplacements": {
-            "format": "int32",
-            "description": "When &gt; 0, limits the number of replacements made.",
-            "type": "integer"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "ReplaceLinesRequest": {
-        "description": "Replaces a range of lines in a file with new content.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
-          },
-          "startLine": {
-            "format": "int32",
-            "description": "1-based start line (inclusive).",
-            "type": "integer"
-          },
-          "endLine": {
-            "format": "int32",
-            "description": "1-based end line (inclusive).",
-            "type": "integer"
-          },
-          "newContent": {
-            "description": "Replacement text (can span multiple lines).",
-            "type": "string"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
-      },
-      "PatchFileRequest": {
-        "description": "Applies a unified diff patch to a single file.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "File path relative to repository root.",
-            "type": "string"
-          },
-          "patch": {
-            "description": "Unified diff text (--- a/ +++ b/ format).",
-            "type": "string"
-          },
-          "fuzzFactor": {
-            "format": "int32",
-            "description": "Number of context lines for fuzzy matching (default 3).",
-            "type": "integer"
-          },
-          "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
-          }
-        }
+        },
+        "additionalProperties": false
       },
       "ApplyDiffRequest": {
-        "description": "Applies a multi-file unified diff in one operation.",
         "type": "object",
         "properties": {
           "diff": {
-            "description": "Full unified diff text that may span multiple files.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "fuzzFactor": {
-            "format": "int32",
-            "description": "Number of context lines for fuzzy matching (default 3).",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "options": {
-            "$ref": "#/components/schemas/EditOptions",
-            "description": "Write options such as dry-run mode and backup control."
+            "$ref": "#/components/schemas/EditOptions"
           }
-        }
-      },
-      "BatchEditRequest": {
-        "description": "Executes multiple edit operations atomically (all succeed or all roll back).",
-        "type": "object",
-        "properties": {
-          "edits": {
-            "description": "The ordered list of individual edit operations to apply.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BatchEditItem"
-            }
-          },
-          "dryRun": {
-            "description": "When true, all edits are dry-run and nothing is written.",
-            "type": "boolean"
-          },
-          "changeReason": {
-            "description": "Free-text description of why this batch of changes is being made.",
-            "type": "string"
-          },
-          "sessionId": {
-            "description": "Agent session or correlation identifier.",
-            "type": "string"
-          }
-        }
+        },
+        "additionalProperties": false
       },
       "BatchEditItem": {
-        "description": "A single edit operation within a batch request.",
         "type": "object",
         "properties": {
           "operation": {
-            "description": "Operation type: \"write_file\", \"create_file\", \"delete_file\",\r\n\"replace_text\", \"replace_lines\", \"patch_file\", \"append_file\".",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "path": {
-            "description": "Target file path relative to repository root.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "content": {
-            "description": "File content for write/create operations.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "oldText": {
-            "description": "Text to find for replace_text operations.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "newText": {
-            "description": "Replacement text for replace_text operations.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "startLine": {
-            "format": "int32",
-            "description": "1-based start line for replace_lines operations.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "endLine": {
-            "format": "int32",
-            "description": "1-based end line for replace_lines operations.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "patch": {
-            "description": "Unified diff text for patch_file operations.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "encoding": {
-            "description": "Encoding override (e.g. \"utf-8\") for write/create operations.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "ignoreCase": {
-            "description": "When true, performs case-insensitive matching for replace_text operations.",
             "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
       },
-      "PreviewChangesRequest": {
-        "description": "Request to preview proposed changes before applying them.",
+      "BatchEditRequest": {
         "type": "object",
         "properties": {
-          "paths": {
-            "description": "List of files to preview changes for.",
+          "edits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchEditItem"
+            },
+            "nullable": true
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "changeReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateDirectoryRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "createParents": {
+            "type": "boolean"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateFileRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "encoding": {
+            "type": "string",
+            "nullable": true
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteDirectoryRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "recursive": {
+            "type": "boolean"
+          },
+          "approvalToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteFileRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "approvalToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EditOptions": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "createBackup": {
+            "type": "boolean"
+          },
+          "changeReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "sessionId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FindReferencesRequest": {
+        "type": "object",
+        "properties": {
+          "searchPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "extensions": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "nullable": true
           },
-          "proposedEdits": {
-            "$ref": "#/components/schemas/BatchEditRequest",
-            "description": "The intended edit operations (as a BatchEditRequest with DryRun=true)."
+          "maxResults": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sortByPath": {
+            "type": "boolean"
+          },
+          "contextLinesBefore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contextLinesAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "identifierName": {
+            "type": "string",
+            "nullable": true
+          },
+          "ignoreCase": {
+            "type": "boolean"
           }
+        },
+        "additionalProperties": false
+      },
+      "GitDiffRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "scope": {
+            "type": "string",
+            "nullable": true
+          },
+          "contextLines": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GitLogRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ref": {
+            "type": "string",
+            "nullable": true
+          },
+          "author": {
+            "type": "string",
+            "nullable": true
+          },
+          "since": {
+            "type": "string",
+            "nullable": true
+          },
+          "until": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "JToken": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/JToken"
         }
       },
+      "MovePathRequest": {
+        "type": "object",
+        "properties": {
+          "sourcePath": {
+            "type": "string",
+            "nullable": true
+          },
+          "destinationPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "overwrite": {
+            "type": "boolean"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PatchFileRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "patch": {
+            "type": "string",
+            "nullable": true
+          },
+          "fuzzFactor": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PreviewChangesRequest": {
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "proposedEdits": {
+            "$ref": "#/components/schemas/BatchEditRequest"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReadMultipleFilesRequest": {
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "maxBytesPerFile": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenamePathRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "newName": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplaceLinesRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "startLine": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "endLine": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "newContent": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplaceTextRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "oldText": {
+            "type": "string",
+            "nullable": true
+          },
+          "newText": {
+            "type": "string",
+            "nullable": true
+          },
+          "ignoreCase": {
+            "type": "boolean"
+          },
+          "maxReplacements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      },
       "RollbackRequest": {
-        "description": "Request to roll back a prior edit using its rollback token.",
         "type": "object",
         "properties": {
           "rollbackToken": {
-            "description": "Token returned by a prior edit operation's {StewardessMCPService.Models.EditResult.RollbackToken}.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           }
-        }
+        },
+        "additionalProperties": false
       },
-      "ReadMultipleFilesRequest": {
-        "description": "Request to read multiple files in a single call.",
+      "RunBuildRequest": {
         "type": "object",
         "properties": {
-          "paths": {
-            "description": "List of relative paths to read.",
+          "workingDirectory": {
+            "type": "string",
+            "nullable": true
+          },
+          "buildCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "arguments": {
+            "type": "string",
+            "nullable": true
+          },
+          "configuration": {
+            "type": "string",
+            "nullable": true
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunCustomCommandRequest": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "nullable": true
+          },
+          "workingDirectory": {
+            "type": "string",
+            "nullable": true
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunTestsRequest": {
+        "type": "object",
+        "properties": {
+          "workingDirectory": {
+            "type": "string",
+            "nullable": true
+          },
+          "testCommand": {
+            "type": "string",
+            "nullable": true
+          },
+          "arguments": {
+            "type": "string",
+            "nullable": true
+          },
+          "filter": {
+            "type": "string",
+            "nullable": true
+          },
+          "configuration": {
+            "type": "string",
+            "nullable": true
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SearchByExtensionRequest": {
+        "type": "object",
+        "properties": {
+          "extensions": {
             "type": "array",
             "items": {
               "type": "string"
-            }
-          },
-          "maxBytesPerFile": {
-            "format": "int64",
-            "description": "Per-file byte limit; null uses the global MaxFileReadBytes setting.",
-            "type": "integer"
-          }
-        }
-      },
-      "GitDiffRequest": {
-        "description": "Request to retrieve a git diff.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "Restrict diff to this file or directory.  Empty = whole repo.",
-            "type": "string"
-          },
-          "scope": {
-            "description": "Diff scope: \"unstaged\" (default), \"staged\", \"head\", \"commit:sha1..sha2\".",
-            "type": "string"
-          },
-          "contextLines": {
-            "format": "int32",
-            "description": "Number of context lines around each change (default 3).",
-            "type": "integer"
-          }
-        }
-      },
-      "GitLogRequest": {
-        "description": "Request to retrieve the commit log.",
-        "type": "object",
-        "properties": {
-          "path": {
-            "description": "Restrict log to commits that touch this path (empty = all).",
-            "type": "string"
-          },
-          "maxCount": {
-            "format": "int32",
-            "description": "Maximum number of commits to return (default 20).",
-            "type": "integer"
-          },
-          "ref": {
-            "description": "Branch or commit ref to start from; empty = HEAD.",
-            "type": "string"
-          },
-          "author": {
-            "description": "Restrict to commits by this author name or email.",
-            "type": "string"
-          },
-          "since": {
-            "description": "ISO-8601 date; return only commits after this date.",
-            "type": "string"
-          },
-          "until": {
-            "description": "ISO-8601 date; return only commits before this date.",
-            "type": "string"
-          }
-        }
-      },
-      "SearchTextRequest": {
-        "description": "Request to search for literal text across repository files.",
-        "type": "object",
-        "properties": {
-          "query": {
-            "description": "Literal text to search for.",
-            "type": "string"
-          },
-          "ignoreCase": {
-            "description": "Case-insensitive search (default true).",
-            "type": "boolean"
-          },
-          "wholeWord": {
-            "description": "Match whole words only.",
-            "type": "boolean"
+            },
+            "nullable": true
           },
           "searchPath": {
-            "description": "Restrict search to this subdirectory (relative path; empty = whole repo).",
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "maxResults": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SearchRegexRequest": {
+        "type": "object",
+        "properties": {
+          "searchPath": {
+            "type": "string",
+            "nullable": true
           },
           "extensions": {
-            "description": "Restrict to these file extensions (e.g. \".cs\", \".json\").  Empty = all.",
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "nullable": true
           },
           "maxResults": {
-            "format": "int32",
-            "description": "Maximum number of results to return.  Capped at server limit.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "sortByPath": {
-            "description": "When true, results are sorted by file path.",
             "type": "boolean"
           },
           "contextLinesBefore": {
-            "format": "int32",
-            "description": "Number of context lines to include before each match.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "contextLinesAfter": {
-            "format": "int32",
-            "description": "Number of context lines to include after each match.",
-            "type": "integer"
-          }
-        }
-      },
-      "SearchRegexRequest": {
-        "description": "Request to search repository files using a .NET regular expression.",
-        "type": "object",
-        "properties": {
+            "type": "integer",
+            "format": "int32"
+          },
           "pattern": {
-            "description": ".NET regular expression pattern.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "ignoreCase": {
-            "description": "Case-insensitive (default true).",
             "type": "boolean"
           },
           "multiline": {
-            "description": "Apply the pattern in multiline mode (^ and $ match line boundaries).",
             "type": "boolean"
-          },
-          "searchPath": {
-            "description": "Restrict search to this subdirectory (relative path; empty = whole repo).",
-            "type": "string"
-          },
-          "extensions": {
-            "description": "Restrict to these file extensions (e.g. \".cs\", \".json\").  Empty = all.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "maxResults": {
-            "format": "int32",
-            "description": "Maximum number of results to return.  Capped at server limit.",
-            "type": "integer"
-          },
-          "sortByPath": {
-            "description": "When true, results are sorted by file path.",
-            "type": "boolean"
-          },
-          "contextLinesBefore": {
-            "format": "int32",
-            "description": "Number of context lines to include before each match.",
-            "type": "integer"
-          },
-          "contextLinesAfter": {
-            "format": "int32",
-            "description": "Number of context lines to include after each match.",
-            "type": "integer"
           }
-        }
-      },
-      "SearchByExtensionRequest": {
-        "description": "Request to find all files with specified extensions.",
-        "type": "object",
-        "properties": {
-          "extensions": {
-            "description": "Extensions to find (include the leading dot, e.g. \".cs\").",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "searchPath": {
-            "description": "Sub-directory to search in; empty = repository root.",
-            "type": "string"
-          },
-          "maxResults": {
-            "format": "int32",
-            "description": "Maximum number of results to return.",
-            "type": "integer"
-          }
-        }
+        },
+        "additionalProperties": false
       },
       "SearchSymbolRequest": {
-        "description": "Best-effort symbol search using text heuristics.\r\nFinds class names, method signatures, interface names, etc.",
         "type": "object",
         "properties": {
+          "searchPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "maxResults": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sortByPath": {
+            "type": "boolean"
+          },
+          "contextLinesBefore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contextLinesAfter": {
+            "type": "integer",
+            "format": "int32"
+          },
           "symbolName": {
-            "description": "Symbol name or partial name to search for.",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "symbolKind": {
-            "description": "Symbol kind filter: \"class\", \"interface\", \"method\", \"property\", \"field\", \"\" (all).",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "ignoreCase": {
-            "description": "When true, performs a case-insensitive name comparison.",
             "type": "boolean"
-          },
-          "searchPath": {
-            "description": "Restrict search to this subdirectory (relative path; empty = whole repo).",
-            "type": "string"
-          },
-          "extensions": {
-            "description": "Restrict to these file extensions (e.g. \".cs\", \".json\").  Empty = all.",
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "maxResults": {
-            "format": "int32",
-            "description": "Maximum number of results to return.  Capped at server limit.",
-            "type": "integer"
-          },
-          "sortByPath": {
-            "description": "When true, results are sorted by file path.",
-            "type": "boolean"
-          },
-          "contextLinesBefore": {
-            "format": "int32",
-            "description": "Number of context lines to include before each match.",
-            "type": "integer"
-          },
-          "contextLinesAfter": {
-            "format": "int32",
-            "description": "Number of context lines to include after each match.",
-            "type": "integer"
           }
-        }
+        },
+        "additionalProperties": false
       },
-      "FindReferencesRequest": {
-        "description": "Request to find textual usages of an identifier across the repository.",
+      "SearchTextRequest": {
         "type": "object",
         "properties": {
-          "identifierName": {
-            "description": "Identifier name whose usages (textual references) should be found.",
-            "type": "string"
-          },
-          "ignoreCase": {
-            "description": "When true, performs a case-insensitive comparison.",
-            "type": "boolean"
-          },
           "searchPath": {
-            "description": "Restrict search to this subdirectory (relative path; empty = whole repo).",
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "extensions": {
-            "description": "Restrict to these file extensions (e.g. \".cs\", \".json\").  Empty = all.",
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "nullable": true
           },
           "maxResults": {
-            "format": "int32",
-            "description": "Maximum number of results to return.  Capped at server limit.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "sortByPath": {
-            "description": "When true, results are sorted by file path.",
             "type": "boolean"
           },
           "contextLinesBefore": {
-            "format": "int32",
-            "description": "Number of context lines to include before each match.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
           },
           "contextLinesAfter": {
-            "format": "int32",
-            "description": "Number of context lines to include after each match.",
-            "type": "integer"
+            "type": "integer",
+            "format": "int32"
+          },
+          "query": {
+            "type": "string",
+            "nullable": true
+          },
+          "ignoreCase": {
+            "type": "boolean"
+          },
+          "wholeWord": {
+            "type": "boolean"
           }
-        }
+        },
+        "additionalProperties": false
+      },
+      "WriteFileRequest": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "encoding": {
+            "type": "string",
+            "nullable": true
+          },
+          "lineEnding": {
+            "type": "string",
+            "nullable": true
+          },
+          "options": {
+            "$ref": "#/components/schemas/EditOptions"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "description": "API key for authentication",
+        "name": "X-API-Key",
+        "in": "header"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "ApiKey": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:55703"
+    }
+  ]
 }

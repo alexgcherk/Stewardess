@@ -191,6 +191,14 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 
+    // Generate operationId from "{Controller}_{Action}" — required by Open WebUI tool discovery.
+    c.CustomOperationIds(apiDesc =>
+    {
+        var controller = apiDesc.ActionDescriptor.RouteValues["controller"];
+        var action     = apiDesc.ActionDescriptor.RouteValues["action"];
+        return string.IsNullOrEmpty(controller) ? null : $"{controller}_{action}";
+    });
+
     var xmlFile = Path.ChangeExtension(Assembly.GetExecutingAssembly().GetName().Name, ".xml");
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
