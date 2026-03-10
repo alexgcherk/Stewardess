@@ -397,6 +397,7 @@ public sealed class OpenWebUiToolsGenerator
         L();
         L("import requests");
         L("from pydantic import BaseModel, Field");
+        L("from pydantic.fields import FieldInfo as _FieldInfo");
         L();
         L();
         L("class Tools:");
@@ -463,8 +464,8 @@ public sealed class OpenWebUiToolsGenerator
         L("    ) -> str:");
         L("        url = f\"{self._normalize_base_url()}{path}\"");
         L();
-        L("        safe_params = {k: v for k, v in (params or {}).items() if v is not None}");
-        L("        safe_payload = {k: v for k, v in (payload or {}).items() if v is not None}");
+        L("        safe_params = {k: v for k, v in (params or {}).items() if v is not None and not isinstance(v, _FieldInfo)}");
+        L("        safe_payload = {k: v for k, v in (payload or {}).items() if v is not None and not isinstance(v, _FieldInfo)}");
         L();
         L("        self._log(\"=\" * 80)");
         L("        self._log(f\"HTTP REQUEST: {method.upper()} {url}\")");
